@@ -6,9 +6,12 @@ en charge les sorties HTML, LaTEI, PDF, EPUB et autres formats.
 
 ## État actuel
 
-Cette première version fournit uniquement une validation normative Relax NG du
-noyau Commons Publishing. La lecture et la conversion DOCX ne sont pas encore
-implémentées.
+Mini-Métopes fournit une validation normative Relax NG du noyau Commons
+Publishing et une inspection OOXML en lecture seule des fichiers DOCX. Cette
+inspection inventorie notamment les styles, paragraphes, runs, notes,
+numérotations, relations et médias sans modifier le document.
+
+La conversion DOCX → TEI n'est pas encore implémentée.
 
 ## Développement
 
@@ -26,6 +29,16 @@ Valider un fichier TEI :
 python -m mini_metopes validate chemin/vers/document.xml
 ```
 
+Inspecter un DOCX :
+
+```powershell
+python -m mini_metopes inspect-docx document.docx
+python -m mini_metopes inspect-docx document.docx --json
+```
+
+La sortie JSON est structurée et déterministe. Les propriétés de mise en forme
+rapportées sont les propriétés directement déclarées dans l'OOXML ; elles ne
+constituent pas encore la mise en forme effective calculée par Word.
+
 Le répertoire `references/` est un corpus documentaire en lecture seule. Il
 n'est ni empaqueté ni utilisé directement par les tests ordinaires.
-
