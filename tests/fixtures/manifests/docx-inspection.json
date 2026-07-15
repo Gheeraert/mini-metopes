@@ -7,7 +7,10 @@
       "styles de paragraphe et de caractère",
       "identifiant de style distinct du nom affiché",
       "runs avec enrichissements directs",
-      "tabulation, saut manuel, signet, hyperlien, notes, numérotation, dessin et média"
+      "flux inline ordonne : texte, tabulation, sauts ligne/page/colonne, notes et dessin",
+      "texte litteral identique au marqueur de note de commodite",
+      "hyperliens externe et interne",
+      "note a plusieurs paragraphes, runs, italique et saut manuel"
     ],
     "poetry-inspection.docx": [
       "deux paragraphes de vers synthétiques",

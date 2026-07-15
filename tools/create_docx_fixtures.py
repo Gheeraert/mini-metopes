@@ -71,7 +71,13 @@ NUMBERING = """<?xml version="1.0" encoding="UTF-8"?>
 FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
-  <w:footnote w:id="7"><w:p><w:r><w:t>Note de bas de page synthétique.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="7">
+    <w:p>
+      <w:r><w:t>Note de bas de page </w:t></w:r>
+      <w:r><w:rPr><w:i/></w:rPr><w:t>italique</w:t><w:br/><w:t>avec saut.</w:t></w:r>
+    </w:p>
+    <w:p><w:r><w:t>Second paragraphe de note.</w:t></w:r></w:p>
+  </w:footnote>
   <w:footnote w:id="3"><w:p><w:r><w:t>Note dans le vers synthétique.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 """
@@ -98,12 +104,17 @@ BASIC_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
       <w:r><w:rPr><w:smallCaps/></w:rPr><w:t> petites capitales</w:t></w:r>
       <w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r>
       <w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t>i</w:t></w:r>
-      <w:r><w:tab/><w:t>après tabulation</w:t><w:br/><w:t>après saut</w:t></w:r>
+      <w:r><w:t>Texte litteral [footnote:7]</w:t></w:r>
+      <w:r>
+        <w:t>avant tabulation</w:t><w:tab/><w:t>apres tabulation</w:t><w:br/><w:t>apres saut</w:t>
+        <w:footnoteReference w:id="7"/>
+        <w:drawing><w:docPr id="1" name="Image synthétique"/><a:blip r:embed="rIdImage"/></w:drawing>
+      </w:r>
+      <w:r><w:t>avant page</w:t><w:br w:type="page"/><w:t>apres page</w:t><w:br w:type="column"/><w:t>apres colonne</w:t></w:r>
       <w:bookmarkStart w:id="12" w:name="repere_synthetique"/>
       <w:hyperlink r:id="rIdHyper"><w:r><w:rPr><w:rStyle w:val="EmphasisChar"/></w:rPr><w:t>lien</w:t></w:r></w:hyperlink>
-      <w:r><w:footnoteReference w:id="7"/></w:r>
+      <w:hyperlink w:anchor="repere_synthetique"><w:r><w:t>lien interne</w:t></w:r></w:hyperlink>
       <w:r><w:endnoteReference w:id="9"/></w:r>
-      <w:r><w:drawing><w:docPr id="1" name="Image synthétique"/><a:blip r:embed="rIdImage"/></w:drawing></w:r>
     </w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Élément numéroté</w:t></w:r></w:p>
     <w:sectPr/>

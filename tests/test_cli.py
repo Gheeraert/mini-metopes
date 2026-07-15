@@ -82,6 +82,29 @@ def test_inspect_docx_json_is_utf8_and_deterministic() -> None:
     result = json.loads(first.stdout.decode("utf-8"))
     assert result["source"] == "basic-inspection.docx"
     assert result["paragraphs"][1]["footnote_reference_ids"] == ["7"]
+    structured_run = next(
+        run
+        for run in result["paragraphs"][1]["runs"]
+        if run["footnote_reference_ids"] == ["7"]
+    )
+    assert [content["kind"] for content in structured_run["contents"]] == [
+        "text",
+        "tab",
+        "text",
+        "break",
+        "text",
+        "footnote_reference",
+        "drawing",
+    ]
+    assert structured_run["contents"][3]["break_type"] == "line"
+    assert structured_run["contents"][5]["reference_id"] == "7"
+    external_run = next(run for run in result["paragraphs"][1]["runs"] if run["text"] == "lien")
+    internal_run = next(
+        run for run in result["paragraphs"][1]["runs"] if run["text"] == "lien interne"
+    )
+    assert external_run["hyperlink_relationship_id"] == "rIdHyper"
+    assert internal_run["hyperlink_anchor"] == "repere_synthetique"
+    assert result["footnotes"][0]["paragraphs"][0]["runs"][1]["italic"] is True
     assert result["media"][0]["content_type"] == "image/png"
 
 

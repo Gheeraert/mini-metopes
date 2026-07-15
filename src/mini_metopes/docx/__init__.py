@@ -9,6 +9,8 @@ from .model import (
     NoteInfo,
     ParagraphInfo,
     RelationshipInfo,
+    RunContentKind,
+    RunContentInfo,
     RunInfo,
     StyleInfo,
 )
@@ -21,6 +23,8 @@ __all__ = [
     "NoteInfo",
     "ParagraphInfo",
     "RelationshipInfo",
+    "RunContentKind",
+    "RunContentInfo",
     "RunInfo",
     "StyleInfo",
     "inspect_docx_file",

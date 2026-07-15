@@ -4,6 +4,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+
+RunContentKind = Literal[
+    "text",
+    "tab",
+    "break",
+    "footnote_reference",
+    "endnote_reference",
+    "drawing",
+]
+
+
+@dataclass(frozen=True)
+class RunContentInfo:
+    """Element inline observe dans un run, dans l'ordre OOXML."""
+
+    kind: RunContentKind
+    text: str | None = None
+    break_type: str | None = None
+    reference_id: str | None = None
+    relationship_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,6 +74,9 @@ class RunInfo:
     break_types: tuple[str, ...]
     drawing_count: int
     drawing_relationship_ids: tuple[str, ...]
+    contents: tuple[RunContentInfo, ...]
+    hyperlink_relationship_id: str | None
+    hyperlink_anchor: str | None
 
 
 @dataclass(frozen=True)
@@ -78,11 +103,12 @@ class ParagraphInfo:
 
 @dataclass(frozen=True)
 class NoteInfo:
-    """Texte simple d'une note de bas de page ou de fin."""
+    """Note de bas de page ou de fin avec ses paragraphes observes."""
 
     note_id: str
     kind: str
     text: str
+    paragraphs: tuple[ParagraphInfo, ...]
     note_type: str | None
 
 
