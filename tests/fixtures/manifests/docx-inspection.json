@@ -1,0 +1,28 @@
+{
+  "purpose": "Fixtures figées pour les tests d'inspection OOXML",
+  "origin": "synthétique ; aucun contenu provenant de references/corpora",
+  "fabrication": "tools/create_docx_fixtures.py avec zipfile et XML OOXML minimaux",
+  "fixtures": {
+    "basic-inspection.docx": [
+      "styles de paragraphe et de caractère",
+      "identifiant de style distinct du nom affiché",
+      "runs avec enrichissements directs",
+      "tabulation, saut manuel, signet, hyperlien, notes, numérotation, dessin et média"
+    ],
+    "poetry-inspection.docx": [
+      "deux paragraphes de vers synthétiques",
+      "sauts manuels internes",
+      "italique inline",
+      "appel de note"
+    ],
+    "textbox-inspection.docx": [
+      "paragraphe exterieur synthetique",
+      "zone de texte Word minimale dans un dessin",
+      "paragraphe imbrique dont le texte ne doit pas rejoindre la sequence principale"
+    ],
+    "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
+    "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
+    "without-document.docx": ["ZIP sans word/document.xml"],
+    "malformed-document.docx": ["word/document.xml mal formé"]
+  }
+}
