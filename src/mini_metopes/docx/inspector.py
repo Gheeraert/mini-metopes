@@ -16,6 +16,7 @@ from .model import (
     NoteInfo,
     ParagraphInfo,
     RelationshipInfo,
+    RunContentInfo,
     RunInfo,
     StyleInfo,
 )
@@ -96,8 +97,8 @@ def inspect_docx_file(
         styles = _read_styles(styles_root)
         styles_by_id = {style.style_id: style for style in styles}
         paragraphs = _read_paragraphs(document, styles_by_id)
-        footnotes = _read_notes(footnotes_root, "footnote")
-        endnotes = _read_notes(endnotes_root, "endnote")
+        footnotes = _read_notes(footnotes_root, "footnote", styles_by_id)
+        endnotes = _read_notes(endnotes_root, "endnote", styles_by_id)
         relationships = _read_relationships(relationships_root)
         media = _read_media(infos, content_types_root)
         issues.extend(_document_observation_issues(document, parts))
@@ -222,54 +223,65 @@ def _read_paragraphs(
     root: etree._Element,
     styles_by_id: dict[str, StyleInfo],
 ) -> tuple[ParagraphInfo, ...]:
-    paragraphs: list[ParagraphInfo] = []
     body = root.find(".//w:body", namespaces=NS)
     if body is None:
         return ()
-    for index, element in enumerate(_paragraph_elements(body)):
-        style_id = _child_value(element, "./w:pPr/w:pStyle")
-        direct_outline = _integer_child_value(element, "./w:pPr/w:outlineLvl")
-        style = styles_by_id.get(style_id) if style_id else None
-        runs = tuple(_read_run(run) for run in _paragraph_runs(element))
-        hyperlinks = _paragraph_descendants(element, w_tag("hyperlink"))
-        bookmark_starts = _paragraph_descendants(element, w_tag("bookmarkStart"))
-        paragraphs.append(
-            ParagraphInfo(
-                index=index,
-                text="".join(run.text for run in runs),
-                style_id=style_id,
-                style_name=style.name if style else None,
-                outline_level=direct_outline if direct_outline is not None else (style.outline_level if style else None),
-                numbering_id=_child_value(element, "./w:pPr/w:numPr/w:numId"),
-                numbering_level=_integer_child_value(element, "./w:pPr/w:numPr/w:ilvl"),
-                manual_breaks=sum(run.manual_breaks for run in runs),
-                footnote_reference_ids=tuple(
-                    note_id for run in runs for note_id in run.footnote_reference_ids
-                ),
-                endnote_reference_ids=tuple(
-                    note_id for run in runs for note_id in run.endnote_reference_ids
-                ),
-                hyperlink_count=len(hyperlinks),
-                hyperlink_relationship_ids=tuple(
-                    hyperlink.get(r_tag("id"), "")
-                    for hyperlink in hyperlinks
-                    if hyperlink.get(r_tag("id")) is not None
-                ),
-                bookmark_start_ids=tuple(
-                    bookmark.get(w_tag("id"), "")
-                    for bookmark in bookmark_starts
-                    if bookmark.get(w_tag("id")) is not None
-                ),
-                drawing_count=sum(run.drawing_count for run in runs),
-                drawing_relationship_ids=tuple(
-                    relationship_id
-                    for run in runs
-                    for relationship_id in run.drawing_relationship_ids
-                ),
-                runs=runs,
-            )
-        )
-    return tuple(paragraphs)
+    return _read_paragraphs_from_container(body, styles_by_id)
+
+
+def _read_paragraphs_from_container(
+    container: etree._Element,
+    styles_by_id: dict[str, StyleInfo],
+) -> tuple[ParagraphInfo, ...]:
+    return tuple(
+        _read_paragraph(element, index, styles_by_id)
+        for index, element in enumerate(_paragraph_elements(container))
+    )
+
+
+def _read_paragraph(
+    element: etree._Element,
+    index: int,
+    styles_by_id: dict[str, StyleInfo],
+) -> ParagraphInfo:
+    style_id = _child_value(element, "./w:pPr/w:pStyle")
+    direct_outline = _integer_child_value(element, "./w:pPr/w:outlineLvl")
+    style = styles_by_id.get(style_id) if style_id else None
+    runs = tuple(_read_run(run) for run in _paragraph_runs(element))
+    hyperlinks = _paragraph_descendants(element, w_tag("hyperlink"))
+    bookmark_starts = _paragraph_descendants(element, w_tag("bookmarkStart"))
+    return ParagraphInfo(
+        index=index,
+        text="".join(run.text for run in runs),
+        style_id=style_id,
+        style_name=style.name if style else None,
+        outline_level=direct_outline if direct_outline is not None else (style.outline_level if style else None),
+        numbering_id=_child_value(element, "./w:pPr/w:numPr/w:numId"),
+        numbering_level=_integer_child_value(element, "./w:pPr/w:numPr/w:ilvl"),
+        manual_breaks=sum(run.manual_breaks for run in runs),
+        footnote_reference_ids=tuple(
+            note_id for run in runs for note_id in run.footnote_reference_ids
+        ),
+        endnote_reference_ids=tuple(
+            note_id for run in runs for note_id in run.endnote_reference_ids
+        ),
+        hyperlink_count=len(hyperlinks),
+        hyperlink_relationship_ids=tuple(
+            hyperlink.get(r_tag("id"), "")
+            for hyperlink in hyperlinks
+            if hyperlink.get(r_tag("id")) is not None
+        ),
+        bookmark_start_ids=tuple(
+            bookmark.get(w_tag("id"), "")
+            for bookmark in bookmark_starts
+            if bookmark.get(w_tag("id")) is not None
+        ),
+        drawing_count=sum(run.drawing_count for run in runs),
+        drawing_relationship_ids=tuple(
+            relationship_id for run in runs for relationship_id in run.drawing_relationship_ids
+        ),
+        runs=runs,
+    )
 
 
 def _paragraph_elements(element: etree._Element) -> tuple[etree._Element, ...]:
@@ -309,54 +321,15 @@ def _nearest_run_parent(element: etree._Element) -> etree._Element | None:
 
 
 def _read_run(element: etree._Element) -> RunInfo:
-    text: list[str] = []
-    footnote_ids: list[str] = []
-    endnote_ids: list[str] = []
-    break_types: list[str] = []
-    tabs = 0
-    drawings = 0
-    drawing_relationship_ids: list[str] = []
-    for child in element.iter():
-        if child is not element and _nearest_run_parent(child) is not element:
-            continue
-        tag = child.tag
-        if tag == w_tag("t"):
-            text.append(child.text or "")
-        elif tag == w_tag("tab"):
-            text.append("\t")
-            tabs += 1
-        elif tag == w_tag("br"):
-            kind = child.get(w_tag("type"), "textWrapping")
-            kind = "line" if kind == "textWrapping" else kind
-            break_types.append(kind)
-            if kind == "line":
-                text.append("\n")
-        elif tag == w_tag("cr"):
-            break_types.append("line")
-            text.append("\n")
-        elif tag == w_tag("footnoteReference"):
-            note_id = child.get(w_tag("id"))
-            if note_id is not None:
-                footnote_ids.append(note_id)
-                text.append(f"[footnote:{note_id}]")
-        elif tag == w_tag("endnoteReference"):
-            note_id = child.get(w_tag("id"))
-            if note_id is not None:
-                endnote_ids.append(note_id)
-                text.append(f"[endnote:{note_id}]")
-        elif tag == w_tag("drawing"):
-            drawings += 1
-            text.append(DRAWING_MARKER)
-            drawing_relationship_ids.extend(
-                embedded.get(r_tag("embed"), "")
-                for embedded in child.xpath(".//*[@r:embed]", namespaces=NS)
-                if embedded.get(r_tag("embed")) is not None
-            )
-
+    contents = _read_run_contents(element)
+    text, footnote_ids, endnote_ids, break_types, drawing_relationship_ids = _run_convenience_values(
+        contents
+    )
+    hyperlink_relationship_id, hyperlink_anchor = _run_hyperlink_context(element)
     properties = element.find("w:rPr", namespaces=NS)
     vertical_alignment = _child_value(properties, "vertAlign") if properties is not None else None
     return RunInfo(
-        text="".join(text),
+        text=text,
         style_id=_child_value(properties, "rStyle") if properties is not None else None,
         bold=_property_bool(properties, "b"),
         italic=_property_bool(properties, "i"),
@@ -365,16 +338,102 @@ def _read_run(element: etree._Element) -> RunInfo:
         superscript=vertical_alignment == "superscript",
         subscript=vertical_alignment == "subscript",
         manual_breaks=sum(kind == "line" for kind in break_types),
-        tabs=tabs,
-        footnote_reference_ids=tuple(footnote_ids),
-        endnote_reference_ids=tuple(endnote_ids),
-        break_types=tuple(break_types),
-        drawing_count=drawings,
-        drawing_relationship_ids=tuple(drawing_relationship_ids),
+        tabs=sum(content.kind == "tab" for content in contents),
+        footnote_reference_ids=footnote_ids,
+        endnote_reference_ids=endnote_ids,
+        break_types=break_types,
+        drawing_count=sum(content.kind == "drawing" for content in contents),
+        drawing_relationship_ids=drawing_relationship_ids,
+        contents=contents,
+        hyperlink_relationship_id=hyperlink_relationship_id,
+        hyperlink_anchor=hyperlink_anchor,
     )
 
 
-def _read_notes(root: etree._Element | None, kind: str) -> tuple[NoteInfo, ...]:
+def _read_run_contents(element: etree._Element) -> tuple[RunContentInfo, ...]:
+    contents: list[RunContentInfo] = []
+    for child in element.iter():
+        if child is not element and _nearest_run_parent(child) is not element:
+            continue
+        tag = child.tag
+        if tag == w_tag("t"):
+            contents.append(RunContentInfo(kind="text", text=child.text or ""))
+        elif tag == w_tag("tab"):
+            contents.append(RunContentInfo(kind="tab"))
+        elif tag == w_tag("br"):
+            kind = child.get(w_tag("type"), "textWrapping")
+            kind = "line" if kind == "textWrapping" else kind
+            contents.append(RunContentInfo(kind="break", break_type=kind))
+        elif tag == w_tag("cr"):
+            contents.append(RunContentInfo(kind="break", break_type="line"))
+        elif tag == w_tag("footnoteReference"):
+            note_id = child.get(w_tag("id"))
+            if note_id is not None:
+                contents.append(RunContentInfo(kind="footnote_reference", reference_id=note_id))
+        elif tag == w_tag("endnoteReference"):
+            note_id = child.get(w_tag("id"))
+            if note_id is not None:
+                contents.append(RunContentInfo(kind="endnote_reference", reference_id=note_id))
+        elif tag == w_tag("drawing"):
+            relationship_ids = tuple(
+                embedded.get(r_tag("embed"), "")
+                for embedded in child.xpath(".//*[@r:embed]", namespaces=NS)
+                if embedded.get(r_tag("embed")) is not None
+            )
+            contents.append(RunContentInfo(kind="drawing", relationship_ids=relationship_ids))
+
+    return tuple(contents)
+
+
+def _run_convenience_values(
+    contents: tuple[RunContentInfo, ...],
+) -> tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Construire les vues textuelles et compteurs depuis le flux inline."""
+    text: list[str] = []
+    footnote_ids: list[str] = []
+    endnote_ids: list[str] = []
+    break_types: list[str] = []
+    drawing_relationship_ids: list[str] = []
+    for content in contents:
+        if content.kind == "text":
+            text.append(content.text or "")
+        elif content.kind == "tab":
+            text.append("\t")
+        elif content.kind == "break":
+            break_type = content.break_type or "line"
+            break_types.append(break_type)
+            if break_type == "line":
+                text.append("\n")
+        elif content.kind == "footnote_reference" and content.reference_id is not None:
+            footnote_ids.append(content.reference_id)
+            text.append(f"[footnote:{content.reference_id}]")
+        elif content.kind == "endnote_reference" and content.reference_id is not None:
+            endnote_ids.append(content.reference_id)
+            text.append(f"[endnote:{content.reference_id}]")
+        elif content.kind == "drawing":
+            text.append(DRAWING_MARKER)
+            drawing_relationship_ids.extend(content.relationship_ids)
+
+    return (
+        "".join(text),
+        tuple(footnote_ids),
+        tuple(endnote_ids),
+        tuple(break_types),
+        tuple(drawing_relationship_ids),
+    )
+
+
+def _run_hyperlink_context(element: etree._Element) -> tuple[str | None, str | None]:
+    for hyperlink in element.iterancestors(w_tag("hyperlink")):
+        return hyperlink.get(r_tag("id")), hyperlink.get(w_tag("anchor"))
+    return None, None
+
+
+def _read_notes(
+    root: etree._Element | None,
+    kind: str,
+    styles_by_id: dict[str, StyleInfo],
+) -> tuple[NoteInfo, ...]:
     if root is None:
         return ()
     notes: list[NoteInfo] = []
@@ -386,15 +445,13 @@ def _read_notes(root: etree._Element | None, kind: str) -> tuple[NoteInfo, ...]:
         note_id = note.get(w_tag("id"))
         if note_id is None:
             continue
-        paragraph_texts = [
-            "".join(_read_run(run).text for run in _paragraph_runs(paragraph))
-            for paragraph in _paragraph_elements(note)
-        ]
+        paragraphs = _read_paragraphs_from_container(note, styles_by_id)
         notes.append(
             NoteInfo(
                 note_id=note_id,
                 kind=kind,
-                text="\n".join(paragraph_texts),
+                text="\n".join(paragraph.text for paragraph in paragraphs),
+                paragraphs=paragraphs,
                 note_type=note_type,
             )
         )
