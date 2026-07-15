@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt><title>Citation en prose</title></titleStmt>
+      <publicationStmt><p>Publication de test.</p></publicationStmt>
+      <sourceDesc><p>Source de test.</p></sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text><body>
+    <cit><quote>Une citation en prose.</quote><bibl>Référence.</bibl></cit>
+  </body></text>
+</TEI>

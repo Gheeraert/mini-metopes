@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt><title>Citation poétique</title></titleStmt>
+      <publicationStmt><p>Publication de test.</p></publicationStmt>
+      <sourceDesc><p>Source de test.</p></sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text><body>
+    <cit type="verse">
+      <quote><lg><l>Premier vers</l><l>Deuxième vers</l></lg></quote>
+      <bibl>Référence de la citation.</bibl>
+    </cit>
+  </body></text>
+</TEI>

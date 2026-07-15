@@ -1,0 +1,2 @@
+"""Ressources normatives embarquées."""
+

@@ -1,0 +1,2 @@
+"""Schémas embarqués."""
+
