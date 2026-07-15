@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -102,6 +103,17 @@ def test_poetry_keeps_paragraphs_distinct_from_manual_breaks() -> None:
     assert any(run.italic is True and "italique" in run.text for run in first.runs)
 
 
+def test_textbox_paragraph_is_not_folded_into_main_sequence() -> None:
+    inspection = inspect_docx_file(FIXTURES / "textbox-inspection.docx")
+    assert len(inspection.paragraphs) == 1
+    paragraph = inspection.paragraphs[0]
+    assert paragraph.text == "Texte exterieur[drawing]"
+    assert "Texte de la zone" not in paragraph.text
+    assert all("Texte de la zone" not in run.text for run in paragraph.runs)
+    assert paragraph.drawing_count == 1
+    assert any(issue.code == "textboxes_not_inspected" for issue in inspection.issues)
+
+
 @pytest.mark.parametrize(
     ("name", "code"),
     [
@@ -134,3 +146,20 @@ def test_xml_part_size_limit_is_enforced() -> None:
     with pytest.raises(DocxInspectionError) as raised:
         inspect_docx_file(FIXTURES / "basic-inspection.docx", max_xml_part_bytes=32)
     assert raised.value.code == "xml_part_too_large"
+
+
+def test_zip_runtime_error_while_reading_part_is_typed(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_read = ZipFile.read
+
+    def raising_read(self: ZipFile, name: str, pwd: bytes | None = None) -> bytes:
+        if name == "word/document.xml":
+            raise RuntimeError("synthetic encrypted entry")
+        return original_read(self, name, pwd)
+
+    monkeypatch.setattr(ZipFile, "read", raising_read)
+
+    with pytest.raises(DocxInspectionError) as raised:
+        inspect_docx_file(FIXTURES / "basic-inspection.docx")
+
+    assert raised.value.code == "unreadable_part"
+    assert isinstance(raised.value.__cause__, RuntimeError)

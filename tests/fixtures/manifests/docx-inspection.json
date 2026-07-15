@@ -15,6 +15,11 @@
       "italique inline",
       "appel de note"
     ],
+    "textbox-inspection.docx": [
+      "paragraphe exterieur synthetique",
+      "zone de texte Word minimale dans un dessin",
+      "paragraphe imbrique dont le texte ne doit pas rejoindre la sequence principale"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

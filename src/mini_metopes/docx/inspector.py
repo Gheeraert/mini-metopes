@@ -64,7 +64,9 @@ def inspect_docx_file(
         raise DocxInspectionError("unreadable_file", f"fichier illisible : {source}") from error
 
     with archive:
-        parts = tuple(sorted(info.filename for info in archive.infolist() if not info.is_dir()))
+        infos = _archive_infos(archive)
+        parts = tuple(sorted(info.filename for info in infos if not info.is_dir()))
+        available_parts = frozenset(parts)
         if DOCUMENT_PART not in parts:
             raise DocxInspectionError(
                 "missing_document_part",
@@ -74,15 +76,21 @@ def inspect_docx_file(
 
         document = _read_xml_part(archive, DOCUMENT_PART, max_xml_part_bytes)
         issues: list[InspectionIssue] = []
-        styles_root = _read_optional_xml(archive, STYLES_PART, max_xml_part_bytes, issues)
-        numbering_root = _read_optional_xml(archive, NUMBERING_PART, max_xml_part_bytes, issues)
-        footnotes_root = _read_optional_xml(archive, FOOTNOTES_PART, max_xml_part_bytes, issues)
-        endnotes_root = _read_optional_xml(archive, ENDNOTES_PART, max_xml_part_bytes, issues)
+        styles_root = _read_optional_xml(archive, STYLES_PART, available_parts, max_xml_part_bytes, issues)
+        numbering_root = _read_optional_xml(
+            archive, NUMBERING_PART, available_parts, max_xml_part_bytes, issues
+        )
+        footnotes_root = _read_optional_xml(
+            archive, FOOTNOTES_PART, available_parts, max_xml_part_bytes, issues
+        )
+        endnotes_root = _read_optional_xml(
+            archive, ENDNOTES_PART, available_parts, max_xml_part_bytes, issues
+        )
         relationships_root = _read_optional_xml(
-            archive, RELATIONSHIPS_PART, max_xml_part_bytes, issues
+            archive, RELATIONSHIPS_PART, available_parts, max_xml_part_bytes, issues
         )
         content_types_root = _read_optional_xml(
-            archive, CONTENT_TYPES_PART, max_xml_part_bytes, issues
+            archive, CONTENT_TYPES_PART, available_parts, max_xml_part_bytes, issues
         )
 
         styles = _read_styles(styles_root)
@@ -91,7 +99,7 @@ def inspect_docx_file(
         footnotes = _read_notes(footnotes_root, "footnote")
         endnotes = _read_notes(endnotes_root, "endnote")
         relationships = _read_relationships(relationships_root)
-        media = _read_media(archive.infolist(), content_types_root)
+        media = _read_media(infos, content_types_root)
         issues.extend(_document_observation_issues(document, parts))
         if numbering_root is None and any(paragraph.numbering_id for paragraph in paragraphs):
             issues.append(
@@ -127,13 +135,24 @@ def _secure_xml_parser() -> etree.XMLParser:
     )
 
 
+def _archive_infos(archive: ZipFile) -> tuple[ZipInfo, ...]:
+    try:
+        return tuple(archive.infolist())
+    except (BadZipFile, OSError, RuntimeError, NotImplementedError) as error:
+        raise DocxInspectionError(
+            "unreadable_file",
+            "l'index du paquet DOCX ne peut pas etre lu",
+        ) from error
+
+
 def _read_optional_xml(
     archive: ZipFile,
     part: str,
+    available_parts: frozenset[str],
     maximum: int,
     issues: list[InspectionIssue],
 ) -> etree._Element | None:
-    if part not in archive.namelist():
+    if part not in available_parts:
         return None
     try:
         return _read_xml_part(archive, part, maximum)
@@ -150,7 +169,10 @@ def _read_optional_xml(
 
 
 def _read_xml_part(archive: ZipFile, part: str, maximum: int) -> etree._Element:
-    info = archive.getinfo(part)
+    try:
+        info = archive.getinfo(part)
+    except (KeyError, BadZipFile, OSError, RuntimeError, NotImplementedError) as error:
+        raise DocxInspectionError("unreadable_part", f"partie illisible : {part}", part=part) from error
     if info.file_size > maximum:
         raise DocxInspectionError(
             "xml_part_too_large",
@@ -159,7 +181,7 @@ def _read_xml_part(archive: ZipFile, part: str, maximum: int) -> etree._Element:
         )
     try:
         data = archive.read(part)
-    except (OSError, BadZipFile) as error:
+    except (BadZipFile, OSError, RuntimeError, NotImplementedError) as error:
         raise DocxInspectionError("unreadable_part", f"partie illisible : {part}", part=part) from error
     try:
         return etree.fromstring(data, parser=_secure_xml_parser())
@@ -201,11 +223,16 @@ def _read_paragraphs(
     styles_by_id: dict[str, StyleInfo],
 ) -> tuple[ParagraphInfo, ...]:
     paragraphs: list[ParagraphInfo] = []
-    for index, element in enumerate(root.xpath(".//w:body//w:p", namespaces=NS)):
+    body = root.find(".//w:body", namespaces=NS)
+    if body is None:
+        return ()
+    for index, element in enumerate(_paragraph_elements(body)):
         style_id = _child_value(element, "./w:pPr/w:pStyle")
         direct_outline = _integer_child_value(element, "./w:pPr/w:outlineLvl")
         style = styles_by_id.get(style_id) if style_id else None
-        runs = tuple(_read_run(run) for run in element.xpath(".//w:r", namespaces=NS))
+        runs = tuple(_read_run(run) for run in _paragraph_runs(element))
+        hyperlinks = _paragraph_descendants(element, w_tag("hyperlink"))
+        bookmark_starts = _paragraph_descendants(element, w_tag("bookmarkStart"))
         paragraphs.append(
             ParagraphInfo(
                 index=index,
@@ -222,15 +249,15 @@ def _read_paragraphs(
                 endnote_reference_ids=tuple(
                     note_id for run in runs for note_id in run.endnote_reference_ids
                 ),
-                hyperlink_count=len(element.xpath(".//w:hyperlink", namespaces=NS)),
+                hyperlink_count=len(hyperlinks),
                 hyperlink_relationship_ids=tuple(
                     hyperlink.get(r_tag("id"), "")
-                    for hyperlink in element.xpath(".//w:hyperlink", namespaces=NS)
+                    for hyperlink in hyperlinks
                     if hyperlink.get(r_tag("id")) is not None
                 ),
                 bookmark_start_ids=tuple(
                     bookmark.get(w_tag("id"), "")
-                    for bookmark in element.xpath(".//w:bookmarkStart", namespaces=NS)
+                    for bookmark in bookmark_starts
                     if bookmark.get(w_tag("id")) is not None
                 ),
                 drawing_count=sum(run.drawing_count for run in runs),
@@ -245,6 +272,42 @@ def _read_paragraphs(
     return tuple(paragraphs)
 
 
+def _paragraph_elements(element: etree._Element) -> tuple[etree._Element, ...]:
+    return tuple(
+        paragraph
+        for paragraph in element.xpath(".//w:p", namespaces=NS)
+        if _nearest_paragraph_parent(paragraph) is None
+    )
+
+
+def _paragraph_runs(element: etree._Element) -> tuple[etree._Element, ...]:
+    return tuple(
+        run
+        for run in element.xpath(".//w:r", namespaces=NS)
+        if _nearest_paragraph_parent(run) is element
+    )
+
+
+def _paragraph_descendants(element: etree._Element, tag: str) -> tuple[etree._Element, ...]:
+    return tuple(
+        descendant
+        for descendant in element.iter(tag)
+        if _nearest_paragraph_parent(descendant) is element
+    )
+
+
+def _nearest_paragraph_parent(element: etree._Element) -> etree._Element | None:
+    for ancestor in element.iterancestors(w_tag("p")):
+        return ancestor
+    return None
+
+
+def _nearest_run_parent(element: etree._Element) -> etree._Element | None:
+    for ancestor in element.iterancestors(w_tag("r")):
+        return ancestor
+    return None
+
+
 def _read_run(element: etree._Element) -> RunInfo:
     text: list[str] = []
     footnote_ids: list[str] = []
@@ -254,6 +317,8 @@ def _read_run(element: etree._Element) -> RunInfo:
     drawings = 0
     drawing_relationship_ids: list[str] = []
     for child in element.iter():
+        if child is not element and _nearest_run_parent(child) is not element:
+            continue
         tag = child.tag
         if tag == w_tag("t"):
             text.append(child.text or "")
@@ -322,8 +387,8 @@ def _read_notes(root: etree._Element | None, kind: str) -> tuple[NoteInfo, ...]:
         if note_id is None:
             continue
         paragraph_texts = [
-            "".join(_read_run(run).text for run in paragraph.xpath(".//w:r", namespaces=NS))
-            for paragraph in note.xpath(".//w:p", namespaces=NS)
+            "".join(_read_run(run).text for run in _paragraph_runs(paragraph))
+            for paragraph in _paragraph_elements(note)
         ]
         notes.append(
             NoteInfo(
@@ -400,6 +465,18 @@ def _content_types(root: etree._Element | None) -> dict[str, str]:
 
 def _document_observation_issues(root: etree._Element, parts: tuple[str, ...]) -> list[InspectionIssue]:
     issues: list[InspectionIssue] = []
+    if root.xpath(".//w:txbxContent", namespaces=NS):
+        issues.append(
+            InspectionIssue(
+                code="textboxes_not_inspected",
+                message=(
+                    "des zones de texte Word sont presentes ; leur contenu n'est pas "
+                    "encore integre a la sequence principale"
+                ),
+                severity="info",
+                part=DOCUMENT_PART,
+            )
+        )
     if root.xpath(".//w:tbl", namespaces=NS):
         issues.append(
             InspectionIssue(

@@ -127,6 +127,24 @@ POETRY_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """
 
+TEXTBOX_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t>Texte exterieur</w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <w:txbxContent>
+            <w:p><w:r><w:t>Texte de la zone</w:t></w:r></w:p>
+          </w:txbxContent>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +172,7 @@ def main() -> None:
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
     write_package(FIXTURES / "basic-inspection.docx", basic)
     write_package(FIXTURES / "poetry-inspection.docx", standard_parts(POETRY_DOCUMENT))
+    write_package(FIXTURES / "textbox-inspection.docx", standard_parts(TEXTBOX_DOCUMENT))
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

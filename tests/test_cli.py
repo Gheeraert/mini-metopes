@@ -11,6 +11,9 @@ import json
 
 import pytest
 
+from mini_metopes.docx import DocxInspectionError
+import mini_metopes.cli as cli
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "xml"
@@ -70,11 +73,14 @@ def test_inspect_docx_human_output() -> None:
 
 
 def test_inspect_docx_json_is_utf8_and_deterministic() -> None:
-    first = run_cli_bytes("inspect-docx", str(DOCX_FIXTURES / "basic-inspection.docx"), "--json")
-    second = run_cli_bytes("inspect-docx", str(DOCX_FIXTURES / "basic-inspection.docx"), "--json")
+    path = (DOCX_FIXTURES / "basic-inspection.docx").resolve()
+    first = run_cli_bytes("inspect-docx", str(path), "--json")
+    second = run_cli_bytes("inspect-docx", str(path), "--json")
     assert first.returncode == 0
     assert first.stdout == second.stdout
+    assert str(ROOT).encode() not in first.stdout
     result = json.loads(first.stdout.decode("utf-8"))
+    assert result["source"] == "basic-inspection.docx"
     assert result["paragraphs"][1]["footnote_reference_ids"] == ["7"]
     assert result["media"][0]["content_type"] == "image/png"
 
@@ -92,6 +98,24 @@ def test_inspect_docx_errors_use_exit_code_two(path: Path) -> None:
     completed = run_cli("inspect-docx", str(path))
     assert completed.returncode == 2
     assert "ERREUR" in completed.stdout
+
+
+def test_inspect_docx_unreadable_part_error_has_no_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def raising_inspector(path: Path):
+        raise DocxInspectionError("unreadable_part", "partie illisible : word/document.xml")
+
+    monkeypatch.setattr(cli, "inspect_docx_file", raising_inspector)
+
+    code = cli.main(["inspect-docx", str(DOCX_FIXTURES / "basic-inspection.docx")])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "ERREUR" in captured.out
+    assert "Traceback" not in captured.out
+    assert captured.err == ""
 
 
 @pytest.mark.parametrize("arguments", [("inspect-docx", "--help"), ("validate", "--help")])

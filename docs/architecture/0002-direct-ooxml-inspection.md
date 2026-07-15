@@ -46,8 +46,10 @@ inexploitable devient un avertissement d'inspection.
 
 Cette passe ne résout pas la mise en forme effective Word, ne modélise pas les
 tableaux, commentaires, en-têtes ou pieds de page, et ne reconstruit pas le
-format visuel des listes. Elle ne détermine aucune convention Word → TEI et ne
-produit aucun XML TEI.
+format visuel des listes. Les zones de texte Word (`w:txbxContent`) sont
+détectées et signalées par un diagnostic `textboxes_not_inspected`, mais leur
+contenu n'est pas encore intégré à la séquence principale des paragraphes. Elle
+ne détermine aucune convention Word → TEI et ne produit aucun XML TEI.
 
 La conversion viendra seulement après la définition et les tests d'un modèle
 éditorial intermédiaire. L'inspecteur fournit les faits OOXML nécessaires à ce

@@ -80,7 +80,7 @@ def _inspect_docx(path: Path, *, as_json: bool) -> int:
 
 def _inspection_as_json(inspection: DocxInspection) -> str:
     result = asdict(inspection)
-    result["source"] = str(inspection.source)
+    result["source"] = inspection.source.name
     return json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True)
 
 
