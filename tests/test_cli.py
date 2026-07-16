@@ -149,6 +149,27 @@ def test_model_docx_human_and_json_output_are_deterministic() -> None:
     assert any(diagnostic["code"] == "unreferenced_note" for diagnostic in result["diagnostics"])
 
 
+def test_model_docx_reports_and_serializes_native_quotations() -> None:
+    path = DOCX_FIXTURES / "native-quotations.docx"
+    human = run_cli("model-docx", str(path))
+    completed = run_cli_bytes("model-docx", str(path), "--json")
+
+    assert human.returncode == 0
+    assert "Citations en prose : 2" in human.stdout
+    assert "Citations poetiques : 2" in human.stdout
+    result = json.loads(completed.stdout.decode("utf-8"))
+    assert [block["kind"] for block in result["document"]["blocks"]] == [
+        "prose_quote",
+        "paragraph",
+        "prose_quote",
+        "verse_quote",
+        "paragraph",
+        "verse_quote",
+        "paragraph",
+    ]
+    assert result["document"]["blocks"][3]["stanzas"][0]["lines"][0]["kind"] == "verse_line"
+
+
 def test_inspect_docx_json_exposes_part_scoped_relationships() -> None:
     completed = run_cli_bytes("inspect-docx", str(DOCX_FIXTURES / "native-editorial.docx"), "--json")
 

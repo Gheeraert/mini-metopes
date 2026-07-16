@@ -17,8 +17,10 @@ from mini_metopes.editorial import (
     NoteReference,
     PageBreak,
     Paragraph,
+    ProseQuote,
     Tab,
     TextSpan,
+    VerseQuote,
     build_editorial_document,
     build_editorial_document_from_file,
     editorial_build_result_to_json,
@@ -43,7 +45,18 @@ def _diagnostic_codes(result) -> list[str]:
 
 
 def _block(result, source_index: int):
-    return next(block for block in result.document.blocks if block.source_paragraph_index == source_index)
+    for block in result.document.blocks:
+        if getattr(block, "source_paragraph_index", None) == source_index:
+            return block
+        if isinstance(block, ProseQuote) and any(
+            paragraph.source_paragraph_index == source_index for paragraph in block.paragraphs
+        ):
+            return block
+        if isinstance(block, VerseQuote) and any(
+            stanza.source_paragraph_index == source_index for stanza in block.stanzas
+        ):
+            return block
+    raise LookupError(source_index)
 
 
 def _replace_run(inspection, expected_text: str, replacement):
@@ -72,12 +85,11 @@ def test_paragraph_styles_are_conservative_and_deferred(editorial_result) -> Non
     assert isinstance(_block(editorial_result, 4), Heading)
     assert _block(editorial_result, 4).source_style_id == "UnknownParagraph"
     assert isinstance(_block(editorial_result, 5), Paragraph)
-    assert isinstance(_block(editorial_result, 7), Paragraph)
+    assert isinstance(_block(editorial_result, 7), ProseQuote)
+    assert isinstance(_block(editorial_result, 8), VerseQuote)
     assert {diagnostic.style_id for diagnostic in editorial_result.diagnostics if diagnostic.code == "deferred_paragraph_style"} == {
         "Title",
         "Subtitle",
-        "Quote",
-        "IntenseQuote",
     }
 
 
@@ -90,12 +102,13 @@ def test_style_classification_priority_handles_outline_fallbacks(editorial_inspe
     assert isinstance(_block(result, 4), Heading)
     assert _block(result, 4).level == 3
     assert isinstance(_block(result, 5), Paragraph)
-    assert isinstance(_block(result, 7), Paragraph)
+    assert isinstance(_block(result, 7), ProseQuote)
+    assert isinstance(_block(result, 8), VerseQuote)
     assert {
         diagnostic.style_id
         for diagnostic in result.diagnostics
         if diagnostic.code == "deferred_paragraph_style"
-    } >= {"Title", "Quote"}
+    } >= {"Title"}
 
     paragraph = editorial_inspection.paragraphs[3]
     replacement = replace(paragraph, outline_level=2)

@@ -10,7 +10,13 @@ import sys
 from typing import Sequence
 
 from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
-from .editorial import EditorialBuildResult, build_editorial_document_from_file, editorial_build_result_to_json
+from .editorial import (
+    EditorialBuildResult,
+    ProseQuote,
+    VerseQuote,
+    build_editorial_document_from_file,
+    editorial_build_result_to_json,
+)
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -143,6 +149,8 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     document = result.document
     headings = [block for block in document.blocks if block.kind == "heading"]
     paragraphs = [block for block in document.blocks if block.kind == "paragraph"]
+    prose_quotes = [block for block in document.blocks if isinstance(block, ProseQuote)]
+    verse_quotes = [block for block in document.blocks if isinstance(block, VerseQuote)]
     levels: dict[int, int] = {}
     for heading in headings:
         levels[heading.level] = levels.get(heading.level, 0) + 1
@@ -154,6 +162,11 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Blocs : {len(document.blocks)}")
     print(f"Titres : {len(headings)}")
     print(f"Paragraphes : {len(paragraphs)}")
+    print(f"Citations en prose : {len(prose_quotes)}")
+    print(f"Paragraphes de citation : {sum(len(quote.paragraphs) for quote in prose_quotes)}")
+    print(f"Citations poetiques : {len(verse_quotes)}")
+    print(f"Strophes : {sum(len(quote.stanzas) for quote in verse_quotes)}")
+    print(f"Vers : {sum(len(stanza.lines) for quote in verse_quotes for stanza in quote.stanzas)}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")

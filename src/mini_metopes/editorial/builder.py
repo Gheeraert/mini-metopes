@@ -30,9 +30,14 @@ from .model import (
     NoteReference,
     PageBreak,
     Paragraph,
+    ProseQuote,
+    ProseQuoteParagraph,
     Tab,
     TextMark,
     TextSpan,
+    VerseLine,
+    VerseQuote,
+    VerseStanza,
 )
 
 
@@ -135,7 +140,9 @@ def _build_blocks(
     blocks: list[EditorialBlock] = []
     referenced_notes: set[tuple[str, str]] = set()
     previous_heading_level: int | None = None
-    for paragraph in paragraphs:
+    paragraph_position = 0
+    while paragraph_position < len(paragraphs):
+        paragraph = paragraphs[paragraph_position]
         content, references = _build_inline_content(
             paragraph,
             convention=convention,
@@ -144,8 +151,10 @@ def _build_blocks(
             note_id=note_id,
         )
         referenced_notes.update(references)
-        heading_level = convention.heading_level(paragraph.style_id, paragraph.outline_level)
-        if heading_level is not None:
+        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+        if role.kind == "heading":
+            assert role.heading_level is not None
+            heading_level = role.heading_level
             if not content:
                 diagnostics.append(
                     EditorialDiagnostic(
@@ -180,6 +189,81 @@ def _build_blocks(
                     source_style_id=paragraph.style_id,
                 )
             )
+            paragraph_position += 1
+            continue
+
+        if role.kind == "prose_quote":
+            quote_paragraphs = [
+                ProseQuoteParagraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            ]
+            if not content:
+                diagnostics.append(
+                    _diagnostic(
+                        "empty_prose_quote_paragraph",
+                        "warning",
+                        "paragraphe de citation en prose vide",
+                        paragraph,
+                        0,
+                        note_id,
+                    )
+                )
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if convention.paragraph_role(next_paragraph.style_id, next_paragraph.outline_level).kind != "prose_quote":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                quote_paragraphs.append(
+                    ProseQuoteParagraph(
+                        content=next_content,
+                        source_paragraph_index=next_paragraph.index,
+                        source_style_id=next_paragraph.style_id,
+                    )
+                )
+                if not next_content:
+                    diagnostics.append(
+                        _diagnostic(
+                            "empty_prose_quote_paragraph",
+                            "warning",
+                            "paragraphe de citation en prose vide",
+                            next_paragraph,
+                            0,
+                            note_id,
+                        )
+                    )
+                paragraph_position += 1
+            blocks.append(ProseQuote(paragraphs=tuple(quote_paragraphs)))
+            continue
+
+        if role.kind == "verse_quote":
+            stanzas = [_build_verse_stanza(paragraph, content, note_id, diagnostics)]
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if convention.paragraph_role(next_paragraph.style_id, next_paragraph.outline_level).kind != "verse_quote":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                stanzas.append(_build_verse_stanza(next_paragraph, next_content, note_id, diagnostics))
+                paragraph_position += 1
+            blocks.append(VerseQuote(stanzas=tuple(stanzas)))
             continue
 
         _diagnose_paragraph_style(paragraph, convention, diagnostics, note_id)
@@ -190,7 +274,63 @@ def _build_blocks(
                 source_style_id=paragraph.style_id,
             )
         )
+        paragraph_position += 1
     return tuple(blocks), referenced_notes
+
+
+def _build_verse_stanza(
+    paragraph: ParagraphInfo,
+    content: tuple[EditorialInline, ...],
+    note_id: str | None,
+    diagnostics: list[EditorialDiagnostic],
+) -> VerseStanza:
+    """Decouper un paragraphe ``IntenseQuote`` en vers sur les seuls retours manuels."""
+    if not content:
+        diagnostics.append(
+            _diagnostic(
+                "empty_verse_stanza",
+                "warning",
+                "strophe poetique vide",
+                paragraph,
+                0,
+                note_id,
+            )
+        )
+        return VerseStanza(
+            lines=(VerseLine(content=(), source_paragraph_index=paragraph.index, line_index=0),),
+            source_paragraph_index=paragraph.index,
+            source_style_id=paragraph.style_id,
+        )
+
+    lines: list[tuple[EditorialInline, ...]] = []
+    current: list[EditorialInline] = []
+    for item in content:
+        if isinstance(item, LineBreak):
+            lines.append(tuple(current))
+            current = []
+        else:
+            current.append(item)
+    lines.append(tuple(current))
+    for line_index, line in enumerate(lines):
+        if not line:
+            diagnostics.append(
+                _diagnostic(
+                    "empty_verse",
+                    "warning",
+                    "vers poetique vide",
+                    paragraph,
+                    line_index,
+                    note_id,
+                )
+            )
+    return VerseStanza(
+        lines=tuple(
+            VerseLine(content=line, source_paragraph_index=paragraph.index, line_index=line_index)
+            for line_index, line in enumerate(lines)
+        ),
+        source_paragraph_index=paragraph.index,
+        source_style_id=paragraph.style_id,
+    )
 
 
 def _diagnose_paragraph_style(

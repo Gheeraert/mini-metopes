@@ -55,3 +55,8 @@ conserves comme paragraphes ou texte, puis signales. Ils ne sont pas assimiles
 a `Normal`, `Quote`, `IntenseQuote`, `Heading1` ou a une quelconque structure
 TEI. Le rapport mesure donc l'ecart entre des corpus reels et la convention
 native, sans introduire de convention cachee.
+# Note de convention native
+
+Les styles historiques `TEIquote` et `TEIverse` restent hors de la convention
+native : seuls les identifiants OOXML `Quote` et `IntenseQuote` sont reconnus
+pour les citations dans la passe 5.

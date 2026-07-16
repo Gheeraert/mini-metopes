@@ -102,7 +102,53 @@ class Paragraph:
     kind: Literal["paragraph"] = "paragraph"
 
 
-EditorialBlock = Heading | Paragraph
+@dataclass(frozen=True)
+class ProseQuoteParagraph:
+    """Paragraphe source conserve dans une citation en prose."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["prose_quote_paragraph"] = "prose_quote_paragraph"
+
+
+@dataclass(frozen=True)
+class ProseQuote:
+    """Suite contigue de paragraphes Word utilisant le style ``Quote``."""
+
+    paragraphs: tuple[ProseQuoteParagraph, ...]
+    kind: Literal["prose_quote"] = "prose_quote"
+
+
+@dataclass(frozen=True)
+class VerseLine:
+    """Vers issu d'un segment separe par un retour manuel Word."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    line_index: int
+    kind: Literal["verse_line"] = "verse_line"
+
+
+@dataclass(frozen=True)
+class VerseStanza:
+    """Strophe issue d'un paragraphe Word utilisant ``IntenseQuote``."""
+
+    lines: tuple[VerseLine, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["verse_stanza"] = "verse_stanza"
+
+
+@dataclass(frozen=True)
+class VerseQuote:
+    """Suite contigue de strophes Word utilisant le style ``IntenseQuote``."""
+
+    stanzas: tuple[VerseStanza, ...]
+    kind: Literal["verse_quote"] = "verse_quote"
+
+
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote
 
 
 @dataclass(frozen=True)

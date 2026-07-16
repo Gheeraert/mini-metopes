@@ -1,7 +1,7 @@
 """Convention Word native et modele editorial intermediaire."""
 
 from .builder import build_editorial_document, build_editorial_document_from_file
-from .convention import NATIVE_WORD_CONVENTION, WordEditorialConvention
+from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, ParagraphRoleKind, WordEditorialConvention
 from .model import (
     ColumnBreak,
     DiagnosticSeverity,
@@ -18,9 +18,14 @@ from .model import (
     NoteReference,
     PageBreak,
     Paragraph,
+    ProseQuote,
+    ProseQuoteParagraph,
     Tab,
     TextMark,
     TextSpan,
+    VerseLine,
+    VerseQuote,
+    VerseStanza,
 )
 from .serialization import editorial_build_result_to_data, editorial_build_result_to_json
 
@@ -41,9 +46,16 @@ __all__ = [
     "NoteReference",
     "PageBreak",
     "Paragraph",
+    "ParagraphRole",
+    "ParagraphRoleKind",
+    "ProseQuote",
+    "ProseQuoteParagraph",
     "Tab",
     "TextMark",
     "TextSpan",
+    "VerseLine",
+    "VerseQuote",
+    "VerseStanza",
     "WordEditorialConvention",
     "build_editorial_document",
     "build_editorial_document_from_file",

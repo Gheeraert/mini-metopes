@@ -31,6 +31,12 @@
       "liens, notes, sauts, tabulation, dessin et fusion de runs",
       "relations document, footnotes et endnotes avec le meme rIdHyper et des cibles distinctes"
     ],
+    "native-quotations.docx": [
+      "citation prose Quote en paragraphes consecutifs et citation vide",
+      "citation poetique IntenseQuote en strophes et vers par retours manuels",
+      "vers et strophe vides, note, liens, marques et saut de page",
+      "citations prose et poetique dans une note synthetique"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],
