@@ -29,6 +29,8 @@ NUMBERING_PART = "word/numbering.xml"
 FOOTNOTES_PART = "word/footnotes.xml"
 ENDNOTES_PART = "word/endnotes.xml"
 RELATIONSHIPS_PART = "word/_rels/document.xml.rels"
+FOOTNOTE_RELATIONSHIPS_PART = "word/_rels/footnotes.xml.rels"
+ENDNOTE_RELATIONSHIPS_PART = "word/_rels/endnotes.xml.rels"
 CONTENT_TYPES_PART = "[Content_Types].xml"
 MAX_XML_PART_BYTES = 16 * 1024 * 1024
 DRAWING_MARKER = "[drawing]"
@@ -90,6 +92,12 @@ def inspect_docx_file(
         relationships_root = _read_optional_xml(
             archive, RELATIONSHIPS_PART, available_parts, max_xml_part_bytes, issues
         )
+        footnote_relationships_root = _read_optional_xml(
+            archive, FOOTNOTE_RELATIONSHIPS_PART, available_parts, max_xml_part_bytes, issues
+        )
+        endnote_relationships_root = _read_optional_xml(
+            archive, ENDNOTE_RELATIONSHIPS_PART, available_parts, max_xml_part_bytes, issues
+        )
         content_types_root = _read_optional_xml(
             archive, CONTENT_TYPES_PART, available_parts, max_xml_part_bytes, issues
         )
@@ -100,6 +108,8 @@ def inspect_docx_file(
         footnotes = _read_notes(footnotes_root, "footnote", styles_by_id)
         endnotes = _read_notes(endnotes_root, "endnote", styles_by_id)
         relationships = _read_relationships(relationships_root)
+        footnote_relationships = _read_relationships(footnote_relationships_root)
+        endnote_relationships = _read_relationships(endnote_relationships_root)
         media = _read_media(infos, content_types_root)
         issues.extend(_document_observation_issues(document, parts))
         if numbering_root is None and any(paragraph.numbering_id for paragraph in paragraphs):
@@ -120,6 +130,8 @@ def inspect_docx_file(
         footnotes=footnotes,
         endnotes=endnotes,
         relationships=relationships,
+        footnote_relationships=footnote_relationships,
+        endnote_relationships=endnote_relationships,
         media=media,
         issues=tuple(issues),
     )
