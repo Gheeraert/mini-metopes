@@ -1,0 +1,146 @@
+"""Modele editorial intermediaire, independant de toute serialisation TEI."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+
+TextMark = Literal["bold", "italic", "small_caps", "caps", "superscript", "subscript"]
+LinkKind = Literal["external", "internal", "unresolved"]
+DiagnosticSeverity = Literal["info", "warning", "error"]
+
+
+@dataclass(frozen=True)
+class EditorialLink:
+    """Destination OOXML resolue ou conservee de maniere conservatoire."""
+
+    kind: LinkKind
+    target: str | None = None
+    relationship_id: str | None = None
+    anchor: str | None = None
+
+
+@dataclass(frozen=True)
+class TextSpan:
+    """Texte et marques typographiques deja normalises pour le modele."""
+
+    text: str
+    marks: tuple[TextMark, ...] = ()
+    link: EditorialLink | None = None
+    kind: Literal["text"] = "text"
+
+
+@dataclass(frozen=True)
+class Tab:
+    """Tabulation OOXML conservee sans interpretation editoriale."""
+
+    kind: Literal["tab"] = "tab"
+
+
+@dataclass(frozen=True)
+class LineBreak:
+    """Saut de ligne manuel OOXML."""
+
+    kind: Literal["line_break"] = "line_break"
+
+
+@dataclass(frozen=True)
+class PageBreak:
+    """Saut de page OOXML."""
+
+    kind: Literal["page_break"] = "page_break"
+
+
+@dataclass(frozen=True)
+class ColumnBreak:
+    """Saut de colonne OOXML."""
+
+    kind: Literal["column_break"] = "column_break"
+
+
+@dataclass(frozen=True)
+class NoteReference:
+    """Appel de note, conserve meme si sa cible est absente."""
+
+    note_id: str
+    note_kind: Literal["footnote", "endnote"]
+    kind: Literal["note_reference"] = "note_reference"
+
+
+@dataclass(frozen=True)
+class DrawingReference:
+    """Reference de dessin ou d'image sans semantique editoriale prematuree."""
+
+    relationship_ids: tuple[str, ...]
+    kind: Literal["drawing_reference"] = "drawing_reference"
+
+
+EditorialInline = (
+    TextSpan | Tab | LineBreak | PageBreak | ColumnBreak | NoteReference | DrawingReference
+)
+
+
+@dataclass(frozen=True)
+class Heading:
+    """Titre de section detecte par la convention Word courante."""
+
+    level: int
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["heading"] = "heading"
+
+
+@dataclass(frozen=True)
+class Paragraph:
+    """Paragraphe editorial encore non mappe vers la TEI."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["paragraph"] = "paragraph"
+
+
+EditorialBlock = Heading | Paragraph
+
+
+@dataclass(frozen=True)
+class EditorialNote:
+    """Note conservee hors de la sequence de blocs principale."""
+
+    note_id: str
+    note_kind: Literal["footnote", "endnote"]
+    blocks: tuple[EditorialBlock, ...]
+    kind: Literal["note"] = "note"
+
+
+@dataclass(frozen=True)
+class EditorialDocument:
+    """Document editorial construit depuis une inspection DOCX."""
+
+    source_name: str
+    blocks: tuple[EditorialBlock, ...]
+    notes: tuple[EditorialNote, ...]
+    kind: Literal["document"] = "document"
+
+
+@dataclass(frozen=True)
+class EditorialDiagnostic:
+    """Diagnostic stable produit pendant l'application de la convention."""
+
+    code: str
+    severity: DiagnosticSeverity
+    message: str
+    paragraph_index: int | None = None
+    run_index: int | None = None
+    style_id: str | None = None
+    note_id: str | None = None
+
+
+@dataclass(frozen=True)
+class EditorialBuildResult:
+    """Document editorial et diagnostics associes."""
+
+    document: EditorialDocument
+    diagnostics: tuple[EditorialDiagnostic, ...]

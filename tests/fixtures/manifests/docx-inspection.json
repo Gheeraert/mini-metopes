@@ -23,6 +23,12 @@
       "zone de texte Word minimale dans un dessin",
       "paragraphe imbrique dont le texte ne doit pas rejoindre la sequence principale"
     ],
+    "native-editorial.docx": [
+      "convention Word native v0.1 sans contenu de corpus",
+      "titres natifs, paragraphes Normal, sans style, inconnus et explicitement differes",
+      "marques directes et styles de caractere Emphasis et Strong",
+      "liens, notes, sauts, tabulation, dessin et fusion de runs"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

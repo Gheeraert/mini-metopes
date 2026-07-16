@@ -10,6 +10,7 @@ import sys
 from typing import Sequence
 
 from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
+from .editorial import EditorialBuildResult, build_editorial_document_from_file, editorial_build_result_to_json
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -38,6 +39,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="produire un résultat JSON structuré",
     )
+    model_parser = subparsers.add_parser(
+        "model-docx", help="construire le modèle éditorial d'un fichier DOCX"
+    )
+    model_parser.add_argument("path", type=Path, help="fichier DOCX à modéliser")
+    model_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="produire un résultat JSON structuré",
+    )
     return parser
 
 
@@ -47,6 +57,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     path: Path = arguments.path
     if arguments.command == "inspect-docx":
         return _inspect_docx(path, as_json=arguments.json)
+    if arguments.command == "model-docx":
+        return _model_docx(path, as_json=arguments.json)
 
     try:
         result = validate_xml_file(path)
@@ -84,6 +96,20 @@ def _inspection_as_json(inspection: DocxInspection) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True)
 
 
+def _model_docx(path: Path, *, as_json: bool) -> int:
+    try:
+        result = build_editorial_document_from_file(path)
+    except DocxInspectionError as error:
+        print(f"ERREUR — {path}: {error}")
+        return 2
+
+    if as_json:
+        sys.stdout.buffer.write((editorial_build_result_to_json(result) + "\n").encode("utf-8"))
+    else:
+        _print_editorial_summary(result)
+    return 0
+
+
 def _print_inspection_summary(inspection: DocxInspection) -> None:
     style_counts: dict[str, int] = {}
     for paragraph in inspection.paragraphs:
@@ -111,3 +137,27 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     print(f"Médias : {len(inspection.media)}")
     for issue in inspection.issues:
         print(f"{issue.severity.upper()} [{issue.code}] : {issue.message}")
+
+
+def _print_editorial_summary(result: EditorialBuildResult) -> None:
+    document = result.document
+    headings = [block for block in document.blocks if block.kind == "heading"]
+    paragraphs = [block for block in document.blocks if block.kind == "paragraph"]
+    levels: dict[int, int] = {}
+    for heading in headings:
+        levels[heading.level] = levels.get(heading.level, 0) + 1
+    codes: dict[str, int] = {}
+    for diagnostic in result.diagnostics:
+        codes[diagnostic.code] = codes.get(diagnostic.code, 0) + 1
+
+    print(f"MODÈLE DOCX — {document.source_name}")
+    print(f"Blocs : {len(document.blocks)}")
+    print(f"Titres : {len(headings)}")
+    print(f"Paragraphes : {len(paragraphs)}")
+    if levels:
+        print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
+    print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")
+    print(f"Notes de fin : {sum(note.note_kind == 'endnote' for note in document.notes)}")
+    print(f"Diagnostics : {len(result.diagnostics)}")
+    if codes:
+        print("Diagnostics par code : " + ", ".join(f"{code} ({count})" for code, count in sorted(codes.items())))

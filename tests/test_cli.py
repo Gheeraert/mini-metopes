@@ -108,6 +108,27 @@ def test_inspect_docx_json_is_utf8_and_deterministic() -> None:
     assert result["media"][0]["content_type"] == "image/png"
 
 
+def test_model_docx_human_and_json_output_are_deterministic() -> None:
+    path = (DOCX_FIXTURES / "native-editorial.docx").resolve()
+    human = run_cli("model-docx", str(path))
+    first = run_cli_bytes("model-docx", str(path), "--json")
+    second = run_cli_bytes("model-docx", str(path), "--json")
+
+    assert human.returncode == 0
+    assert "MODÈLE DOCX" in human.stdout
+    assert "Blocs : 10" in human.stdout
+    assert "Diagnostics" in human.stdout
+    assert first.returncode == 0
+    assert first.stdout == second.stdout
+    assert str(ROOT).encode() not in first.stdout
+    result = json.loads(first.stdout.decode("utf-8"))
+    assert result["document"]["source_name"] == "native-editorial.docx"
+    assert result["document"]["blocks"][0]["kind"] == "heading"
+    assert result["document"]["notes"][0]["kind"] == "note"
+    assert result["document"]["blocks"][2]["content"][0]["kind"] == "text"
+    assert any(diagnostic["code"] == "unreferenced_note" for diagnostic in result["diagnostics"])
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -119,6 +140,12 @@ def test_inspect_docx_json_is_utf8_and_deterministic() -> None:
 )
 def test_inspect_docx_errors_use_exit_code_two(path: Path) -> None:
     completed = run_cli("inspect-docx", str(path))
+    assert completed.returncode == 2
+    assert "ERREUR" in completed.stdout
+
+
+def test_model_docx_errors_use_exit_code_two() -> None:
+    completed = run_cli("model-docx", str(DOCX_FIXTURES / "not-a-zip.docx"))
     assert completed.returncode == 2
     assert "ERREUR" in completed.stdout
 
@@ -141,7 +168,10 @@ def test_inspect_docx_unreadable_part_error_has_no_traceback(
     assert captured.err == ""
 
 
-@pytest.mark.parametrize("arguments", [("inspect-docx", "--help"), ("validate", "--help")])
+@pytest.mark.parametrize(
+    "arguments",
+    [("inspect-docx", "--help"), ("model-docx", "--help"), ("validate", "--help")],
+)
 def test_subcommand_help_is_available(arguments: tuple[str, ...]) -> None:
     completed = run_cli(*arguments)
     assert completed.returncode == 0

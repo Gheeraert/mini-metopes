@@ -156,6 +156,72 @@ TEXTBOX_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """
 
+EDITORIAL_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Titre 1 localise"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Titre 2 localise"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="Titre 4 localise"/><w:pPr><w:outlineLvl w:val="3"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Titre bibliographique"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Sous-titre bibliographique"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Citation"/></w:style>
+  <w:style w:type="paragraph" w:styleId="IntenseQuote"><w:name w:val="Citation intense"/></w:style>
+  <w:style w:type="paragraph" w:styleId="UnknownParagraph"><w:name w:val="Style local inconnu"/></w:style>
+  <w:style w:type="character" w:styleId="Emphasis"><w:name w:val="Mise en evidence"/></w:style>
+  <w:style w:type="character" w:styleId="Strong"><w:name w:val="Fort"/></w:style>
+  <w:style w:type="character" w:styleId="UnknownCharacter"><w:name w:val="Caractere local"/></w:style>
+</w:styles>
+"""
+
+EDITORIAL_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="10"><w:p><w:r><w:rPr><w:rStyle w:val="Emphasis"/></w:rPr><w:t>Note italique</w:t></w:r><w:r><w:br/><w:t> suite</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="99"><w:p><w:r><w:t>Note non appelee</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+EDITORIAL_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="20"><w:p><w:r><w:t>Note de fin</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+"""
+
+EDITORIAL_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Bon</w:t></w:r><w:r><w:t>jour</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Sous-section</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr>
+      <w:r><w:t>Texte </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>gras</w:t></w:r>
+      <w:r><w:rPr><w:i/></w:rPr><w:t> italique</w:t></w:r><w:r><w:rPr><w:smallCaps/></w:rPr><w:t> petites</w:t></w:r>
+      <w:r><w:rPr><w:caps/></w:rPr><w:t> capitales</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r>
+      <w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t>i</w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="Emphasis"/></w:rPr><w:t> emphase</w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="Strong"/><w:b w:val="0"/></w:rPr><w:t> pas-fort</w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="UnknownCharacter"/></w:rPr><w:t> local</w:t></w:r>
+      <w:r><w:t>A</w:t><w:tab/><w:t>B</w:t><w:br/><w:t>C</w:t><w:br w:type="page"/><w:t>D</w:t><w:br w:type="column"/><w:t>E</w:t></w:r>
+      <w:hyperlink r:id="rIdHyper"><w:r><w:t>externe</w:t></w:r></w:hyperlink>
+      <w:bookmarkStart w:id="1" w:name="repere"/><w:hyperlink w:anchor="repere"><w:r><w:t>interne</w:t></w:r></w:hyperlink>
+      <w:r><w:t>avant-note</w:t><w:footnoteReference w:id="10"/><w:t>apres-note</w:t></w:r>
+      <w:r><w:endnoteReference w:id="20"/></w:r>
+      <w:r><w:drawing><w:docPr id="2" name="Dessin editorial"/><a:blip r:embed="rIdImage"/></w:drawing></w:r>
+    </w:p>
+    <w:p><w:r><w:t>Sans style</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="UnknownParagraph"/></w:pPr><w:r><w:t>Style inconnu</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Titre differe</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Sous-titre differe</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Citation differee</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Citation poetique differee</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,12 +244,26 @@ def standard_parts(document: str) -> dict[str, bytes | str]:
     }
 
 
+def editorial_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": EDITORIAL_DOCUMENT,
+        "word/styles.xml": EDITORIAL_STYLES,
+        "word/numbering.xml": NUMBERING,
+        "word/footnotes.xml": EDITORIAL_FOOTNOTES,
+        "word/endnotes.xml": EDITORIAL_ENDNOTES,
+        "word/_rels/document.xml.rels": RELATIONSHIPS,
+        "word/media/image1.png": b"synthetic-editorial-image",
+    }
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
     write_package(FIXTURES / "basic-inspection.docx", basic)
     write_package(FIXTURES / "poetry-inspection.docx", standard_parts(POETRY_DOCUMENT))
     write_package(FIXTURES / "textbox-inspection.docx", standard_parts(TEXTBOX_DOCUMENT))
+    write_package(FIXTURES / "native-editorial.docx", editorial_parts())
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {
