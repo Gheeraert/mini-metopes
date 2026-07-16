@@ -34,6 +34,25 @@ RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
 </Relationships>
 """
 
+EDITORIAL_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/body" TargetMode="External"/>
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+</Relationships>
+"""
+
+FOOTNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote" TargetMode="External"/>
+</Relationships>
+"""
+
+ENDNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/endnote" TargetMode="External"/>
+</Relationships>
+"""
+
 STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
@@ -158,15 +177,15 @@ TEXTBOX_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 
 EDITORIAL_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
-  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Titre 1 localise"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Titre 1 localise"/><w:pPr><w:outlineLvl w:val="4"/></w:pPr></w:style>
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Titre 2 localise"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
   <w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="Titre 4 localise"/><w:pPr><w:outlineLvl w:val="3"/></w:pPr></w:style>
-  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Titre bibliographique"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Titre bibliographique"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
   <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Sous-titre bibliographique"/></w:style>
-  <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Citation"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Citation"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
   <w:style w:type="paragraph" w:styleId="IntenseQuote"><w:name w:val="Citation intense"/></w:style>
-  <w:style w:type="paragraph" w:styleId="UnknownParagraph"><w:name w:val="Style local inconnu"/></w:style>
+  <w:style w:type="paragraph" w:styleId="UnknownParagraph"><w:name w:val="Style local inconnu"/><w:pPr><w:outlineLvl w:val="2"/></w:pPr></w:style>
   <w:style w:type="character" w:styleId="Emphasis"><w:name w:val="Mise en evidence"/></w:style>
   <w:style w:type="character" w:styleId="Strong"><w:name w:val="Fort"/></w:style>
   <w:style w:type="character" w:styleId="UnknownCharacter"><w:name w:val="Caractere local"/></w:style>
@@ -174,17 +193,19 @@ EDITORIAL_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 EDITORIAL_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
-<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
-  <w:footnote w:id="10"><w:p><w:r><w:rPr><w:rStyle w:val="Emphasis"/></w:rPr><w:t>Note italique</w:t></w:r><w:r><w:br/><w:t> suite</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="10"><w:p><w:r><w:rPr><w:rStyle w:val="Emphasis"/></w:rPr><w:t>Note italique</w:t></w:r><w:r><w:br/><w:t> suite </w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t>lien note</w:t></w:r></w:hyperlink></w:p></w:footnote>
   <w:footnote w:id="99"><w:p><w:r><w:t>Note non appelee</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 """
 
 EDITORIAL_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
-<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
-  <w:endnote w:id="20"><w:p><w:r><w:t>Note de fin</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="20"><w:p><w:r><w:t>Note de fin </w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t>lien fin</w:t></w:r></w:hyperlink></w:p></w:endnote>
 </w:endnotes>
 """
 
@@ -252,7 +273,9 @@ def editorial_parts() -> dict[str, bytes | str]:
         "word/numbering.xml": NUMBERING,
         "word/footnotes.xml": EDITORIAL_FOOTNOTES,
         "word/endnotes.xml": EDITORIAL_ENDNOTES,
-        "word/_rels/document.xml.rels": RELATIONSHIPS,
+        "word/_rels/document.xml.rels": EDITORIAL_RELATIONSHIPS,
+        "word/_rels/footnotes.xml.rels": FOOTNOTE_RELATIONSHIPS,
+        "word/_rels/endnotes.xml.rels": ENDNOTE_RELATIONSHIPS,
         "word/media/image1.png": b"synthetic-editorial-image",
     }
 

@@ -114,7 +114,7 @@ class NoteInfo:
 
 @dataclass(frozen=True)
 class RelationshipInfo:
-    """Relation déclarée par ``word/document.xml``."""
+    """Relation déclarée par une partie OOXML."""
 
     relationship_id: str
     relationship_type: str
@@ -143,6 +143,8 @@ class DocxInspection:
     footnotes: tuple[NoteInfo, ...]
     endnotes: tuple[NoteInfo, ...]
     relationships: tuple[RelationshipInfo, ...]
+    footnote_relationships: tuple[RelationshipInfo, ...]
+    endnote_relationships: tuple[RelationshipInfo, ...]
     media: tuple[MediaInfo, ...]
     issues: tuple[InspectionIssue, ...]
 

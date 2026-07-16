@@ -53,7 +53,13 @@ def build_editorial_document(
 ) -> EditorialBuildResult:
     """Construire un modele editorial immuable sans produire de TEI."""
     diagnostics: list[EditorialDiagnostic] = []
-    relationships = {relation.relationship_id: relation for relation in inspection.relationships}
+    body_relationships = {relation.relationship_id: relation for relation in inspection.relationships}
+    footnote_relationships = {
+        relation.relationship_id: relation for relation in inspection.footnote_relationships
+    }
+    endnote_relationships = {
+        relation.relationship_id: relation for relation in inspection.endnote_relationships
+    }
     notes_by_key: dict[tuple[str, str], EditorialNote] = {}
     notes: list[EditorialNote] = []
     referenced_notes: set[tuple[str, str]] = set()
@@ -72,7 +78,7 @@ def build_editorial_document(
         blocks, note_references = _build_blocks(
             note.paragraphs,
             convention=convention,
-            relationships=relationships,
+            relationships=footnote_relationships if note.kind == "footnote" else endnote_relationships,
             diagnostics=diagnostics,
             note_id=note.note_id,
             detect_heading_jumps=False,
@@ -89,7 +95,7 @@ def build_editorial_document(
     blocks, body_references = _build_blocks(
         inspection.paragraphs,
         convention=convention,
-        relationships=relationships,
+        relationships=body_relationships,
         diagnostics=diagnostics,
         note_id=None,
         detect_heading_jumps=True,

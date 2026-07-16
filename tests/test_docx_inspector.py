@@ -146,6 +146,23 @@ def test_notes_and_document_relationships_are_recovered(basic_inspection) -> Non
     assert relationships["rIdHyper"].target == "https://example.test/notice"
     assert relationships["rIdHyper"].target_mode == "External"
     assert relationships["rIdImage"].target == "media/image1.png"
+    assert basic_inspection.footnote_relationships == ()
+    assert basic_inspection.endnote_relationships == ()
+
+
+def test_relationships_are_scoped_by_ooxml_part() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-editorial.docx")
+
+    assert [(relation.relationship_id, relation.target) for relation in inspection.relationships] == [
+        ("rIdHyper", "https://example.test/body"),
+        ("rIdImage", "media/image1.png"),
+    ]
+    assert [(relation.relationship_id, relation.target) for relation in inspection.footnote_relationships] == [
+        ("rIdHyper", "https://example.test/footnote"),
+    ]
+    assert [(relation.relationship_id, relation.target) for relation in inspection.endnote_relationships] == [
+        ("rIdHyper", "https://example.test/endnote"),
+    ]
 
 
 def test_notes_keep_structured_paragraphs_and_runs(basic_inspection) -> None:

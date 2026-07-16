@@ -15,6 +15,13 @@ pour les titres natifs, `Normal`, `Emphasis` et `Strong`, au lieu de les
 disperser dans le lecteur OOXML. Elle pourra etre remplacee ou completee par
 d'autres conventions sans modifier l'inspecteur.
 
+La classification des paragraphes suit une priorite explicite. Les styles
+`Heading1` a `Heading6` sont reconnus par identifiant stable, meme si leur
+niveau de plan declare est contradictoire. `Normal` et les styles differes ne
+peuvent pas devenir des titres par repli. Le repli par `outlineLvl` reste
+disponible uniquement pour les styles locaux non reconnus ou les paragraphes
+sans style.
+
 Le modele conserve les indices et styles sources, mais le document expose
 seulement son nom de fichier : aucun chemin local absolu ne devient une donnee
 editoriale ou JSON publique.
@@ -28,9 +35,13 @@ editoriale ou JSON publique.
   de contexte interrompent cette fusion.
 - Les notes conservent leurs blocs separes. Les appels absents, doublons et
   notes non appelees deviennent des diagnostics plutot qu'une renumerotation.
-- Les styles inconnus gardent leur contenu dans un paragraphe ordinaire, avec
-  diagnostic. Les styles `Title`, `Subtitle`, `Quote` et `IntenseQuote` sont
-  explicitement differes.
+- Les relations OOXML sont resolues dans la portee de leur partie : le corps
+  utilise `document.xml.rels`, les notes de bas de page `footnotes.xml.rels`
+  et les notes de fin `endnotes.xml.rels`.
+- Les styles inconnus gardent leur contenu ; sans niveau de plan ils deviennent
+  des paragraphes avec diagnostic, avec niveau de plan ils peuvent devenir des
+  titres de repli. Les styles `Title`, `Subtitle`, `Quote` et `IntenseQuote`
+  sont explicitement differes.
 - La serialisation JSON est dediee et deterministe. Chaque bloc et contenu
   inline contient un discriminant `kind`.
 

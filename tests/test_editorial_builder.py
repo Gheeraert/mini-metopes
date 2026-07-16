@@ -69,26 +69,43 @@ def test_paragraph_styles_are_conservative_and_deferred(editorial_result) -> Non
     assert isinstance(_block(editorial_result, 2), Paragraph)
     assert isinstance(_block(editorial_result, 3), Paragraph)
     assert _block(editorial_result, 3).source_style_id is None
+    assert isinstance(_block(editorial_result, 4), Heading)
     assert _block(editorial_result, 4).source_style_id == "UnknownParagraph"
+    assert isinstance(_block(editorial_result, 5), Paragraph)
+    assert isinstance(_block(editorial_result, 7), Paragraph)
     assert {diagnostic.style_id for diagnostic in editorial_result.diagnostics if diagnostic.code == "deferred_paragraph_style"} == {
         "Title",
         "Subtitle",
         "Quote",
         "IntenseQuote",
     }
-    assert "unsupported_paragraph_style" in _diagnostic_codes(editorial_result)
 
 
-def test_outline_level_is_a_fallback_when_no_native_heading_style_exists(editorial_inspection) -> None:
-    paragraph = editorial_inspection.paragraphs[4]
+def test_style_classification_priority_handles_outline_fallbacks(editorial_inspection) -> None:
+    result = build_editorial_document(editorial_inspection)
+
+    assert isinstance(_block(result, 0), Heading)
+    assert _block(result, 0).level == 1
+    assert isinstance(_block(result, 2), Paragraph)
+    assert isinstance(_block(result, 4), Heading)
+    assert _block(result, 4).level == 3
+    assert isinstance(_block(result, 5), Paragraph)
+    assert isinstance(_block(result, 7), Paragraph)
+    assert {
+        diagnostic.style_id
+        for diagnostic in result.diagnostics
+        if diagnostic.code == "deferred_paragraph_style"
+    } >= {"Title", "Quote"}
+
+    paragraph = editorial_inspection.paragraphs[3]
     replacement = replace(paragraph, outline_level=2)
     inspection = replace(
         editorial_inspection,
-        paragraphs=editorial_inspection.paragraphs[:4] + (replacement,) + editorial_inspection.paragraphs[5:],
+        paragraphs=editorial_inspection.paragraphs[:3] + (replacement,) + editorial_inspection.paragraphs[4:],
     )
 
     result = build_editorial_document(inspection)
-    block = _block(result, 4)
+    block = _block(result, 3)
     assert isinstance(block, Heading)
     assert block.level == 3
 
@@ -150,7 +167,7 @@ def test_links_notes_breaks_and_drawings_keep_their_order(editorial_result) -> N
     internal = next(item for item in content if isinstance(item, TextSpan) and item.text == "interne")
     assert external.link is not None
     assert external.link.kind == "external"
-    assert external.link.target == "https://example.test/notice"
+    assert external.link.target == "https://example.test/body"
     assert external.link.relationship_id == "rIdHyper"
     assert internal.link is not None
     assert internal.link.kind == "internal"
@@ -177,10 +194,21 @@ def test_links_notes_breaks_and_drawings_keep_their_order(editorial_result) -> N
 def test_notes_keep_blocks_and_report_unreferenced_notes(editorial_result) -> None:
     notes = {(note.note_kind, note.note_id): note for note in editorial_result.document.notes}
     footnote = notes[("footnote", "10")]
+    endnote = notes[("endnote", "20")]
     assert len(footnote.blocks) == 1
     assert isinstance(footnote.blocks[0], Paragraph)
     assert footnote.blocks[0].content[0] == TextSpan(text="Note italique", marks=("italic",))
     assert isinstance(footnote.blocks[0].content[1], LineBreak)
+    footnote_link = next(
+        item for item in footnote.blocks[0].content if isinstance(item, TextSpan) and item.text == "lien note"
+    )
+    endnote_link = next(
+        item for item in endnote.blocks[0].content if isinstance(item, TextSpan) and item.text == "lien fin"
+    )
+    assert footnote_link.link is not None
+    assert footnote_link.link.target == "https://example.test/footnote"
+    assert endnote_link.link is not None
+    assert endnote_link.link.target == "https://example.test/endnote"
     assert "unreferenced_note" in _diagnostic_codes(editorial_result)
 
 
@@ -203,6 +231,24 @@ def test_missing_references_and_duplicate_notes_are_diagnosed(editorial_inspecti
     assert "duplicate_note_id" in codes
 
 
+def test_note_hyperlinks_use_their_own_relationship_scope(editorial_inspection) -> None:
+    result = build_editorial_document(replace(editorial_inspection, footnote_relationships=()))
+    footnote = next(
+        note for note in result.document.notes if note.note_kind == "footnote" and note.note_id == "10"
+    )
+    note_link = next(
+        item for item in footnote.blocks[0].content if isinstance(item, TextSpan) and item.text == "lien note"
+    )
+
+    assert note_link.link is not None
+    assert note_link.link.kind == "unresolved"
+    assert note_link.link.relationship_id == "rIdHyper"
+    assert any(
+        diagnostic.code == "missing_hyperlink_relationship" and diagnostic.note_id == "10"
+        for diagnostic in result.diagnostics
+    )
+
+
 def test_unknown_break_types_are_not_converted_to_line_breaks(editorial_inspection) -> None:
     run = next(run for run in editorial_inspection.paragraphs[2].runs if run.text == "Texte ")
     replacement = replace(run, contents=run.contents + (RunContentInfo(kind="break", break_type="section"),))
@@ -216,7 +262,6 @@ def test_empty_headings_and_level_jumps_are_preserved_and_diagnosed(editorial_re
     assert heading.level == 4
     assert heading.content == ()
     assert "empty_heading" in _diagnostic_codes(editorial_result)
-    assert "heading_level_jump" in _diagnostic_codes(editorial_result)
 
 
 def test_building_and_json_serialization_are_deterministic(editorial_inspection) -> None:

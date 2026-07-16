@@ -106,6 +106,8 @@ def test_inspect_docx_json_is_utf8_and_deterministic() -> None:
     assert internal_run["hyperlink_anchor"] == "repere_synthetique"
     assert result["footnotes"][0]["paragraphs"][0]["runs"][1]["italic"] is True
     assert result["media"][0]["content_type"] == "image/png"
+    assert result["footnote_relationships"] == []
+    assert result["endnote_relationships"] == []
 
 
 def test_model_docx_human_and_json_output_are_deterministic() -> None:
@@ -126,7 +128,42 @@ def test_model_docx_human_and_json_output_are_deterministic() -> None:
     assert result["document"]["blocks"][0]["kind"] == "heading"
     assert result["document"]["notes"][0]["kind"] == "note"
     assert result["document"]["blocks"][2]["content"][0]["kind"] == "text"
+    body_link = next(
+        item
+        for item in result["document"]["blocks"][2]["content"]
+        if item.get("kind") == "text" and item.get("text") == "externe"
+    )
+    footnote_link = next(
+        item
+        for item in result["document"]["notes"][0]["blocks"][0]["content"]
+        if item.get("kind") == "text" and item.get("text") == "lien note"
+    )
+    endnote_link = next(
+        item
+        for item in result["document"]["notes"][2]["blocks"][0]["content"]
+        if item.get("kind") == "text" and item.get("text") == "lien fin"
+    )
+    assert body_link["link"]["target"] == "https://example.test/body"
+    assert footnote_link["link"]["target"] == "https://example.test/footnote"
+    assert endnote_link["link"]["target"] == "https://example.test/endnote"
     assert any(diagnostic["code"] == "unreferenced_note" for diagnostic in result["diagnostics"])
+
+
+def test_inspect_docx_json_exposes_part_scoped_relationships() -> None:
+    completed = run_cli_bytes("inspect-docx", str(DOCX_FIXTURES / "native-editorial.docx"), "--json")
+
+    assert completed.returncode == 0
+    result = json.loads(completed.stdout.decode("utf-8"))
+    assert [relation["target"] for relation in result["relationships"]] == [
+        "https://example.test/body",
+        "media/image1.png",
+    ]
+    assert [relation["target"] for relation in result["footnote_relationships"]] == [
+        "https://example.test/footnote",
+    ]
+    assert [relation["target"] for relation in result["endnote_relationships"]] == [
+        "https://example.test/endnote",
+    ]
 
 
 @pytest.mark.parametrize(

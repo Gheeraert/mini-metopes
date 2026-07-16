@@ -12,12 +12,19 @@ programme reconnait leur identifiant OOXML stable (`Heading1` a `Heading6`),
 pas leur libelle visible.
 
 Le style **Normal**, ou l'absence de style de paragraphe, produit un paragraphe
-ordinaire. Un autre style conserve toujours son texte, mais Mini-Metopes le
-signale pour permettre une decision editoriale ulterieure.
+ordinaire. Un autre style conserve toujours son texte. S'il ne porte pas de
+niveau de plan exploitable, Mini-Metopes le signale pour permettre une decision
+editoriale ulterieure.
 
 Un niveau de plan OOXML explicite de 0 a 5 peut aussi devenir un titre lorsque
 le style n'est pas l'un des six titres natifs. Cette regle de repli est moins
 prioritaire que les identifiants `Heading1` a `Heading6`.
+
+La priorite est volontairement stricte : les titres natifs gagnent toujours,
+puis `Normal` et les styles explicitement differes restent des paragraphes,
+meme s'ils portent un niveau de plan. Le repli par niveau de plan ne s'applique
+qu'aux styles locaux non reconnus, ou a un paragraphe sans style qui declare
+lui-meme un niveau de plan.
 
 ## Texte et mises en forme
 
@@ -48,7 +55,8 @@ comme des figures editoriales.
 Les styles **Title**, **Subtitle**, **Quote** et **IntenseQuote** ne sont pas
 encore interpretes. En particulier, ils ne deviennent ni titres, ni citations
 de prose, ni citations poetiques par defaut. Ils produisent un diagnostic
-explicite et restent temporairement des paragraphes ordinaires dans le modele.
+explicite et restent temporairement des paragraphes ordinaires dans le modele,
+meme si le fichier DOCX leur associe un niveau de plan.
 
 Les metadonnees, listes, tableaux, figures editoriales, bibliographies et la
 serialisation TEI restent hors de cette version. Les styles Metopes ou locaux

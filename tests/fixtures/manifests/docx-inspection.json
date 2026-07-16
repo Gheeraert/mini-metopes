@@ -26,8 +26,10 @@
     "native-editorial.docx": [
       "convention Word native v0.1 sans contenu de corpus",
       "titres natifs, paragraphes Normal, sans style, inconnus et explicitement differes",
+      "priorite de classification : styles natifs, styles ordinaires, styles differes, puis niveau de plan local",
       "marques directes et styles de caractere Emphasis et Strong",
-      "liens, notes, sauts, tabulation, dessin et fusion de runs"
+      "liens, notes, sauts, tabulation, dessin et fusion de runs",
+      "relations document, footnotes et endnotes avec le meme rIdHyper et des cibles distinctes"
     ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],

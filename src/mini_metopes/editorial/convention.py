@@ -21,6 +21,8 @@ class WordEditorialConvention:
         for candidate, level in self.heading_style_ids:
             if style_id == candidate:
                 return level
+        if style_id in self.paragraph_style_ids or style_id in self.deferred_paragraph_style_ids:
+            return None
         if outline_level is not None and 0 <= outline_level <= 5:
             return outline_level + 1
         return None
