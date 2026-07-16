@@ -243,6 +243,65 @@ EDITORIAL_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """
 
+QUOTATION_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Citation localisee"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="IntenseQuote"><w:name w:val="Citation intense localisee"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Titre differe"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Sous-titre differe"/></w:style>
+</w:styles>
+"""
+
+QUOTATION_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>Premier</w:t></w:r><w:r><w:t> paragraphe</w:t><w:br/><w:t>avec retour</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:rPr><w:i/></w:rPr><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:footnoteReference w:id="30"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Second paragraphe.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Interruption normale.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Seconde citation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers </w:t></w:r><w:r><w:t>un</w:t><w:br/><w:t>Vers </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>deux</w:t></w:r><w:r><w:footnoteReference w:id="30"/><w:t> suite</w:t><w:br/><w:br/><w:t>Vers quatre</w:t><w:br w:type="page"/><w:t> apres page</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien-vers</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers cinq</w:t><w:br/><w:t>Vers six</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Strophe un seul vers</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Separation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:br/><w:t>Debut apres vide</w:t><w:br/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Titre differe</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+QUOTATION_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="30"><w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Citation dans note.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers note un</w:t><w:br/><w:t>Vers note deux</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien-note</w:t></w:r></w:hyperlink></w:p></w:footnote>
+</w:footnotes>
+"""
+
+QUOTATION_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="40"><w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers fin</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+"""
+
+QUOTATION_BODY_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/quote-body" TargetMode="External"/>
+</Relationships>
+"""
+
+QUOTATION_FOOTNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/quote-footnote" TargetMode="External"/>
+</Relationships>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -280,6 +339,18 @@ def editorial_parts() -> dict[str, bytes | str]:
     }
 
 
+def quotation_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": QUOTATION_DOCUMENT,
+        "word/styles.xml": QUOTATION_STYLES,
+        "word/footnotes.xml": QUOTATION_FOOTNOTES,
+        "word/endnotes.xml": QUOTATION_ENDNOTES,
+        "word/_rels/document.xml.rels": QUOTATION_BODY_RELATIONSHIPS,
+        "word/_rels/footnotes.xml.rels": QUOTATION_FOOTNOTE_RELATIONSHIPS,
+    }
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -287,6 +358,7 @@ def main() -> None:
     write_package(FIXTURES / "poetry-inspection.docx", standard_parts(POETRY_DOCUMENT))
     write_package(FIXTURES / "textbox-inspection.docx", standard_parts(TEXTBOX_DOCUMENT))
     write_package(FIXTURES / "native-editorial.docx", editorial_parts())
+    write_package(FIXTURES / "native-quotations.docx", quotation_parts())
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

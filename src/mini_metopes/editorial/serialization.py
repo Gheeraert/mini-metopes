@@ -17,8 +17,13 @@ from .model import (
     NoteReference,
     PageBreak,
     Paragraph,
+    ProseQuote,
+    ProseQuoteParagraph,
     Tab,
     TextSpan,
+    VerseLine,
+    VerseQuote,
+    VerseStanza,
 )
 
 
@@ -60,11 +65,48 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
             "source_paragraph_index": block.source_paragraph_index,
             "source_style_id": block.source_style_id,
         }
+    if isinstance(block, ProseQuote):
+        return {
+            "kind": block.kind,
+            "paragraphs": [_prose_quote_paragraph_to_data(paragraph) for paragraph in block.paragraphs],
+        }
+    if isinstance(block, VerseQuote):
+        return {
+            "kind": block.kind,
+            "stanzas": [_verse_stanza_to_data(stanza) for stanza in block.stanzas],
+        }
     return {
         "kind": block.kind,
         "content": [_inline_to_data(item) for item in block.content],
         "source_paragraph_index": block.source_paragraph_index,
         "source_style_id": block.source_style_id,
+    }
+
+
+def _prose_quote_paragraph_to_data(paragraph: ProseQuoteParagraph) -> dict[str, object]:
+    return {
+        "kind": paragraph.kind,
+        "content": [_inline_to_data(item) for item in paragraph.content],
+        "source_paragraph_index": paragraph.source_paragraph_index,
+        "source_style_id": paragraph.source_style_id,
+    }
+
+
+def _verse_stanza_to_data(stanza: VerseStanza) -> dict[str, object]:
+    return {
+        "kind": stanza.kind,
+        "lines": [_verse_line_to_data(line) for line in stanza.lines],
+        "source_paragraph_index": stanza.source_paragraph_index,
+        "source_style_id": stanza.source_style_id,
+    }
+
+
+def _verse_line_to_data(line: VerseLine) -> dict[str, object]:
+    return {
+        "kind": line.kind,
+        "content": [_inline_to_data(item) for item in line.content],
+        "source_paragraph_index": line.source_paragraph_index,
+        "line_index": line.line_index,
     }
 
 

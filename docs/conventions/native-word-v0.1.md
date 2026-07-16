@@ -50,13 +50,31 @@ objets distincts. Une tabulation n'est pas remplacee par des espaces. Les
 dessins et images sont conserves comme references, sans etre encore interpretes
 comme des figures editoriales.
 
+## Citations natives
+
+Utilisez le style Word natif **Citation** (`Quote`) pour une citation en prose.
+Plusieurs paragraphes consecutifs utilisant ce style forment une seule citation,
+mais chaque paragraphe reste distinct. Un paragraphe normal termine la citation.
+Un retour manuel reste un retour manuel dans le paragraphe de citation.
+
+Utilisez le style Word natif **Citation intense** (`IntenseQuote`) pour une
+citation poetique. Cette association est une convention Mini-Metopes, pas une
+semantique universelle imposee par Word. Dans cette convention, un paragraphe
+Word est une strophe ; un retour manuel (`Maj+Entree`) separe les vers ; un
+nouveau paragraphe (`Entree`) commence donc une nouvelle strophe. Des
+paragraphes consecutifs `IntenseQuote` appartiennent a la meme citation, et un
+paragraphe normal la termine. Les noms affiches peuvent etre localises : seule
+la reconnaissance des identifiants OOXML `Quote` et `IntenseQuote` est stable.
+
+Ces deux styles restent des citations meme si Word leur associe un niveau de
+plan : ils ne deviennent jamais des titres par repli.
+
 ## Elements volontairement differes
 
-Les styles **Title**, **Subtitle**, **Quote** et **IntenseQuote** ne sont pas
-encore interpretes. En particulier, ils ne deviennent ni titres, ni citations
-de prose, ni citations poetiques par defaut. Ils produisent un diagnostic
-explicite et restent temporairement des paragraphes ordinaires dans le modele,
-meme si le fichier DOCX leur associe un niveau de plan.
+Les styles **Title** et **Subtitle** ne sont pas encore interpretes. Ils
+produisent un diagnostic explicite et restent temporairement des paragraphes
+ordinaires dans le modele, meme si le fichier DOCX leur associe un niveau de
+plan.
 
 Les metadonnees, listes, tableaux, figures editoriales, bibliographies et la
 serialisation TEI restent hors de cette version. Les styles Metopes ou locaux
