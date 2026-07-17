@@ -18,6 +18,7 @@ from .editorial import (
     editorial_build_result_to_json,
 )
 from .tei import convert_docx_to_tei, write_tei_conversion_result
+from .tei.model import TeiConversionDiagnostic
 from .metadata import default_metadata_path, extract_metadata_suggestions, load_metadata_file, metadata_consistency_issues
 from .validation import ValidationIssue, validate_xml_file
 
@@ -30,6 +31,12 @@ def _format_issue(issue: ValidationIssue) -> str:
         position.append(f"colonne {issue.column}")
     prefix = ", ".join(position)
     return f"{prefix} : {issue.message}" if prefix else issue.message
+
+
+def _format_conversion_diagnostic(diagnostic: TeiConversionDiagnostic) -> str:
+    path = diagnostic.metadata_path or diagnostic.source_part or ""
+    prefix = f"{path} : " if path else ""
+    return f"{diagnostic.severity.upper()} [{diagnostic.code}] {prefix}{diagnostic.message}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -145,6 +152,9 @@ def _model_docx(path: Path, *, as_json: bool) -> int:
 
 
 def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int:
+    if not source.exists():
+        print(f"ERREUR - {source}: fichier introuvable")
+        return 2
     selected_metadata = metadata_path or default_metadata_path(source)
     if not selected_metadata.exists():
         print(f"ECHEC [missing_metadata] — {source.name}")
@@ -165,9 +175,7 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int
     if not result.is_successful:
         print(f"ECHEC — {source.name}")
         for diagnostic in result.diagnostics:
-            path = diagnostic.metadata_path or diagnostic.source_part or ""
-            prefix = f"{path} : " if path else ""
-            print(f"{diagnostic.severity.upper()} [{diagnostic.code}] {prefix}{diagnostic.message}")
+            print(_format_conversion_diagnostic(diagnostic))
         for issue in result.validation_issues:
             print(_format_issue(issue))
         return 1
@@ -178,6 +186,8 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int
         return 2
     print(f"TEI ECRITE — {output}")
     print("Validation Commons Publishing : réussie")
+    for diagnostic in result.diagnostics:
+        print(_format_conversion_diagnostic(diagnostic))
     print(f"Diagnostics non bloquants : {len(result.diagnostics)}")
     return 0
 

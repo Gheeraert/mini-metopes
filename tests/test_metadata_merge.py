@@ -2,6 +2,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from mini_metopes.gui.metadata_controller import (
+    add_affiliation,
+    add_contributor,
     create_initial_metadata_state,
     is_metadata_dirty,
     load_metadata_editor_state,
@@ -10,7 +12,7 @@ from mini_metopes.gui.metadata_controller import (
     update_affiliation,
     update_contributor,
 )
-from mini_metopes.metadata import load_metadata_file, metadata_consistency_issues, metadata_to_json
+from mini_metopes.metadata import Affiliation, Contributor, load_metadata_file, metadata_consistency_issues, metadata_to_json
 import pytest
 
 
@@ -81,3 +83,30 @@ def test_controller_renames_editable_identifiers_and_references() -> None:
     assert "affiliation-1" not in state.metadata.contributors[0].affiliation_ids
     with pytest.raises(ValueError):
         update_affiliation(state, "affiliation-urn", replace(affiliation, affiliation_id="affiliation-2"))
+
+
+def test_controller_refuses_duplicate_ids_on_add_and_keeps_state() -> None:
+    docx = FIXTURES / "docx" / "native-tei-conversion.docx"
+    state = load_metadata_editor_state(docx, FIXTURES / "metadata" / "native-tei-conversion.metadata.json")
+
+    for contributor_id, message in (
+        ("", "identifiant de contributeur invalide"),
+        (" person-1 ", "identifiant de contributeur invalide"),
+        ("person-1", "identifiant de contributeur deja utilise"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            add_contributor(state, Contributor(contributor_id, "author", given_name="A"))
+        assert state.metadata.contributors == load_metadata_editor_state(
+            docx, FIXTURES / "metadata" / "native-tei-conversion.metadata.json"
+        ).metadata.contributors
+
+    for affiliation_id, message in (
+        ("", "identifiant d'affiliation invalide"),
+        (" affiliation-1 ", "identifiant d'affiliation invalide"),
+        ("affiliation-1", "identifiant d'affiliation deja utilise"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            add_affiliation(state, Affiliation(affiliation_id, "Institution"))
+        assert state.metadata.affiliations == load_metadata_editor_state(
+            docx, FIXTURES / "metadata" / "native-tei-conversion.metadata.json"
+        ).metadata.affiliations

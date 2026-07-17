@@ -149,13 +149,18 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
         if metadata.subtitle:
             etree.SubElement(title_stmt, _tag("title"), type="sub").text = metadata.subtitle
         used_affiliations: set[str] = set()
-        for contributor in metadata.contributors:
+        reported_ror_affiliations: set[str] = set()
+        affiliation_indexes = {item.affiliation_id: index for index, item in enumerate(metadata.affiliations)}
+        affiliations = {item.affiliation_id: item for item in metadata.affiliations}
+        for contributor_index, contributor in enumerate(metadata.contributors):
             element_name = "author" if contributor.role == "author" else "editor"
             person = etree.SubElement(title_stmt, _tag(element_name))
             if contributor.role not in {"author", "editor"}:
                 state.diagnostics.append(TeiConversionDiagnostic(
                     code="contributor_role_serialized_as_editor", severity="warning",
                     message=f"role {contributor.role} serialise comme editor, le profil n'admet pas respStmt ici",
+                    origin="metadata",
+                    metadata_path=f"contributors[{contributor_index}].role",
                 ))
             if contributor.literal_name:
                 etree.SubElement(person, _tag("persName")).text = contributor.literal_name
@@ -169,7 +174,6 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                 normalized = normalize_orcid(contributor.orcid)
                 if normalized:
                     etree.SubElement(person, _tag("idno"), type="ORCID").text = normalized
-            affiliations = {item.affiliation_id: item for item in metadata.affiliations}
             for affiliation_id in contributor.affiliation_ids:
                 used_affiliations.add(affiliation_id)
                 affiliation = affiliations[affiliation_id]
@@ -178,19 +182,24 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                 # duplicate an xml:id when several people share one institution.
                 rendered = etree.SubElement(person, _tag("affiliation"))
                 rendered.text = _affiliation_text(affiliation)
-                if affiliation.ror:
+                if affiliation.ror and affiliation.affiliation_id not in reported_ror_affiliations:
+                    reported_ror_affiliations.add(affiliation.affiliation_id)
                     state.diagnostics.append(
                         TeiConversionDiagnostic(
                             code="ror_not_serialized",
                             severity="warning",
                             message=f"ROR non serialise par le profil Commons Publishing : {affiliation.affiliation_id}",
+                            origin="metadata",
+                            metadata_path=f"affiliations[{affiliation_indexes[affiliation.affiliation_id]}].ror",
                         )
                     )
-        for affiliation in metadata.affiliations:
+        for affiliation_index, affiliation in enumerate(metadata.affiliations):
             if affiliation.affiliation_id not in used_affiliations:
                 state.diagnostics.append(TeiConversionDiagnostic(
                     code="unreferenced_affiliation_not_serialized", severity="warning",
                     message=f"affiliation non utilisee non serialisee : {affiliation.affiliation_id}",
+                    origin="metadata",
+                    metadata_path=f"affiliations[{affiliation_index}].id",
                 ))
     publication = etree.SubElement(file_desc, _tag("publicationStmt"))
     etree.SubElement(publication, _tag("p")).text = "Document généré par Mini-Métopes."
@@ -204,6 +213,8 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
             state.diagnostics.append(TeiConversionDiagnostic(
                 code="abstract_not_serialized", severity="warning",
                 message="le profil Commons Publishing embarque n'admet pas le resume dans profileDesc",
+                origin="metadata",
+                metadata_path="document.abstract",
             ))
         if metadata.keywords:
             keywords = etree.SubElement(etree.SubElement(profile, _tag("textClass")), _tag("keywords"))

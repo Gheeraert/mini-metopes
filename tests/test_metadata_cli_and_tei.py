@@ -5,7 +5,15 @@ from lxml import etree
 
 from mini_metopes.cli import main
 from mini_metopes.docx import inspect_docx_file
-from mini_metopes.metadata import Contributor, DocumentMetadata, METADATA_SCHEMA_VERSION, MetadataSource, compute_file_sha256, load_metadata_file
+from mini_metopes.metadata import (
+    Affiliation,
+    Contributor,
+    DocumentMetadata,
+    METADATA_SCHEMA_VERSION,
+    MetadataSource,
+    compute_file_sha256,
+    load_metadata_file,
+)
 from mini_metopes.tei import convert_docx_to_tei
 
 
@@ -87,6 +95,28 @@ def test_cli_validates_metadata_and_requires_it_for_conversion(tmp_path: Path, c
     assert "missing_metadata" in captured.out
 
 
+def test_cli_prints_non_blocking_diagnostics_on_success(tmp_path: Path, capsys) -> None:
+    output = tmp_path / "output.xml"
+
+    assert main(["convert-docx", str(DOCX), str(output), "--metadata", str(JSON)]) == 0
+    captured = capsys.readouterr()
+    assert output.exists()
+    assert "abstract_not_serialized" in captured.out
+    assert "document.abstract" in captured.out
+    assert "ror_not_serialized" in captured.out
+    assert "affiliations[0].ror" in captured.out
+
+
+def test_cli_reports_missing_docx_before_missing_metadata(tmp_path: Path, capsys) -> None:
+    missing = tmp_path / "missing.docx"
+    output = tmp_path / "output.xml"
+
+    assert main(["convert-docx", str(missing), str(output)]) == 2
+    captured = capsys.readouterr()
+    assert "missing_metadata" not in captured.out
+    assert "fichier introuvable" in captured.out
+
+
 def test_cli_handles_badly_typed_metadata_without_traceback(tmp_path: Path, capsys) -> None:
     invalid = tmp_path / "bad.metadata.json"
     invalid.write_text('{"schema_version":"1.0","source":{"filename":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
@@ -121,9 +151,43 @@ def test_public_docx_conversion_requires_metadata() -> None:
     assert [item.code for item in result.diagnostics] == ["missing_metadata"]
 
 
+def test_shared_ror_affiliation_warns_once_with_metadata_path() -> None:
+    metadata = load_metadata_file(JSON).metadata
+    assert metadata is not None
+    shared = Affiliation("affiliation-ror", "Institution ROR", ror="https://ror.org/03yrm5c26")
+    first = replace(metadata.contributors[0], affiliation_ids=("affiliation-ror",))
+    second = Contributor("person-2", "editor", literal_name="Collectif", affiliation_ids=("affiliation-ror",))
+    metadata = replace(metadata, contributors=(first, second), affiliations=(shared,))
+
+    result = convert_docx_to_tei(DOCX, metadata=metadata)
+
+    assert result.is_successful
+    assert result.xml_bytes is not None
+    diagnostics = [item for item in result.diagnostics if item.code == "ror_not_serialized"]
+    assert len(diagnostics) == 1
+    assert diagnostics[0].origin == "metadata"
+    assert diagnostics[0].metadata_path == "affiliations[0].ror"
+    tree = etree.fromstring(result.xml_bytes)
+    assert tree.xpath("count(//tei:affiliation[contains(., 'Institution ROR')])", namespaces=NS) == 2.0
+
+
 def test_edit_metadata_invalid_docx_returns_2_without_traceback(capsys) -> None:
     assert main(["edit-metadata", str(ROOT / "docx" / "not-a-zip.docx")]) == 2
     captured = capsys.readouterr()
+    assert "Traceback" not in captured.out
+
+
+def test_edit_metadata_tk_initialization_failure_returns_2(monkeypatch, capsys) -> None:
+    import tkinter as tk
+
+    def fail_tk():
+        raise tk.TclError("pas de display")
+
+    monkeypatch.setattr(tk, "Tk", fail_tk)
+
+    assert main(["edit-metadata"]) == 2
+    captured = capsys.readouterr()
+    assert "impossible d'initialiser l'interface graphique" in captured.out
     assert "Traceback" not in captured.out
 
 

@@ -21,7 +21,11 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
-    root = tk.Tk()
+    try:
+        root = tk.Tk()
+    except tk.TclError as error:
+        print(f"ERREUR - impossible d'initialiser l'interface graphique : {error}")
+        return 2
     root.withdraw()
     if docx_path is None:
         selected = filedialog.askopenfilename(parent=root, filetypes=[("Documents Word", "*.docx *.DOCX")])
@@ -165,7 +169,10 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     def add_person() -> None:
         nonlocal state
         if item := contributor_dialog():
-            state = add_contributor(state, item); refresh_trees()
+            try:
+                state = add_contributor(state, item); refresh_trees()
+            except ValueError as error:
+                messagebox.showerror("Identifiant invalide", str(error), parent=root)
     def edit_person() -> None:
         nonlocal state
         selection = contributor_tree.selection()
@@ -185,7 +192,11 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         if 0 <= target < len(values): values[index], values[target] = values[target], values[index]; state = replace(state, metadata=replace(state.metadata, contributors=tuple(values)), dirty=True); refresh_trees(); contributor_tree.selection_set(selection[0])
     def add_institution() -> None:
         nonlocal state
-        if item := affiliation_dialog(): state = add_affiliation(state, item); refresh_trees()
+        if item := affiliation_dialog():
+            try:
+                state = add_affiliation(state, item); refresh_trees()
+            except ValueError as error:
+                messagebox.showerror("Identifiant invalide", str(error), parent=root)
     def edit_institution() -> None:
         nonlocal state
         selection = affiliation_tree.selection()

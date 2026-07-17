@@ -121,6 +121,12 @@ def next_identifier(prefix: str, identifiers: tuple[str, ...]) -> str:
 
 
 def add_contributor(state: MetadataEditorState, contributor: Contributor) -> MetadataEditorState:
+    _ensure_new_identifier(
+        contributor.contributor_id,
+        tuple(item.contributor_id for item in state.metadata.contributors),
+        duplicate_message="identifiant de contributeur deja utilise",
+        invalid_message="identifiant de contributeur invalide",
+    )
     return replace(state, metadata=replace(state.metadata, contributors=state.metadata.contributors + (contributor,)), dirty=True)
 
 
@@ -144,6 +150,12 @@ def remove_contributor(state: MetadataEditorState, contributor_id: str) -> Metad
 
 
 def add_affiliation(state: MetadataEditorState, affiliation: Affiliation) -> MetadataEditorState:
+    _ensure_new_identifier(
+        affiliation.affiliation_id,
+        tuple(item.affiliation_id for item in state.metadata.affiliations),
+        duplicate_message="identifiant d'affiliation deja utilise",
+        invalid_message="identifiant d'affiliation invalide",
+    )
     return replace(state, metadata=replace(state.metadata, affiliations=state.metadata.affiliations + (affiliation,)), dirty=True)
 
 
@@ -184,6 +196,20 @@ def remove_affiliation(state: MetadataEditorState, affiliation_id: str) -> Metad
 def is_metadata_dirty(saved: DocumentMetadata | None, current: DocumentMetadata) -> bool:
     """Comparer deux etats pour piloter la fermeture de la fenetre."""
     return saved != current
+
+
+def _ensure_new_identifier(
+    candidate: str,
+    existing: tuple[str, ...],
+    *,
+    duplicate_message: str,
+    invalid_message: str,
+) -> None:
+    normalized = candidate.strip()
+    if not normalized or normalized != candidate:
+        raise ValueError(invalid_message)
+    if normalized in {value.strip() for value in existing}:
+        raise ValueError(duplicate_message)
 
 
 def _deduplicate_issues(issues: tuple[MetadataIssue, ...]) -> tuple[MetadataIssue, ...]:
