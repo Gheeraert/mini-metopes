@@ -36,6 +36,7 @@ python -m mini_metopes inspect-docx document.docx
 python -m mini_metopes inspect-docx document.docx --json
 python -m mini_metopes model-docx document.docx
 python -m mini_metopes model-docx document.docx --json
+python -m mini_metopes convert-docx source.docx sortie.xml
 ```
 
 La sortie JSON est structurée et déterministe. Chaque run expose aussi un flux
@@ -46,10 +47,12 @@ déclarées dans l'OOXML ; elles ne constituent pas encore la mise en forme
 effective calculée par Word.
 
 `model-docx` applique une premiere convention native Word et produit un modele
-editorial avec diagnostics, sans encore serialiser de TEI. La convention reconnait
+editorial avec diagnostics et peut serialiser le sous-ensemble pris en charge en
+TEI Commons Publishing validee. La convention reconnait
 maintenant `Quote` pour les citations en prose et `IntenseQuote` pour les
 citations poetiques (strophes = paragraphes, vers = retours manuels). La
-conversion DOCX vers TEI reste donc volontairement non implementee.
+conversion reste volontairement limitee : dessins, liens internes, listes,
+tableaux et metadonnees riches sont refuses ou hors perimetre.
 
 Le répertoire `references/` est un corpus documentaire en lecture seule. Il
 n'est ni empaqueté ni utilisé directement par les tests ordinaires.
