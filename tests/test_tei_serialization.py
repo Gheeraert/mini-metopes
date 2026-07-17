@@ -25,6 +25,7 @@ from mini_metopes.editorial import (
     build_editorial_document_from_file,
 )
 from mini_metopes.docx import InspectionIssue, RunContentInfo, inspect_docx_file
+from mini_metopes.metadata import extract_metadata_suggestions, load_metadata_file
 from mini_metopes.tei import (
     convert_docx_to_tei,
     prepare_tei_conversion,
@@ -36,12 +37,15 @@ import mini_metopes.tei.serializer as serializer
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "docx"
+METADATA = Path(__file__).parent / "fixtures" / "metadata" / "native-tei-conversion.metadata.json"
 NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 
 @pytest.fixture()
 def document() -> EditorialDocument:
-    return build_editorial_document_from_file(FIXTURES / "native-tei-conversion.docx").document
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    consumed = extract_metadata_suggestions(inspection).consumed_paragraph_indexes
+    return build_editorial_document(inspection, excluded_body_paragraph_indexes=frozenset(consumed)).document
 
 
 @pytest.fixture()
@@ -99,7 +103,9 @@ def test_native_word_note_marks_do_not_pollute_tei_notes(result) -> None:
 
 
 def test_positive_native_conversion_has_no_unknown_style_diagnostics() -> None:
-    result = convert_docx_to_tei(FIXTURES / "native-tei-conversion.docx")
+    metadata = load_metadata_file(METADATA).metadata
+    assert metadata is not None
+    result = convert_docx_to_tei(FIXTURES / "native-tei-conversion.docx", metadata=metadata)
 
     assert result.is_successful
     assert "unsupported_paragraph_style" not in [diagnostic.code for diagnostic in result.diagnostics]
@@ -188,7 +194,8 @@ def test_atomic_writer_preserves_existing_file_on_failed_result(tmp_path: Path, 
 
 
 def test_docx_conversion_propagates_inspection_and_editorial_diagnostics() -> None:
-    result = convert_docx_to_tei(FIXTURES / "native-editorial.docx")
+    inspection = inspect_docx_file(FIXTURES / "native-editorial.docx")
+    result = convert_docx_to_tei_from_inspection_for_test(inspection)
     codes = [diagnostic.code for diagnostic in result.diagnostics]
 
     assert result.xml_bytes is None
@@ -207,7 +214,8 @@ def test_precontrol_keeps_deterministic_order_for_inspection_then_editorial() ->
             InspectionIssue("comments_not_inspected", "commentaire", "info", "word/comments.xml"),
         ),
     )
-    editorial = build_editorial_document(inspection)
+    consumed = extract_metadata_suggestions(inspection).consumed_paragraph_indexes
+    editorial = build_editorial_document(inspection, excluded_body_paragraph_indexes=frozenset(consumed))
 
     diagnostics = prepare_tei_conversion(inspection, editorial)
 
@@ -260,7 +268,7 @@ def test_precontrol_blocks_unknown_break_types() -> None:
 
 def test_hyperlink_character_styles_are_recognized_without_extra_marks() -> None:
     inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
-    paragraph = inspection.paragraphs[2]
+    paragraph = inspection.paragraphs[4]
     link_run = next(run for run in paragraph.runs if run.hyperlink_relationship_id == "rIdHyper")
     followed_run = replace(link_run, text=" lien suivi", style_id="FollowedHyperlink")
     hyperlink_run = replace(link_run, style_id="Hyperlink")
@@ -338,7 +346,8 @@ def test_empty_quote_containers_are_explicitly_rejected(document) -> None:
 
 
 def convert_docx_to_tei_from_inspection_for_test(inspection):
-    editorial = build_editorial_document(inspection)
+    consumed = extract_metadata_suggestions(inspection).consumed_paragraph_indexes
+    editorial = build_editorial_document(inspection, excluded_body_paragraph_indexes=frozenset(consumed))
     diagnostics = prepare_tei_conversion(inspection, editorial)
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         from mini_metopes.tei import TeiConversionResult

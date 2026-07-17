@@ -28,6 +28,7 @@ from mini_metopes.editorial import (
     VerseQuote,
 )
 from mini_metopes.validation import validate_xml_tree
+from mini_metopes.metadata import DocumentMetadata, normalize_orcid
 
 from .model import TeiConversionDiagnostic, TeiConversionResult
 
@@ -78,6 +79,7 @@ class _SerializationState:
 def serialize_editorial_document_to_tei(
     document: EditorialDocument,
     *,
+    metadata: DocumentMetadata | None = None,
     initial_diagnostics: tuple[TeiConversionDiagnostic, ...] = (),
 ) -> TeiConversionResult:
     """Serialiser un modele editorial et valider le resultat contre le RNG embarque."""
@@ -98,7 +100,7 @@ def serialize_editorial_document_to_tei(
             notes[key] = note
     state = _SerializationState(document, diagnostics, notes, set(), set())
     root = etree.Element(_tag("TEI"), nsmap=_NSMAP)
-    _append_header(root, document.source_name)
+    _append_header(root, document.source_name, metadata, state)
     body = etree.SubElement(etree.SubElement(root, _tag("text")), _tag("body"))
     _append_body_blocks(body, document.blocks, state)
     _diagnose_unreferenced_notes(state)
@@ -136,15 +138,96 @@ def write_tei_conversion_result(result: TeiConversionResult, output_path: Path) 
         raise
 
 
-def _append_header(root: etree._Element, source_name: str) -> None:
+def _append_header(root: etree._Element, source_name: str, metadata: DocumentMetadata | None, state: _SerializationState) -> None:
     header = etree.SubElement(root, _tag("teiHeader"))
     file_desc = etree.SubElement(header, _tag("fileDesc"))
     title_stmt = etree.SubElement(file_desc, _tag("titleStmt"))
-    etree.SubElement(title_stmt, _tag("title")).text = source_name
+    if metadata is None:
+        etree.SubElement(title_stmt, _tag("title")).text = source_name
+    else:
+        etree.SubElement(title_stmt, _tag("title"), type="main").text = metadata.title
+        if metadata.subtitle:
+            etree.SubElement(title_stmt, _tag("title"), type="sub").text = metadata.subtitle
+        used_affiliations: set[str] = set()
+        reported_ror_affiliations: set[str] = set()
+        affiliation_indexes = {item.affiliation_id: index for index, item in enumerate(metadata.affiliations)}
+        affiliations = {item.affiliation_id: item for item in metadata.affiliations}
+        for contributor_index, contributor in enumerate(metadata.contributors):
+            element_name = "author" if contributor.role == "author" else "editor"
+            person = etree.SubElement(title_stmt, _tag(element_name))
+            if contributor.role not in {"author", "editor"}:
+                state.diagnostics.append(TeiConversionDiagnostic(
+                    code="contributor_role_serialized_as_editor", severity="warning",
+                    message=f"role {contributor.role} serialise comme editor, le profil n'admet pas respStmt ici",
+                    origin="metadata",
+                    metadata_path=f"contributors[{contributor_index}].role",
+                ))
+            if contributor.literal_name:
+                etree.SubElement(person, _tag("persName")).text = contributor.literal_name
+            else:
+                name = etree.SubElement(person, _tag("persName"))
+                if contributor.given_name:
+                    etree.SubElement(name, _tag("forename")).text = contributor.given_name
+                if contributor.family_name:
+                    etree.SubElement(name, _tag("surname")).text = contributor.family_name
+            if contributor.orcid:
+                normalized = normalize_orcid(contributor.orcid)
+                if normalized:
+                    etree.SubElement(person, _tag("idno"), type="ORCID").text = normalized
+            for affiliation_id in contributor.affiliation_ids:
+                used_affiliations.add(affiliation_id)
+                affiliation = affiliations[affiliation_id]
+                # Commons Publishing permits an affiliation inline here, but no
+                # shared affiliation registry at this header level. Do not
+                # duplicate an xml:id when several people share one institution.
+                rendered = etree.SubElement(person, _tag("affiliation"))
+                rendered.text = _affiliation_text(affiliation)
+                if affiliation.ror and affiliation.affiliation_id not in reported_ror_affiliations:
+                    reported_ror_affiliations.add(affiliation.affiliation_id)
+                    state.diagnostics.append(
+                        TeiConversionDiagnostic(
+                            code="ror_not_serialized",
+                            severity="warning",
+                            message=f"ROR non serialise par le profil Commons Publishing : {affiliation.affiliation_id}",
+                            origin="metadata",
+                            metadata_path=f"affiliations[{affiliation_indexes[affiliation.affiliation_id]}].ror",
+                        )
+                    )
+        for affiliation_index, affiliation in enumerate(metadata.affiliations):
+            if affiliation.affiliation_id not in used_affiliations:
+                state.diagnostics.append(TeiConversionDiagnostic(
+                    code="unreferenced_affiliation_not_serialized", severity="warning",
+                    message=f"affiliation non utilisee non serialisee : {affiliation.affiliation_id}",
+                    origin="metadata",
+                    metadata_path=f"affiliations[{affiliation_index}].id",
+                ))
     publication = etree.SubElement(file_desc, _tag("publicationStmt"))
     etree.SubElement(publication, _tag("p")).text = "Document généré par Mini-Métopes."
     source_desc = etree.SubElement(file_desc, _tag("sourceDesc"))
     etree.SubElement(source_desc, _tag("p")).text = f"Conversion du fichier DOCX {source_name}."
+    if metadata is not None:
+        profile = etree.SubElement(header, _tag("profileDesc"))
+        lang_usage = etree.SubElement(profile, _tag("langUsage"))
+        etree.SubElement(lang_usage, _tag("language"), ident=metadata.language).text = metadata.language
+        if metadata.abstract:
+            state.diagnostics.append(TeiConversionDiagnostic(
+                code="abstract_not_serialized", severity="warning",
+                message="le profil Commons Publishing embarque n'admet pas le resume dans profileDesc",
+                origin="metadata",
+                metadata_path="document.abstract",
+            ))
+        if metadata.keywords:
+            keywords = etree.SubElement(etree.SubElement(profile, _tag("textClass")), _tag("keywords"))
+            for keyword in metadata.keywords:
+                etree.SubElement(keywords, _tag("term")).text = keyword
+
+
+def _affiliation_text(affiliation: object) -> str:
+    """Rendre une affiliation en texte, format le plus simple admis par le RNG."""
+    from mini_metopes.metadata import Affiliation
+
+    assert isinstance(affiliation, Affiliation)
+    return ", ".join(part for part in (affiliation.name, affiliation.unit, affiliation.city, affiliation.country) if part)
 
 
 def _append_body_blocks(parent: etree._Element, blocks: tuple[EditorialBlock, ...], state: _SerializationState) -> None:

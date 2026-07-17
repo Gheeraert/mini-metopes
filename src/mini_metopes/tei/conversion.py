@@ -12,6 +12,7 @@ from mini_metopes.editorial import (
     WordEditorialConvention,
     build_editorial_document,
 )
+from mini_metopes.metadata import DocumentMetadata, extract_metadata_suggestions, metadata_consistency_issues, validate_metadata
 
 from .model import TeiConversionDiagnostic, TeiConversionResult
 from .serializer import serialize_editorial_document_to_tei
@@ -41,23 +42,98 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "conflicting_vertical_alignment",
     }
 )
+_METADATA_SUGGESTION_CODES = frozenset(
+    {
+        "empty_metadata_suggestion",
+        "multiple_docx_titles",
+        "multiple_docx_subtitles",
+        "metadata_style_not_initial",
+    }
+)
 
 
 def convert_docx_to_tei(
     path: Path,
     *,
+    metadata: DocumentMetadata | None = None,
     convention: WordEditorialConvention = NATIVE_WORD_CONVENTION,
 ) -> TeiConversionResult:
     """Convertir un DOCX en TEI Commons Publishing sans ecrire de fichier."""
+    if metadata is None:
+        return TeiConversionResult(
+            None,
+            (TeiConversionDiagnostic(
+                code="missing_metadata", severity="error",
+                message="une conversion DOCX complete exige des metadonnees JSON validees",
+                origin="metadata",
+            ),),
+            (),
+        )
     inspection = inspect_docx_file(path)
-    editorial = build_editorial_document(inspection, convention=convention)
+    suggestions = extract_metadata_suggestions(inspection)
+    excluded = frozenset(suggestions.consumed_paragraph_indexes)
+    editorial = build_editorial_document(
+        inspection, convention=convention, excluded_body_paragraph_indexes=excluded
+    )
     diagnostics = prepare_tei_conversion(inspection, editorial)
+    metadata_diagnostics: list[TeiConversionDiagnostic] = []
+    metadata_validation = validate_metadata(metadata)
+    metadata_diagnostics.extend(_metadata_diagnostics(metadata_validation.issues))
+    metadata_diagnostics.extend(_metadata_diagnostics(suggestions.diagnostics))
+    metadata_diagnostics.extend(_metadata_diagnostics(metadata_consistency_issues(metadata, path, suggestions)))
+    diagnostics = _deduplicate_diagnostics(diagnostics + tuple(metadata_diagnostics))
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return TeiConversionResult(None, diagnostics, ())
     return serialize_editorial_document_to_tei(
         editorial.document,
+        metadata=metadata,
         initial_diagnostics=diagnostics,
     )
+
+
+def _metadata_diagnostics(issues: tuple[object, ...]) -> tuple[TeiConversionDiagnostic, ...]:
+    """Adapter les diagnostics metadata sans brouiller leur code stable."""
+    from mini_metopes.metadata import MetadataIssue
+
+    result: list[TeiConversionDiagnostic] = []
+    for issue in issues:
+        assert isinstance(issue, MetadataIssue)
+        result.append(
+            TeiConversionDiagnostic(
+                code=issue.code,
+                severity=issue.severity,
+                message=issue.message,
+                origin="metadata",
+                metadata_path=issue.path,
+            )
+        )
+    return tuple(result)
+
+
+def _deduplicate_diagnostics(
+    diagnostics: tuple[TeiConversionDiagnostic, ...],
+) -> tuple[TeiConversionDiagnostic, ...]:
+    seen: set[tuple[object, ...]] = set()
+    result: list[TeiConversionDiagnostic] = []
+    for diagnostic in diagnostics:
+        if diagnostic.origin == "metadata" and diagnostic.code in _METADATA_SUGGESTION_CODES:
+            key = (diagnostic.origin, diagnostic.code)
+        else:
+            key = (
+                diagnostic.origin,
+                diagnostic.code,
+                diagnostic.metadata_path,
+                diagnostic.source_part,
+                diagnostic.source_paragraph_index,
+                diagnostic.note_id,
+                diagnostic.run_index,
+                diagnostic.style_id,
+            )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(diagnostic)
+    return tuple(result)
 
 
 def prepare_tei_conversion(

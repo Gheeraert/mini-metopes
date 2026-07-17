@@ -18,6 +18,8 @@ from .editorial import (
     editorial_build_result_to_json,
 )
 from .tei import convert_docx_to_tei, write_tei_conversion_result
+from .tei.model import TeiConversionDiagnostic
+from .metadata import default_metadata_path, extract_metadata_suggestions, load_metadata_file, metadata_consistency_issues
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -29,6 +31,12 @@ def _format_issue(issue: ValidationIssue) -> str:
         position.append(f"colonne {issue.column}")
     prefix = ", ".join(position)
     return f"{prefix} : {issue.message}" if prefix else issue.message
+
+
+def _format_conversion_diagnostic(diagnostic: TeiConversionDiagnostic) -> str:
+    path = diagnostic.metadata_path or diagnostic.source_part or ""
+    prefix = f"{path} : " if path else ""
+    return f"{diagnostic.severity.upper()} [{diagnostic.code}] {prefix}{diagnostic.message}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,6 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument("source", type=Path, help="fichier DOCX source")
     convert_parser.add_argument("output", type=Path, help="fichier TEI de sortie")
+    convert_parser.add_argument("--metadata", type=Path, help="fichier JSON de metadonnees")
+    metadata_validate_parser = subparsers.add_parser("validate-metadata", help="valider un fichier JSON de metadonnees")
+    metadata_validate_parser.add_argument("path", type=Path, help="fichier JSON de metadonnees")
+    metadata_validate_parser.add_argument("--source", type=Path, help="DOCX associe a verifier")
+    editor_parser = subparsers.add_parser("edit-metadata", help="editer les metadonnees associees a un DOCX")
+    editor_parser.add_argument("path", type=Path, nargs="?", help="fichier DOCX a editer")
+    editor_parser.add_argument("--metadata", type=Path, help="fichier JSON de metadonnees")
     return parser
 
 
@@ -67,7 +82,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Exécuter la CLI et retourner son code de sortie."""
     arguments = build_parser().parse_args(argv)
     if arguments.command == "convert-docx":
-        return _convert_docx(arguments.source, arguments.output)
+        return _convert_docx(arguments.source, arguments.output, arguments.metadata)
+    if arguments.command == "validate-metadata":
+        return _validate_metadata(arguments.path, arguments.source)
+    if arguments.command == "edit-metadata":
+        from .gui import run_metadata_editor
+        try:
+            return run_metadata_editor(arguments.path, arguments.metadata)
+        except DocxInspectionError as error:
+            print(f"ERREUR - {arguments.path}: {error}")
+            return 2
+        except OSError as error:
+            print(f"ERREUR — {arguments.path}: {error.strerror or error}")
+            return 2
     path: Path = arguments.path
     if arguments.command == "inspect-docx":
         return _inspect_docx(path, as_json=arguments.json)
@@ -124,16 +151,31 @@ def _model_docx(path: Path, *, as_json: bool) -> int:
     return 0
 
 
-def _convert_docx(source: Path, output: Path) -> int:
+def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int:
+    if not source.exists():
+        print(f"ERREUR - {source}: fichier introuvable")
+        return 2
+    selected_metadata = metadata_path or default_metadata_path(source)
+    if not selected_metadata.exists():
+        print(f"ECHEC [missing_metadata] — {source.name}")
+        print("Aucune metadonnee associee. Lancez :")
+        print(f"python -m mini_metopes edit-metadata {source}")
+        return 1
+    loaded = load_metadata_file(selected_metadata)
+    if not loaded.valid or loaded.metadata is None:
+        print(f"ECHEC [invalid_metadata] — {selected_metadata.name}")
+        for issue in loaded.issues:
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+        return 1
     try:
-        result = convert_docx_to_tei(source)
+        result = convert_docx_to_tei(source, metadata=loaded.metadata)
     except DocxInspectionError as error:
         print(f"ERREUR — {source}: {error}")
         return 2
     if not result.is_successful:
         print(f"ECHEC — {source.name}")
         for diagnostic in result.diagnostics:
-            print(f"{diagnostic.severity.upper()} [{diagnostic.code}] : {diagnostic.message}")
+            print(_format_conversion_diagnostic(diagnostic))
         for issue in result.validation_issues:
             print(_format_issue(issue))
         return 1
@@ -144,7 +186,34 @@ def _convert_docx(source: Path, output: Path) -> int:
         return 2
     print(f"TEI ECRITE — {output}")
     print("Validation Commons Publishing : réussie")
+    for diagnostic in result.diagnostics:
+        print(_format_conversion_diagnostic(diagnostic))
     print(f"Diagnostics non bloquants : {len(result.diagnostics)}")
+    return 0
+
+
+def _validate_metadata(path: Path, source: Path | None) -> int:
+    if not path.exists():
+        print(f"ERREUR — {path}: fichier introuvable")
+        return 2
+    loaded = load_metadata_file(path)
+    if not loaded.valid or loaded.metadata is None:
+        print(f"INVALIDES — {path.name}")
+        for issue in loaded.issues:
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+        return 2 if any(issue.code in {"invalid_json", "metadata_file_unreadable"} for issue in loaded.issues) else 1
+    if source is not None and not source.exists():
+        print(f"ERREUR — {source}: fichier introuvable")
+        return 2
+    if source is not None:
+        try:
+            suggestions = extract_metadata_suggestions(inspect_docx_file(source))
+        except DocxInspectionError as error:
+            print(f"ERREUR - {source}: {error}")
+            return 2
+        for issue in suggestions.diagnostics + metadata_consistency_issues(loaded.metadata, source, suggestions):
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+    print(f"VALIDES — {path.name}")
     return 0
 
 

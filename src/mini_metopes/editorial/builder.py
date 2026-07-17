@@ -55,6 +55,7 @@ def build_editorial_document(
     inspection: DocxInspection,
     *,
     convention: WordEditorialConvention = NATIVE_WORD_CONVENTION,
+    excluded_body_paragraph_indexes: frozenset[int] = frozenset(),
 ) -> EditorialBuildResult:
     """Construire un modele editorial immuable sans produire de TEI."""
     diagnostics: list[EditorialDiagnostic] = []
@@ -97,8 +98,11 @@ def build_editorial_document(
         notes.append(editorial_note)
         notes_by_key.setdefault(key, editorial_note)
 
+    body_paragraphs = tuple(
+        paragraph for paragraph in inspection.paragraphs if paragraph.index not in excluded_body_paragraph_indexes
+    )
     blocks, body_references = _build_blocks(
-        inspection.paragraphs,
+        body_paragraphs,
         convention=convention,
         relationships=body_relationships,
         diagnostics=diagnostics,

@@ -39,6 +39,7 @@
     ],
     "native-tei-conversion.docx": [
       "conversion TEI positive, entierement synthetique",
+      "Title et Subtitle initiaux servant de suggestions de metadonnees JSON",
       "titres, paragraphes, enrichissements, lien externe, retour manuel et notes",
       "citation en prose et citation poetique sans objet non serialisable",
       "styles natifs FootnoteText, EndnoteText, FootnoteReference et EndnoteReference",
