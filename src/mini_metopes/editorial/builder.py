@@ -53,7 +53,7 @@ _MARK_ORDER: tuple[TextMark, ...] = (
 )
 
 
-_ListKey = tuple[str, int]
+_NumberingInterruptions = dict[str, int]
 
 
 @dataclass
@@ -185,41 +185,36 @@ def _build_blocks(
     blocks: list[EditorialBlock] = []
     referenced_notes: set[tuple[str, str]] = set()
     previous_heading_level: int | None = None
-    closed_list_keys: set[_ListKey] = set()
-    interrupted_list_keys: dict[_ListKey, int] = {}
+    closed_numbering_ids: set[str] = set()
+    interrupted_numbering_ids: _NumberingInterruptions = {}
     paragraph_position = 0
     while paragraph_position < len(paragraphs):
         paragraph = paragraphs[paragraph_position]
         role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
 
         if _is_serializable_list_paragraph(paragraph, role.kind):
-            _diagnose_interrupted_list_continuation(
-                paragraph,
-                interrupted_list_keys,
-                diagnostics,
-                note_id,
-            )
-            list_blocks, next_position, list_references = _build_list_sequence(
+            list_blocks, next_position, list_references, sequence_numbering_ids = _build_list_sequence(
                 paragraphs,
                 paragraph_position,
                 convention=convention,
                 relationships=relationships,
                 diagnostics=diagnostics,
                 note_id=note_id,
+                interrupted_numbering_ids=interrupted_numbering_ids,
             )
             blocks.extend(list_blocks)
             referenced_notes.update(list_references)
-            closed_list_keys = _list_keys_for_paragraphs(paragraphs[paragraph_position:next_position])
+            closed_numbering_ids = sequence_numbering_ids
             paragraph_position = next_position
             continue
 
-        if closed_list_keys:
-            for key in closed_list_keys:
-                interrupted_list_keys[key] = interrupted_list_keys.get(key, 0) + 1
-            closed_list_keys = set()
+        if closed_numbering_ids:
+            for numbering_id in closed_numbering_ids:
+                interrupted_numbering_ids[numbering_id] = interrupted_numbering_ids.get(numbering_id, 0) + 1
+            closed_numbering_ids = set()
         else:
-            for key in tuple(interrupted_list_keys):
-                interrupted_list_keys[key] += 1
+            for numbering_id in tuple(interrupted_numbering_ids):
+                interrupted_numbering_ids[numbering_id] += 1
 
         content, references = _build_inline_content(
             paragraph,
@@ -381,40 +376,40 @@ def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) ->
     )
 
 
-def _numbering_key(paragraph: ParagraphInfo) -> _ListKey | None:
+def _numbering_id(paragraph: ParagraphInfo) -> str | None:
     numbering = paragraph.numbering
-    if numbering is None or numbering.level is None:
+    if numbering is None:
         return None
-    return (numbering.numbering_id, numbering.level)
+    return numbering.numbering_id
 
 
-def _list_keys_for_paragraphs(paragraphs: tuple[ParagraphInfo, ...]) -> set[_ListKey]:
-    keys: set[_ListKey] = set()
+def _numbering_ids_for_paragraphs(paragraphs: tuple[ParagraphInfo, ...]) -> set[str]:
+    numbering_ids: set[str] = set()
     for paragraph in paragraphs:
-        key = _numbering_key(paragraph)
-        if key is not None:
-            keys.add(key)
-    return keys
+        numbering_id = _numbering_id(paragraph)
+        if numbering_id is not None:
+            numbering_ids.add(numbering_id)
+    return numbering_ids
 
 
 def _diagnose_interrupted_list_continuation(
     paragraph: ParagraphInfo,
-    interrupted_list_keys: dict[_ListKey, int],
+    interrupted_numbering_ids: _NumberingInterruptions,
     diagnostics: list[EditorialDiagnostic],
     note_id: str | None,
 ) -> None:
-    key = _numbering_key(paragraph)
-    if key is None or key not in interrupted_list_keys:
+    numbering = paragraph.numbering
+    if numbering is None or numbering.numbering_id not in interrupted_numbering_ids:
         return
-    numbering_id, level = key
-    interruptions = interrupted_list_keys[key]
+    level = "absent" if numbering.level is None else str(numbering.level)
+    interruptions = interrupted_numbering_ids[numbering.numbering_id]
     diagnostics.append(
         EditorialDiagnostic(
             code="interrupted_list_continuation_not_serializable",
             severity="error",
             message=(
-                "reprise d'une meme instance de liste apres interruption non numerotee : "
-                f"numId={numbering_id}, ilvl={level}, interruptions={interruptions}"
+                "reouverture discontinue d'une meme instance de liste : "
+                f"numId={numbering.numbering_id}, ilvl={level}, interruptions={interruptions}"
             ),
             paragraph_index=paragraph.index,
             style_id=paragraph.style_id,
@@ -431,7 +426,8 @@ def _build_list_sequence(
     relationships: dict[str, RelationshipInfo],
     diagnostics: list[EditorialDiagnostic],
     note_id: str | None,
-) -> tuple[tuple[EditorialList, ...], int, set[tuple[str, str]]]:
+    interrupted_numbering_ids: _NumberingInterruptions,
+) -> tuple[tuple[EditorialList, ...], int, set[tuple[str, str]], set[str]]:
     """Reconstruire une sequence contigue de listes par niveaux OOXML directs.
 
     Les objets publics restent immuables ; cette fonction utilise seulement des
@@ -442,6 +438,7 @@ def _build_list_sequence(
     root_level = first.numbering.level
     roots: list[_ListBuilder] = []
     active: dict[int, _ListBuilder] = {}
+    locally_closed_numbering_ids: _NumberingInterruptions = {}
     references: set[tuple[str, str]] = set()
     previous_level: int | None = None
     position = start_position
@@ -454,6 +451,22 @@ def _build_list_sequence(
         numbering = paragraph.numbering
         assert numbering is not None and numbering.level is not None
         level = numbering.level
+        active_numbering_ids = {builder.numbering_id for builder in active.values()}
+        if numbering.numbering_id not in active_numbering_ids:
+            if numbering.numbering_id in interrupted_numbering_ids:
+                _diagnose_interrupted_list_continuation(
+                    paragraph,
+                    interrupted_numbering_ids,
+                    diagnostics,
+                    note_id,
+                )
+            elif numbering.numbering_id in locally_closed_numbering_ids:
+                _diagnose_interrupted_list_continuation(
+                    paragraph,
+                    locally_closed_numbering_ids,
+                    diagnostics,
+                    note_id,
+                )
 
         if previous_level is not None and level > previous_level + 1:
             diagnostics.append(
@@ -519,6 +532,7 @@ def _build_list_sequence(
         elif level == previous_level:
             builder = active[level]
             if builder.signature != signature:
+                locally_closed_numbering_ids.setdefault(builder.numbering_id, 0)
                 builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
                 _attach_sibling_list(builder, level, root_level, active, roots)
                 active[level] = builder
@@ -530,9 +544,11 @@ def _build_list_sequence(
         else:
             for active_level in tuple(active):
                 if active_level > level:
+                    locally_closed_numbering_ids.setdefault(active[active_level].numbering_id, 0)
                     del active[active_level]
             builder = active[level]
             if builder.signature != signature:
+                locally_closed_numbering_ids.setdefault(builder.numbering_id, 0)
                 builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
                 _attach_sibling_list(builder, level, root_level, active, roots)
                 active[level] = builder
@@ -541,7 +557,12 @@ def _build_list_sequence(
         previous_level = level
         position += 1
 
-    return tuple(_freeze_list(root, diagnostics, note_id) for root in roots), position, references
+    return (
+        tuple(_freeze_list(root, diagnostics, note_id) for root in roots),
+        position,
+        references,
+        _numbering_ids_for_paragraphs(paragraphs[start_position:position]),
+    )
 
 
 def _numbering_signature(numbering: object) -> tuple[str, int, str, str, int | None, int | None]:

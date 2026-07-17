@@ -192,6 +192,26 @@ def test_interrupted_same_numbering_instance_is_not_serializable() -> None:
     diagnostic = next(item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable")
     assert diagnostic.paragraph_index == 2
     assert "numId=42" in diagnostic.message
+    assert "ilvl=0" in diagnostic.message
+    assert "interruptions=1" in diagnostic.message
+
+
+def test_interrupted_same_numbering_instance_at_another_level_is_not_serializable() -> None:
+    path = runtime_docx("interrupted-same-numid-other-level.docx")
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Interruption")
+        + paragraph("Reprise niveau un", num_id="42", ilvl="1"),
+        numbering=_two_level_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+
+    diagnostic = next(item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable")
+    assert diagnostic.paragraph_index == 2
+    assert "numId=42" in diagnostic.message
+    assert "ilvl=1" in diagnostic.message
     assert "interruptions=1" in diagnostic.message
 
 
@@ -214,6 +234,61 @@ def test_distinct_numbering_instance_after_interruption_stays_serializable() -> 
 
     assert [item.source_numbering_id for item in _lists(result.document.blocks)] == ["42", "44"]
     assert "interrupted_list_continuation_not_serializable" not in [item.code for item in result.diagnostics]
+
+
+def test_interrupted_instance_reappearing_later_in_new_sequence_is_not_serializable() -> None:
+    path = runtime_docx("interrupted-later-in-sequence.docx")
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Interruption")
+        + paragraph("Autre instance", num_id="44", ilvl="0")
+        + paragraph("Reprise quarante-deux", num_id="42", ilvl="0"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+
+    diagnostic = next(item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable")
+    assert diagnostic.paragraph_index == 3
+    assert "numId=42" in diagnostic.message
+
+
+def test_contiguous_reopening_of_a_closed_sibling_instance_is_not_serializable() -> None:
+    path = runtime_docx("contiguous-sibling-reopening.docx")
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Autre instance", num_id="44", ilvl="0")
+        + paragraph("Reprise quarante-deux", num_id="42", ilvl="0"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+
+    diagnostic = next(item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable")
+    assert diagnostic.paragraph_index == 2
+    assert "numId=42" in diagnostic.message
+
+
+def test_normal_return_to_active_parent_numbering_is_not_a_discontinuous_reopening() -> None:
+    path = runtime_docx("return-to-active-parent.docx")
+    write_docx(
+        path,
+        paragraph("Parent un", num_id="42", ilvl="0")
+        + paragraph("Enfant", num_id="44", ilvl="1")
+        + paragraph("Parent deux", num_id="42", ilvl="0"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    roots = _lists(result.document.blocks)
+
+    assert "interrupted_list_continuation_not_serializable" not in [item.code for item in result.diagnostics]
+    assert len(roots) == 1
+    assert roots[0].source_numbering_id == "42"
+    assert [item.source_paragraph_index for item in roots[0].items] == [0, 2]
+    assert roots[0].items[0].child_lists[0].source_numbering_id == "44"
 
 
 def test_interrupted_list_continuation_is_scoped_to_each_part() -> None:
@@ -267,3 +342,24 @@ def test_explicit_lvlrestart_values_are_blocking() -> None:
             for item in result.diagnostics
         )
         assert "list_restart_semantics_normalized" not in [item.code for item in result.diagnostics]
+
+
+def _two_instance_numbering() -> str:
+    return numbering_xml(
+        '<w:abstractNum w:abstractNumId="1">'
+        '<w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl>'
+        '<w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/></w:lvl>'
+        '</w:abstractNum>'
+        '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+        '<w:num w:numId="44"><w:abstractNumId w:val="1"/></w:num>'
+    )
+
+
+def _two_level_numbering() -> str:
+    return numbering_xml(
+        '<w:abstractNum w:abstractNumId="1">'
+        '<w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl>'
+        '<w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/></w:lvl>'
+        '</w:abstractNum>'
+        '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+    )

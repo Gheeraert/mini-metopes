@@ -6,12 +6,13 @@ natifs reconnus) et listes à puces textuelles. L'imbrication suit le niveau
 OOXML `ilvl` : un niveau de plus devient une sous-liste du dernier item.
 
 Un paragraphe ordinaire interrompt une liste. Un changement de `numId` ou de
-format au même niveau crée une nouvelle liste. En revanche, reprendre le même
-`numId` après une interruption non numérotée n'est pas assimilé à une nouvelle
-liste : la conversion est refusée tant que Mini-Métopes ne calcule pas les
-compteurs effectifs Word. Une liste qui commence au niveau 1 ou 2 est conservée
-comme liste racine, avec un avertissement ; Mini-Métopes n'invente pas de parent
-vide. Un saut de niveau, par exemple 0 vers 2, est refusé.
+format au même niveau crée une nouvelle liste. En revanche, `numId` identifie
+l'instance de numérotation Word ; `ilvl` identifie son niveau. Reprendre le même
+`numId`, même à un autre niveau ou après une liste sœur, n'est pas assimilé à
+une nouvelle liste : la conversion est refusée tant que Mini-Métopes ne calcule
+pas les compteurs effectifs Word. Une liste qui commence au niveau 1 ou 2 est
+conservée comme liste racine, avec un avertissement ; Mini-Métopes n'invente pas
+de parent vide. Un saut de niveau, par exemple 0 vers 2, est refusé.
 
 Le départ effectif Word (`start` ou `startOverride`) est conservé dans le TEI
 par `list/@n` pour les listes ordonnées. Les marqueurs visibles Word ne sont

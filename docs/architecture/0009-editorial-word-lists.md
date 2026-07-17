@@ -12,11 +12,12 @@ relire `numId` ni `ilvl`.
 
 Une liste porte son type (`ordered` ou `bulleted`), son format effectif Word,
 son départ, son `numId`, son niveau source et les propriétés de niveau utiles
-au diagnostic. Sa signature est `(numId, ilvl, type, numFmt, start,
-lvlRestart)`. Une nouvelle signature au même niveau crée une liste sœur.
-`numId` est l'identité d'une instance Word, et non une simple apparence : si la
-même instance reprend après un paragraphe non numéroté, Mini-Métopes refuse la
-conversion avec `interrupted_list_continuation_not_serializable` tant que les
+au diagnostic. Sa signature structurelle est `(numId, ilvl, type, numFmt,
+start, lvlRestart)`. Une nouvelle signature au même niveau crée une liste sœur.
+Cette signature ne doit pas être confondue avec l'identité de continuité :
+`numId` identifie l'instance de numérotation Word, tandis que `ilvl` identifie
+seulement son niveau. Mini-Métopes refuse toute réouverture discontinue d'une
+instance avec `interrupted_list_continuation_not_serializable` tant que les
 compteurs effectifs Word ne sont pas calculés.
 
 Une montée d'un niveau crée une liste enfant du dernier item. Une descente
