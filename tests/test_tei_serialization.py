@@ -87,6 +87,25 @@ def test_quotes_verse_and_notes_keep_their_structure_and_position(result) -> Non
     assert tree.xpath("count(//tei:note//tei:quote)", namespaces=NS) == 4.0
 
 
+def test_native_word_note_marks_do_not_pollute_tei_notes(result) -> None:
+    tree = _tree(result)
+
+    assert tree.xpath("count(//tei:note[@place='foot'])", namespaces=NS) == 2.0
+    assert tree.xpath("count(//tei:note[@place='end'])", namespaces=NS) == 1.0
+    assert tree.xpath("count(//tei:note//tei:note)", namespaces=NS) == 0.0
+    assert tree.xpath("count(//tei:note//tei:hi)", namespaces=NS) == 0.0
+    assert "1Note de bas de page" not in tree.xpath("string((//tei:note[@place='foot'])[1])", namespaces=NS)
+    assert "2Note de fin" not in tree.xpath("string(//tei:note[@place='end'])", namespaces=NS)
+
+
+def test_positive_native_conversion_has_no_unknown_style_diagnostics() -> None:
+    result = convert_docx_to_tei(FIXTURES / "native-tei-conversion.docx")
+
+    assert result.is_successful
+    assert "unsupported_paragraph_style" not in [diagnostic.code for diagnostic in result.diagnostics]
+    assert "unsupported_character_style" not in [diagnostic.code for diagnostic in result.diagnostics]
+
+
 @pytest.mark.parametrize(
     ("document_factory", "code"),
     [

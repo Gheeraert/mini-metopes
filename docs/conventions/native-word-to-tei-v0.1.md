@@ -14,6 +14,13 @@ Les noms visibles Word peuvent etre localises : Mini-Metopes s'appuie sur les
 identifiants OOXML. Un nouveau paragraphe dans une citation poetique commence
 une strophe ; un paragraphe normal termine une citation consecutive.
 
+Les styles natifs `FootnoteText` et `EndnoteText` sont acceptes comme
+paragraphes ordinaires a l'interieur des notes. Les styles automatiques
+`FootnoteReference` et `EndnoteReference` sont neutres : la semantique de la
+note vient de l'appel Word, puis de l'element TEI `note`, pas du style visuel.
+Les marques internes `footnoteRef` et `endnoteRef` qui affichent le numero au
+debut de la note Word ne sont pas reprises comme texte TEI.
+
 La conversion refuse actuellement les dessins ou images, liens internes,
 vers vides, paragraphes vides, listes Word, tableaux et zones de texte. Ces
 objets ne sont pas transformes silencieusement en paragraphes.

@@ -225,6 +225,23 @@ def test_notes_keep_blocks_and_report_unreferenced_notes(editorial_result) -> No
     assert "unreferenced_note" in _diagnostic_codes(editorial_result)
 
 
+def test_native_word_note_styles_are_neutral_and_do_not_create_recursive_notes() -> None:
+    result = build_editorial_document_from_file(FIXTURES / "native-tei-conversion.docx")
+    codes = _diagnostic_codes(result)
+    footnote = next(note for note in result.document.notes if note.note_kind == "footnote")
+    endnote = next(note for note in result.document.notes if note.note_kind == "endnote")
+
+    assert "unsupported_paragraph_style" not in codes
+    assert "unsupported_character_style" not in codes
+    assert "cyclic_note_reference" not in codes
+    assert isinstance(footnote.blocks[0], Paragraph)
+    assert isinstance(endnote.blocks[0], Paragraph)
+    assert footnote.blocks[0].source_style_id == "FootnoteText"
+    assert endnote.blocks[0].source_style_id == "EndnoteText"
+    assert all(not isinstance(item, NoteReference) for item in footnote.blocks[0].content)
+    assert all(not isinstance(item, NoteReference) for item in endnote.blocks[0].content)
+
+
 def test_missing_references_and_duplicate_notes_are_diagnosed(editorial_inspection) -> None:
     external = next(run for run in editorial_inspection.paragraphs[2].runs if run.text == "externe")
     changed_external = replace(external, hyperlink_relationship_id="rIdMissing")

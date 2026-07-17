@@ -26,6 +26,13 @@ paragraphe. `VerseQuote` devient `quote` contenant un `lg` par strophe et un
 `l` par vers. Les notes sont placees exactement a leur appel comme `note`
 avec `place="foot"` ou `place="end"`.
 
+Les paragraphes Word natifs de notes (`FootnoteText`, `EndnoteText`) sont
+modelises comme paragraphes ordinaires. Les styles de caracteres
+`FootnoteReference` et `EndnoteReference` sont neutres. Les marques OOXML
+`footnoteRef` et `endnoteRef`, presentes au debut du contenu de note pour
+afficher son numero dans Word, ne sont pas des contenus editoriaux : elles ne
+deviennent ni texte, ni appel de note, ni element TEI supplementaire.
+
 Les marques deviennent un unique `hi/@rend`, avec les valeurs admises par le
 RNG : `bold`, `italic`, `small-caps`, `uppercase`, `sup`, `sub`. Un lien
 externe devient `ref/@target`. Un retour manuel devient `lb`. Les styles Word

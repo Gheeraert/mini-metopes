@@ -45,6 +45,18 @@ leurs paragraphes et leur contenu enrichi. Les appels restent places dans le
 flux principal. Les hyperliens externes conservent leur cible et les renvois
 internes conservent leur ancre.
 
+Dans les notes, les styles de paragraphes natifs `FootnoteText` et
+`EndnoteText` sont traites comme des paragraphes ordinaires. Les styles de
+caracteres `FootnoteReference` et `EndnoteReference` sont des styles
+automatiques neutres : ils ne produisent aucune marque typographique dans le
+modele editorial.
+
+Word place souvent au debut d'une note une marque automatique `footnoteRef` ou
+`endnoteRef`, qui affiche le numero de la note dans Word. Cette marque n'est
+pas du contenu editorial : Mini-Metopes ne la transforme ni en texte, ni en
+nouvel appel de note, ni en note recursive. La numerotation visible sera prise
+en charge par le moteur de rendu des notes TEI.
+
 Les retours manuels, sauts de page, sauts de colonne et tabulations restent des
 objets distincts. Une tabulation n'est pas remplacee par des espaces. Les
 dessins et images sont conserves comme references, sans etre encore interpretes

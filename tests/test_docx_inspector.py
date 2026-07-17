@@ -179,6 +179,36 @@ def test_notes_keep_structured_paragraphs_and_runs(basic_inspection) -> None:
     assert note.paragraphs[0].runs[1].manual_breaks == 1
 
 
+def test_native_note_styles_and_automatic_note_marks_are_observed_without_content() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    body_note_runs = [
+        run
+        for paragraph in inspection.paragraphs
+        for run in paragraph.runs
+        if run.style_id in {"FootnoteReference", "EndnoteReference"}
+    ]
+    footnote = inspection.footnotes[0]
+    endnote = inspection.endnotes[0]
+    footnote_mark = footnote.paragraphs[0].runs[0]
+    endnote_mark = endnote.paragraphs[0].runs[0]
+
+    assert [run.style_id for run in body_note_runs] == [
+        "FootnoteReference",
+        "EndnoteReference",
+        "FootnoteReference",
+    ]
+    assert body_note_runs[0].contents[0].kind == "footnote_reference"
+    assert body_note_runs[1].contents[0].kind == "endnote_reference"
+    assert footnote.paragraphs[0].style_id == "FootnoteText"
+    assert endnote.paragraphs[0].style_id == "EndnoteText"
+    assert footnote_mark.style_id == "FootnoteReference"
+    assert endnote_mark.style_id == "EndnoteReference"
+    assert footnote_mark.contents == ()
+    assert endnote_mark.contents == ()
+    assert footnote.paragraphs[0].text == "Note de bas de page."
+    assert endnote.paragraphs[0].text == "Note de fin."
+
+
 def test_poetry_keeps_paragraphs_distinct_from_manual_breaks() -> None:
     inspection = inspect_docx_file(FIXTURES / "poetry-inspection.docx")
     assert len(inspection.paragraphs) == 2
