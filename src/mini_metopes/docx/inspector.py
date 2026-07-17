@@ -111,8 +111,18 @@ def inspect_docx_file(
         footnote_relationships = _read_relationships(footnote_relationships_root)
         endnote_relationships = _read_relationships(endnote_relationships_root)
         media = _read_media(infos, content_types_root)
-        issues.extend(_document_observation_issues(document, parts))
-        if numbering_root is None and any(paragraph.numbering_id for paragraph in paragraphs):
+        issues.extend(_part_observation_issues(document, DOCUMENT_PART))
+        if footnotes_root is not None:
+            issues.extend(_part_observation_issues(footnotes_root, FOOTNOTES_PART))
+        if endnotes_root is not None:
+            issues.extend(_part_observation_issues(endnotes_root, ENDNOTES_PART))
+        issues.extend(_package_observation_issues(parts))
+        all_paragraphs = (
+            *paragraphs,
+            *(paragraph for note in footnotes for paragraph in note.paragraphs),
+            *(paragraph for note in endnotes for paragraph in note.paragraphs),
+        )
+        if numbering_root is None and any(paragraph.numbering_id for paragraph in all_paragraphs):
             issues.append(
                 InspectionIssue(
                     code="missing_numbering_part",
@@ -532,7 +542,7 @@ def _content_types(root: etree._Element | None) -> dict[str, str]:
     return result
 
 
-def _document_observation_issues(root: etree._Element, parts: tuple[str, ...]) -> list[InspectionIssue]:
+def _part_observation_issues(root: etree._Element, part: str) -> list[InspectionIssue]:
     issues: list[InspectionIssue] = []
     if root.xpath(".//w:txbxContent", namespaces=NS):
         issues.append(
@@ -543,7 +553,7 @@ def _document_observation_issues(root: etree._Element, parts: tuple[str, ...]) -
                     "encore integre a la sequence principale"
                 ),
                 severity="info",
-                part=DOCUMENT_PART,
+                part=part,
             )
         )
     if root.xpath(".//w:tbl", namespaces=NS):
@@ -552,9 +562,14 @@ def _document_observation_issues(root: etree._Element, parts: tuple[str, ...]) -
                 code="table_not_modeled",
                 message="des tableaux sont présents ; leur structure n'est pas encore modélisée",
                 severity="info",
-                part=DOCUMENT_PART,
+                part=part,
             )
         )
+    return issues
+
+
+def _package_observation_issues(parts: tuple[str, ...]) -> list[InspectionIssue]:
+    issues: list[InspectionIssue] = []
     if "word/comments.xml" in parts:
         issues.append(
             InspectionIssue(

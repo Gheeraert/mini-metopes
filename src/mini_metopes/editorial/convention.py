@@ -75,7 +75,12 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
         ("Heading6", 6),
     ),
     paragraph_style_ids=frozenset({"Normal"}),
-    character_style_marks=(("Emphasis", ("italic",)), ("Strong", ("bold",))),
+    character_style_marks=(
+        ("Emphasis", ("italic",)),
+        ("Strong", ("bold",)),
+        ("Hyperlink", ()),
+        ("FollowedHyperlink", ()),
+    ),
     deferred_paragraph_style_ids=frozenset({"Title", "Subtitle"}),
     prose_quote_style_ids=frozenset({"Quote"}),
     verse_quote_style_ids=frozenset({"IntenseQuote"}),

@@ -50,6 +50,11 @@ objets distincts. Une tabulation n'est pas remplacee par des espaces. Les
 dessins et images sont conserves comme references, sans etre encore interpretes
 comme des figures editoriales.
 
+Les styles de caracteres Word natifs **Hyperlink** et **FollowedHyperlink**
+sont reconnus comme styles visuels neutres. Ils ne produisent pas de marque
+typographique et ne portent pas la semantique du lien : la cible du lien vient
+des relations OOXML.
+
 ## Citations natives
 
 Utilisez le style Word natif **Citation** (`Quote`) pour une citation en prose.
@@ -74,8 +79,11 @@ plan : ils ne deviennent jamais des titres par repli.
 Les styles **Title** et **Subtitle** ne sont pas encore interpretes. Ils
 produisent un diagnostic explicite et restent temporairement des paragraphes
 ordinaires dans le modele, meme si le fichier DOCX leur associe un niveau de
-plan.
+plan. Dans la conversion TEI courante, leur presence bloque l'ecriture afin de
+ne pas transformer des metadonnees potentielles en paragraphes du corps.
 
-Les metadonnees, listes, tableaux, figures editoriales, bibliographies et la
-serialisation TEI restent hors de cette version. Les styles Metopes ou locaux
-ne sont pas assimiles automatiquement a cette convention native.
+Les metadonnees, listes, tableaux, figures editoriales et bibliographies
+restent hors de cette version. La conversion TEI bloque les listes, tableaux,
+zones de texte et styles inconnus afin d'eviter une TEI incomplete ou
+trompeuse. Les styles Metopes ou locaux ne sont pas assimiles automatiquement a
+cette convention native.

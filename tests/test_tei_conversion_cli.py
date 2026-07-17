@@ -28,3 +28,16 @@ def test_convert_docx_failure_does_not_write_output(tmp_path: Path, capsys) -> N
     assert code == 1
     assert "empty_verse" in captured.out
     assert not output.exists()
+
+
+def test_convert_docx_precontrol_failure_prints_diagnostics_and_preserves_output(tmp_path: Path, capsys) -> None:
+    output = tmp_path / "preserved.xml"
+    output.write_text("ancienne sortie", encoding="utf-8")
+
+    code = main(["convert-docx", str(FIXTURES / "native-editorial.docx"), str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert "deferred_paragraph_style" in captured.out
+    assert "unsupported_character_style" in captured.out
+    assert output.read_text(encoding="utf-8") == "ancienne sortie"

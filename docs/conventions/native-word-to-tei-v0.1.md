@@ -15,5 +15,15 @@ identifiants OOXML. Un nouveau paragraphe dans une citation poetique commence
 une strophe ; un paragraphe normal termine une citation consecutive.
 
 La conversion refuse actuellement les dessins ou images, liens internes,
-vers vides et metadonnees bibliographiques non structurees. Les titres `Title`
-et `Subtitle`, les listes, tableaux et figures ne sont pas encore convertis.
+vers vides, paragraphes vides, listes Word, tableaux et zones de texte. Ces
+objets ne sont pas transformes silencieusement en paragraphes.
+
+Les titres `Title` et `Subtitle` sont reserves aux metadonnees futures : leur
+presence bloque donc la conversion TEI pour eviter un `teiHeader` trompeur ou
+une transformation en simple paragraphe. Les styles de paragraphes ou de
+caracteres inconnus bloquent egalement la conversion tant qu'une convention
+explicite n'a pas ete decidee.
+
+Les commentaires, en-tetes et pieds de page Word sont signales comme
+avertissements. Ils ne bloquent pas encore une conversion du corps principal,
+mais ils restent visibles dans les diagnostics.

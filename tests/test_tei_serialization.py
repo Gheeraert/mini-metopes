@@ -16,13 +16,21 @@ from mini_metopes.editorial import (
     Heading,
     NoteReference,
     Paragraph,
+    ProseQuote,
     TextSpan,
     VerseLine,
     VerseQuote,
     VerseStanza,
+    build_editorial_document,
     build_editorial_document_from_file,
 )
-from mini_metopes.tei import serialize_editorial_document_to_tei, write_tei_conversion_result
+from mini_metopes.docx import InspectionIssue, RunContentInfo, inspect_docx_file
+from mini_metopes.tei import (
+    convert_docx_to_tei,
+    prepare_tei_conversion,
+    serialize_editorial_document_to_tei,
+    write_tei_conversion_result,
+)
 from mini_metopes.validation import ValidationIssue, ValidationResult, validate_xml_bytes
 import mini_metopes.tei.serializer as serializer
 
@@ -158,3 +166,163 @@ def test_atomic_writer_preserves_existing_file_on_failed_result(tmp_path: Path, 
     assert destination.read_text(encoding="utf-8") == "conserve"
     write_tei_conversion_result(result, destination)
     assert validate_xml_bytes(destination.read_bytes()).valid
+
+
+def test_docx_conversion_propagates_inspection_and_editorial_diagnostics() -> None:
+    result = convert_docx_to_tei(FIXTURES / "native-editorial.docx")
+    codes = [diagnostic.code for diagnostic in result.diagnostics]
+
+    assert result.xml_bytes is None
+    assert "deferred_paragraph_style" in codes
+    assert "unsupported_character_style" in codes
+    assert "tab_in_editorial_content" in codes
+    assert "drawing_not_editorially_interpreted" in codes
+    assert [diagnostic.origin for diagnostic in result.diagnostics].index("editorial") >= 0
+
+
+def test_precontrol_keeps_deterministic_order_for_inspection_then_editorial() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    inspection = replace(
+        inspection,
+        issues=(
+            InspectionIssue("comments_not_inspected", "commentaire", "info", "word/comments.xml"),
+        ),
+    )
+    editorial = build_editorial_document(inspection)
+
+    diagnostics = prepare_tei_conversion(inspection, editorial)
+
+    assert [diagnostic.origin for diagnostic in diagnostics[:1]] == ["inspection"]
+    assert [diagnostic.code for diagnostic in diagnostics] == ["comments_not_inspected"]
+
+
+def test_precontrol_blocks_numbered_paragraphs_in_body_and_notes() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    body_paragraph = replace(inspection.paragraphs[0], numbering_id="42", numbering_level=1)
+    note = inspection.footnotes[0]
+    note_paragraph = replace(note.paragraphs[0], numbering_id="43", numbering_level=0)
+    inspection = replace(
+        inspection,
+        paragraphs=(body_paragraph,) + inspection.paragraphs[1:],
+        footnotes=(replace(note, paragraphs=(note_paragraph,) + note.paragraphs[1:]),) + inspection.footnotes[1:],
+    )
+
+    result = convert_docx_to_tei_from_inspection_for_test(inspection)
+    numbered = [diagnostic for diagnostic in result.diagnostics if diagnostic.code == "numbered_paragraph_not_serializable"]
+
+    assert result.xml_bytes is None
+    assert [(diagnostic.source_part, diagnostic.note_id) for diagnostic in numbered] == [
+        ("word/document.xml", None),
+        ("word/footnotes.xml", "1"),
+    ]
+
+
+def test_precontrol_blocks_unknown_break_types() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    run = inspection.paragraphs[2].runs[0]
+    changed_run = replace(
+        run,
+        contents=run.contents + (RunContentInfo(kind="break", break_type="section"),),
+    )
+    changed_paragraph = replace(
+        inspection.paragraphs[2],
+        runs=(changed_run,) + inspection.paragraphs[2].runs[1:],
+    )
+    inspection = replace(
+        inspection,
+        paragraphs=inspection.paragraphs[:2] + (changed_paragraph,) + inspection.paragraphs[3:],
+    )
+
+    result = convert_docx_to_tei_from_inspection_for_test(inspection)
+
+    assert result.xml_bytes is None
+    assert "unsupported_break_type" in [diagnostic.code for diagnostic in result.diagnostics]
+
+
+def test_hyperlink_character_styles_are_recognized_without_extra_marks() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    paragraph = inspection.paragraphs[2]
+    link_run = next(run for run in paragraph.runs if run.hyperlink_relationship_id == "rIdHyper")
+    followed_run = replace(link_run, text=" lien suivi", style_id="FollowedHyperlink")
+    hyperlink_run = replace(link_run, style_id="Hyperlink")
+    paragraph = replace(
+        paragraph,
+        runs=tuple(hyperlink_run if run is link_run else run for run in paragraph.runs) + (followed_run,),
+    )
+    inspection = replace(
+        inspection,
+        paragraphs=inspection.paragraphs[:2] + (paragraph,) + inspection.paragraphs[3:],
+    )
+    editorial = build_editorial_document(inspection)
+
+    assert "unsupported_character_style" not in [diagnostic.code for diagnostic in editorial.diagnostics]
+
+
+def test_non_blocking_inspection_diagnostics_are_preserved_on_success() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    inspection = replace(
+        inspection,
+        issues=(
+            InspectionIssue("comments_not_inspected", "commentaires presents", "info", "word/comments.xml"),
+            InspectionIssue("headers_footers_not_inspected", "en-tetes presents", "info", None),
+        ),
+    )
+
+    result = convert_docx_to_tei_from_inspection_for_test(inspection)
+
+    assert result.is_successful
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "comments_not_inspected",
+        "headers_footers_not_inspected",
+    ]
+
+
+def test_blocking_inspection_diagnostics_prevent_serialization() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    for code in ("textboxes_not_inspected", "table_not_modeled"):
+        changed = replace(
+            inspection,
+            issues=(InspectionIssue(code, f"{code} present", "info", "word/document.xml"),),
+        )
+        result = convert_docx_to_tei_from_inspection_for_test(changed)
+        assert result.xml_bytes is None
+        assert [diagnostic.code for diagnostic in result.diagnostics] == [code]
+
+
+def test_heading_in_note_is_reported_without_type_error() -> None:
+    document = EditorialDocument(
+        source_name="heading-note.docx",
+        blocks=(Paragraph((NoteReference("1", "footnote"),), 0, "Normal"),),
+        notes=(
+            EditorialNote(
+                note_id="1",
+                note_kind="footnote",
+                blocks=(Heading(1, (TextSpan("Titre dans note"),), 0, "Heading1"),),
+            ),
+        ),
+    )
+
+    result = serialize_editorial_document_to_tei(document)
+
+    assert result.xml_bytes is None
+    assert "heading_in_note_not_serializable" in [diagnostic.code for diagnostic in result.diagnostics]
+
+
+def test_empty_quote_containers_are_explicitly_rejected(document) -> None:
+    result = serialize_editorial_document_to_tei(
+        replace(document, blocks=(ProseQuote(paragraphs=()), VerseQuote(stanzas=())), notes=())
+    )
+
+    assert result.xml_bytes is None
+    assert "empty_prose_quote_not_serializable" in [diagnostic.code for diagnostic in result.diagnostics]
+    assert "empty_verse_quote_not_serializable" in [diagnostic.code for diagnostic in result.diagnostics]
+
+
+def convert_docx_to_tei_from_inspection_for_test(inspection):
+    editorial = build_editorial_document(inspection)
+    diagnostics = prepare_tei_conversion(inspection, editorial)
+    if any(diagnostic.severity == "error" for diagnostic in diagnostics):
+        from mini_metopes.tei import TeiConversionResult
+
+        return TeiConversionResult(None, diagnostics, ())
+    return serialize_editorial_document_to_tei(editorial.document, initial_diagnostics=diagnostics)

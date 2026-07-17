@@ -75,9 +75,13 @@ class _SerializationState:
         )
 
 
-def serialize_editorial_document_to_tei(document: EditorialDocument) -> TeiConversionResult:
+def serialize_editorial_document_to_tei(
+    document: EditorialDocument,
+    *,
+    initial_diagnostics: tuple[TeiConversionDiagnostic, ...] = (),
+) -> TeiConversionResult:
     """Serialiser un modele editorial et valider le resultat contre le RNG embarque."""
-    diagnostics: list[TeiConversionDiagnostic] = []
+    diagnostics: list[TeiConversionDiagnostic] = list(initial_diagnostics)
     notes: dict[tuple[str, str], EditorialNote] = {}
     for note in document.notes:
         key = (note.note_kind, note.note_id)
@@ -175,6 +179,9 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
         _append_inline(element, block.content, state)
         return
     if isinstance(block, ProseQuote):
+        if not block.paragraphs:
+            state.error("empty_prose_quote_not_serializable", "citation en prose vide non serialisable")
+            return
         quote = etree.SubElement(parent, _tag("quote"))
         for paragraph in block.paragraphs:
             if not paragraph.content:
@@ -184,6 +191,9 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
             _append_inline(element, paragraph.content, state)
         return
     if isinstance(block, VerseQuote):
+        if not block.stanzas:
+            state.error("empty_verse_quote_not_serializable", "citation poetique vide non serialisable")
+            return
         quote = etree.SubElement(parent, _tag("quote"))
         for stanza in block.stanzas:
             if not stanza.lines or all(not line.content for line in stanza.lines):
@@ -259,6 +269,14 @@ def _append_note_reference(parent: etree._Element, reference: NoteReference, sta
     state.active_notes.add(key)
     element = etree.SubElement(parent, _tag("note"), place="foot" if reference.note_kind == "footnote" else "end")
     for block in note.blocks:
+        if isinstance(block, Heading):
+            state.error(
+                "heading_in_note_not_serializable",
+                "titre de section dans une note non serialisable dans cette passe",
+                source_paragraph_index=block.source_paragraph_index,
+                note_id=note.note_id,
+            )
+            continue
         _append_block(element, block, state)
     state.active_notes.remove(key)
     return element

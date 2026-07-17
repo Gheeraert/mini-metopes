@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
 
@@ -200,6 +200,31 @@ def test_textbox_paragraph_is_not_folded_into_main_sequence() -> None:
     assert all("Texte de la zone" not in run.text for run in paragraph.runs)
     assert paragraph.drawing_count == 1
     assert any(issue.code == "textboxes_not_inspected" for issue in inspection.issues)
+
+
+def test_tables_and_textboxes_in_notes_are_reported(tmp_path: Path) -> None:
+    path = tmp_path / "notes-with-unsupported-structures.docx"
+    files = {
+        "word/document.xml": """<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Corps</w:t></w:r></w:p></w:body></w:document>""",
+        "word/footnotes.xml": """<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1"><w:p><w:r><w:t>Note</w:t></w:r></w:p><w:tbl/></w:footnote></w:footnotes>""",
+        "word/endnotes.xml": """<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2"><w:p><w:r><w:drawing><w:txbxContent><w:p><w:r><w:t>Zone</w:t></w:r></w:p></w:txbxContent></w:drawing></w:r></w:p></w:endnote></w:endnotes>""",
+    }
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            info = ZipInfo(name, date_time=(2024, 1, 1, 0, 0, 0))
+            info.compress_type = ZIP_DEFLATED
+            archive.writestr(info, content)
+
+    inspection = inspect_docx_file(path)
+
+    assert any(
+        issue.code == "table_not_modeled" and issue.part == "word/footnotes.xml"
+        for issue in inspection.issues
+    )
+    assert any(
+        issue.code == "textboxes_not_inspected" and issue.part == "word/endnotes.xml"
+        for issue in inspection.issues
+    )
 
 
 @pytest.mark.parametrize(
