@@ -17,6 +17,7 @@ from .editorial import (
     build_editorial_document_from_file,
     editorial_build_result_to_json,
 )
+from .tei import convert_docx_to_tei, write_tei_conversion_result
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -54,12 +55,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="produire un résultat JSON structuré",
     )
+    convert_parser = subparsers.add_parser(
+        "convert-docx", help="convertir un fichier DOCX en TEI Commons Publishing"
+    )
+    convert_parser.add_argument("source", type=Path, help="fichier DOCX source")
+    convert_parser.add_argument("output", type=Path, help="fichier TEI de sortie")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Exécuter la CLI et retourner son code de sortie."""
     arguments = build_parser().parse_args(argv)
+    if arguments.command == "convert-docx":
+        return _convert_docx(arguments.source, arguments.output)
     path: Path = arguments.path
     if arguments.command == "inspect-docx":
         return _inspect_docx(path, as_json=arguments.json)
@@ -113,6 +121,30 @@ def _model_docx(path: Path, *, as_json: bool) -> int:
         sys.stdout.buffer.write((editorial_build_result_to_json(result) + "\n").encode("utf-8"))
     else:
         _print_editorial_summary(result)
+    return 0
+
+
+def _convert_docx(source: Path, output: Path) -> int:
+    try:
+        result = convert_docx_to_tei(source)
+    except DocxInspectionError as error:
+        print(f"ERREUR — {source}: {error}")
+        return 2
+    if not result.is_successful:
+        print(f"ECHEC — {source.name}")
+        for diagnostic in result.diagnostics:
+            print(f"{diagnostic.severity.upper()} [{diagnostic.code}] : {diagnostic.message}")
+        for issue in result.validation_issues:
+            print(_format_issue(issue))
+        return 1
+    try:
+        write_tei_conversion_result(result, output)
+    except OSError as error:
+        print(f"ERREUR — {output}: {error.strerror or error}")
+        return 2
+    print(f"TEI ECRITE — {output}")
+    print("Validation Commons Publishing : réussie")
+    print(f"Diagnostics non bloquants : {len(result.diagnostics)}")
     return 0
 
 

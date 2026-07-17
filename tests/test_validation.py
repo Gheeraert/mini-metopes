@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from lxml import etree
+
 from mini_metopes import validate_xml_bytes, validate_xml_file
+from mini_metopes.validation import validate_xml_tree
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "xml"
@@ -39,3 +42,8 @@ def test_malformed_xml_is_distinguished_from_relax_ng_error() -> None:
 def test_validation_accepts_xml_bytes() -> None:
     data = (FIXTURES / "valid" / "minimal.xml").read_bytes()
     assert validate_xml_bytes(data).valid
+
+
+def test_validation_accepts_an_lxml_tree() -> None:
+    tree = etree.parse(str(FIXTURES / "valid" / "minimal.xml"))
+    assert validate_xml_tree(tree).valid

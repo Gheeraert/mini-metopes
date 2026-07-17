@@ -192,6 +192,18 @@ EDITORIAL_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:styles>
 """
 
+TEI_CONVERSION_STYLES = EDITORIAL_STYLES.replace(
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+    '  <w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="Texte de note de bas de page"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="EndnoteText"><w:name w:val="Texte de note de fin"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+).replace(
+    '  <w:style w:type="character" w:styleId="UnknownCharacter">',
+    '  <w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="Appel de note de bas de page"/></w:style>\n'
+    '  <w:style w:type="character" w:styleId="EndnoteReference"><w:name w:val="Appel de note de fin"/></w:style>\n'
+    '  <w:style w:type="character" w:styleId="UnknownCharacter">',
+)
+
 EDITORIAL_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
@@ -302,6 +314,40 @@ QUOTATION_FOOTNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
 </Relationships>
 """
 
+TEI_CONVERSION_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Avant le premier titre.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Premiere section</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>gras</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> italique</w:t></w:r><w:r><w:rPr><w:smallCaps/></w:rPr><w:t> petites</w:t></w:r><w:r><w:rPr><w:caps/></w:rPr><w:t> capitales</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t>i</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:br/><w:t>apres retour</w:t></w:r><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteReference w:id="2"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Premier paragraphe cite.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>Second paragraphe cite.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers un</w:t><w:br/><w:rPr><w:i/></w:rPr><w:t>Vers deux</w:t></w:r><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers trois</w:t><w:br/><w:t>Vers quatre</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Sous-section</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte de sous-section.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>Niveau trois</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte final.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+TEI_CONVERSION_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve">Note de bas de page.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Citation dans la note.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers de note</w:t><w:br/><w:t>Suite de note</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+TEI_CONVERSION_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="2"><w:p><w:pPr><w:pStyle w:val="EndnoteText"/></w:pPr><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteRef/></w:r><w:r><w:t xml:space="preserve">Note de fin.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,6 +397,17 @@ def quotation_parts() -> dict[str, bytes | str]:
     }
 
 
+def tei_conversion_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": TEI_CONVERSION_DOCUMENT,
+        "word/styles.xml": TEI_CONVERSION_STYLES,
+        "word/footnotes.xml": TEI_CONVERSION_FOOTNOTES,
+        "word/endnotes.xml": TEI_CONVERSION_ENDNOTES,
+        "word/_rels/document.xml.rels": EDITORIAL_RELATIONSHIPS,
+    }
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -359,6 +416,7 @@ def main() -> None:
     write_package(FIXTURES / "textbox-inspection.docx", standard_parts(TEXTBOX_DOCUMENT))
     write_package(FIXTURES / "native-editorial.docx", editorial_parts())
     write_package(FIXTURES / "native-quotations.docx", quotation_parts())
+    write_package(FIXTURES / "native-tei-conversion.docx", tei_conversion_parts())
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

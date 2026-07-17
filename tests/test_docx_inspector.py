@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
 
@@ -179,6 +179,36 @@ def test_notes_keep_structured_paragraphs_and_runs(basic_inspection) -> None:
     assert note.paragraphs[0].runs[1].manual_breaks == 1
 
 
+def test_native_note_styles_and_automatic_note_marks_are_observed_without_content() -> None:
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    body_note_runs = [
+        run
+        for paragraph in inspection.paragraphs
+        for run in paragraph.runs
+        if run.style_id in {"FootnoteReference", "EndnoteReference"}
+    ]
+    footnote = inspection.footnotes[0]
+    endnote = inspection.endnotes[0]
+    footnote_mark = footnote.paragraphs[0].runs[0]
+    endnote_mark = endnote.paragraphs[0].runs[0]
+
+    assert [run.style_id for run in body_note_runs] == [
+        "FootnoteReference",
+        "EndnoteReference",
+        "FootnoteReference",
+    ]
+    assert body_note_runs[0].contents[0].kind == "footnote_reference"
+    assert body_note_runs[1].contents[0].kind == "endnote_reference"
+    assert footnote.paragraphs[0].style_id == "FootnoteText"
+    assert endnote.paragraphs[0].style_id == "EndnoteText"
+    assert footnote_mark.style_id == "FootnoteReference"
+    assert endnote_mark.style_id == "EndnoteReference"
+    assert footnote_mark.contents == ()
+    assert endnote_mark.contents == ()
+    assert footnote.paragraphs[0].text == "Note de bas de page."
+    assert endnote.paragraphs[0].text == "Note de fin."
+
+
 def test_poetry_keeps_paragraphs_distinct_from_manual_breaks() -> None:
     inspection = inspect_docx_file(FIXTURES / "poetry-inspection.docx")
     assert len(inspection.paragraphs) == 2
@@ -200,6 +230,31 @@ def test_textbox_paragraph_is_not_folded_into_main_sequence() -> None:
     assert all("Texte de la zone" not in run.text for run in paragraph.runs)
     assert paragraph.drawing_count == 1
     assert any(issue.code == "textboxes_not_inspected" for issue in inspection.issues)
+
+
+def test_tables_and_textboxes_in_notes_are_reported(tmp_path: Path) -> None:
+    path = tmp_path / "notes-with-unsupported-structures.docx"
+    files = {
+        "word/document.xml": """<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Corps</w:t></w:r></w:p></w:body></w:document>""",
+        "word/footnotes.xml": """<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1"><w:p><w:r><w:t>Note</w:t></w:r></w:p><w:tbl/></w:footnote></w:footnotes>""",
+        "word/endnotes.xml": """<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2"><w:p><w:r><w:drawing><w:txbxContent><w:p><w:r><w:t>Zone</w:t></w:r></w:p></w:txbxContent></w:drawing></w:r></w:p></w:endnote></w:endnotes>""",
+    }
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            info = ZipInfo(name, date_time=(2024, 1, 1, 0, 0, 0))
+            info.compress_type = ZIP_DEFLATED
+            archive.writestr(info, content)
+
+    inspection = inspect_docx_file(path)
+
+    assert any(
+        issue.code == "table_not_modeled" and issue.part == "word/footnotes.xml"
+        for issue in inspection.issues
+    )
+    assert any(
+        issue.code == "textboxes_not_inspected" and issue.part == "word/endnotes.xml"
+        for issue in inspection.issues
+    )
 
 
 @pytest.mark.parametrize(

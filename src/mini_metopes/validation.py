@@ -81,6 +81,11 @@ def validate_xml_bytes(data: bytes) -> ValidationResult:
         issues = tuple(_issue_from_error(item, domain="xml") for item in error.error_log)
         return ValidationResult(valid=False, issues=issues)
 
+    return validate_xml_tree(document)
+
+
+def validate_xml_tree(document: etree._Element | etree._ElementTree) -> ValidationResult:
+    """Valider un arbre lxml deja analyse contre le RNG Commons Publishing."""
     schema = _commons_publishing_schema()
     if schema.validate(document):
         return ValidationResult(valid=True, issues=())
@@ -97,4 +102,3 @@ def validate_xml_file(path: Path) -> ValidationResult:
     interfaces appelantes puissent choisir leur diagnostic.
     """
     return validate_xml_bytes(path.read_bytes())
-
