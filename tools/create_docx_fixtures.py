@@ -318,6 +318,8 @@ TEI_CONVERSION_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Une conversion synthetique</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Metadonnees JSON et TEI</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Avant le premier titre.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Premiere section</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>gras</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> italique</w:t></w:r><w:r><w:rPr><w:smallCaps/></w:rPr><w:t> petites</w:t></w:r><w:r><w:rPr><w:caps/></w:rPr><w:t> capitales</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t>i</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:br/><w:t>apres retour</w:t></w:r><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteReference w:id="2"/></w:r></w:p>

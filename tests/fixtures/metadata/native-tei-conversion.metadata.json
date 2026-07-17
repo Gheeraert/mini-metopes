@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "native-tei-conversion.docx",
+    "sha256": "6c06f035302c2bb4885a81d0a7e2482821563b237c6d1160e8e8a703804ca4a9"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Une conversion synthetique",
+    "subtitle": "Metadonnees JSON et TEI",
+    "abstract": "Resume synthetique pour la fixture.",
+    "keywords": [
+      "TEI",
+      "Word",
+      "metadonnees"
+    ]
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Tony",
+      "family_name": "Gheeraert",
+      "literal_name": null,
+      "orcid": "0000-0002-1825-0097",
+      "affiliations": [
+        "affiliation-1",
+        "affiliation-2"
+      ]
+    },
+    {
+      "id": "person-2",
+      "role": "editor",
+      "given_name": null,
+      "family_name": null,
+      "literal_name": "Comite editorial synthetique",
+      "orcid": null,
+      "affiliations": [
+        "affiliation-2"
+      ]
+    }
+  ],
+  "affiliations": [
+    {
+      "id": "affiliation-1",
+      "name": "Universite synthetique",
+      "unit": "Laboratoire de test",
+      "city": "Rouen",
+      "country": "FR",
+      "ror": "https://ror.org/03yrm5c26"
+    },
+    {
+      "id": "affiliation-2",
+      "name": "Maison des sciences synthetique",
+      "unit": null,
+      "city": "Paris",
+      "country": "FR",
+      "ror": null
+    }
+  ]
+}

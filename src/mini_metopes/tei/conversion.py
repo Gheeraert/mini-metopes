@@ -12,6 +12,7 @@ from mini_metopes.editorial import (
     WordEditorialConvention,
     build_editorial_document,
 )
+from mini_metopes.metadata import DocumentMetadata, extract_metadata_suggestions, metadata_consistency_issues, validate_metadata
 
 from .model import TeiConversionDiagnostic, TeiConversionResult
 from .serializer import serialize_editorial_document_to_tei
@@ -46,18 +47,50 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
 def convert_docx_to_tei(
     path: Path,
     *,
+    metadata: DocumentMetadata | None = None,
     convention: WordEditorialConvention = NATIVE_WORD_CONVENTION,
 ) -> TeiConversionResult:
     """Convertir un DOCX en TEI Commons Publishing sans ecrire de fichier."""
+    if metadata is None:
+        return TeiConversionResult(
+            None,
+            (TeiConversionDiagnostic(
+                code="missing_metadata", severity="error",
+                message="une conversion DOCX complete exige des metadonnees JSON validees",
+            ),),
+            (),
+        )
     inspection = inspect_docx_file(path)
-    editorial = build_editorial_document(inspection, convention=convention)
+    suggestions = extract_metadata_suggestions(inspection)
+    excluded = frozenset(suggestions.consumed_paragraph_indexes)
+    editorial = build_editorial_document(
+        inspection, convention=convention, excluded_body_paragraph_indexes=excluded
+    )
     diagnostics = prepare_tei_conversion(inspection, editorial)
+    metadata_diagnostics: list[TeiConversionDiagnostic] = []
+    metadata_validation = validate_metadata(metadata)
+    metadata_diagnostics.extend(_metadata_diagnostics(metadata_validation.issues))
+    metadata_diagnostics.extend(_metadata_diagnostics(metadata_consistency_issues(metadata, path, suggestions)))
+    metadata_diagnostics.extend(_metadata_diagnostics(suggestions.diagnostics))
+    diagnostics = diagnostics + tuple(metadata_diagnostics)
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return TeiConversionResult(None, diagnostics, ())
     return serialize_editorial_document_to_tei(
         editorial.document,
+        metadata=metadata,
         initial_diagnostics=diagnostics,
     )
+
+
+def _metadata_diagnostics(issues: tuple[object, ...]) -> tuple[TeiConversionDiagnostic, ...]:
+    """Adapter les diagnostics metadata sans brouiller leur code stable."""
+    from mini_metopes.metadata import MetadataIssue
+
+    result: list[TeiConversionDiagnostic] = []
+    for issue in issues:
+        assert isinstance(issue, MetadataIssue)
+        result.append(TeiConversionDiagnostic(code=issue.code, severity=issue.severity, message=issue.message, origin="serialization"))
+    return tuple(result)
 
 
 def prepare_tei_conversion(

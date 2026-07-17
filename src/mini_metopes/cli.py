@@ -18,6 +18,7 @@ from .editorial import (
     editorial_build_result_to_json,
 )
 from .tei import convert_docx_to_tei, write_tei_conversion_result
+from .metadata import MetadataSuggestions, default_metadata_path, load_metadata_file, metadata_consistency_issues
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -60,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument("source", type=Path, help="fichier DOCX source")
     convert_parser.add_argument("output", type=Path, help="fichier TEI de sortie")
+    convert_parser.add_argument("--metadata", type=Path, help="fichier JSON de metadonnees")
+    metadata_validate_parser = subparsers.add_parser("validate-metadata", help="valider un fichier JSON de metadonnees")
+    metadata_validate_parser.add_argument("path", type=Path, help="fichier JSON de metadonnees")
+    metadata_validate_parser.add_argument("--source", type=Path, help="DOCX associe a verifier")
+    editor_parser = subparsers.add_parser("edit-metadata", help="editer les metadonnees associees a un DOCX")
+    editor_parser.add_argument("path", type=Path, nargs="?", help="fichier DOCX a editer")
+    editor_parser.add_argument("--metadata", type=Path, help="fichier JSON de metadonnees")
     return parser
 
 
@@ -67,7 +75,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Exécuter la CLI et retourner son code de sortie."""
     arguments = build_parser().parse_args(argv)
     if arguments.command == "convert-docx":
-        return _convert_docx(arguments.source, arguments.output)
+        return _convert_docx(arguments.source, arguments.output, arguments.metadata)
+    if arguments.command == "validate-metadata":
+        return _validate_metadata(arguments.path, arguments.source)
+    if arguments.command == "edit-metadata":
+        from .gui import run_metadata_editor
+        try:
+            return run_metadata_editor(arguments.path, arguments.metadata)
+        except OSError as error:
+            print(f"ERREUR — {arguments.path}: {error.strerror or error}")
+            return 2
     path: Path = arguments.path
     if arguments.command == "inspect-docx":
         return _inspect_docx(path, as_json=arguments.json)
@@ -124,9 +141,21 @@ def _model_docx(path: Path, *, as_json: bool) -> int:
     return 0
 
 
-def _convert_docx(source: Path, output: Path) -> int:
+def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int:
+    selected_metadata = metadata_path or default_metadata_path(source)
+    if not selected_metadata.exists():
+        print(f"ECHEC [missing_metadata] — {source.name}")
+        print("Aucune metadonnee associee. Lancez :")
+        print(f"python -m mini_metopes edit-metadata {source}")
+        return 1
+    loaded = load_metadata_file(selected_metadata)
+    if not loaded.valid or loaded.metadata is None:
+        print(f"ECHEC [invalid_metadata] — {selected_metadata.name}")
+        for issue in loaded.issues:
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+        return 1
     try:
-        result = convert_docx_to_tei(source)
+        result = convert_docx_to_tei(source, metadata=loaded.metadata)
     except DocxInspectionError as error:
         print(f"ERREUR — {source}: {error}")
         return 2
@@ -145,6 +174,26 @@ def _convert_docx(source: Path, output: Path) -> int:
     print(f"TEI ECRITE — {output}")
     print("Validation Commons Publishing : réussie")
     print(f"Diagnostics non bloquants : {len(result.diagnostics)}")
+    return 0
+
+
+def _validate_metadata(path: Path, source: Path | None) -> int:
+    if not path.exists():
+        print(f"ERREUR — {path}: fichier introuvable")
+        return 2
+    loaded = load_metadata_file(path)
+    if not loaded.valid or loaded.metadata is None:
+        print(f"INVALIDES — {path.name}")
+        for issue in loaded.issues:
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+        return 2 if any(issue.code in {"invalid_json", "metadata_file_unreadable"} for issue in loaded.issues) else 1
+    if source is not None and not source.exists():
+        print(f"ERREUR — {source}: fichier introuvable")
+        return 2
+    if source is not None:
+        for issue in metadata_consistency_issues(loaded.metadata, source, MetadataSuggestions(None, None, (), ())):
+            print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+    print(f"VALIDES — {path.name}")
     return 0
 
 
