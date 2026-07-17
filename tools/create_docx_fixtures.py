@@ -82,7 +82,7 @@ STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 
 NUMBERING = """<?xml version="1.0" encoding="UTF-8"?>
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="1"/></w:abstractNum>
+  <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="1"><w:numFmt w:val="decimal"/><w:lvlText w:val="%2."/></w:lvl></w:abstractNum>
   <w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>
 </w:numbering>
 """
@@ -350,6 +350,50 @@ TEI_CONVERSION_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:endnotes>
 """
 
+LIST_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="Liste locale"/></w:style>
+</w:styles>
+"""
+
+LIST_NUMBERING = """<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="10"><w:multiLevelType w:val="multilevel"/><w:name w:val="Synthétique"/>
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:suff w:val="space"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:suff w:val="tab"/></w:lvl>
+    <w:lvl w:ilvl="2"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%3)"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="42"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="43"><w:abstractNumId w:val="10"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride></w:num>
+</w:numbering>
+"""
+
+LIST_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Introduction.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Premier.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Sous-puce.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Second.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Interruption.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Puces indépendantes.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Reprise à cinq.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="2"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Niveau lettre.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Style de liste sans numérotation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Numérotation supprimée.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+LIST_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1"><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Liste en note.</w:t></w:r></w:p></w:footnote></w:footnotes>
+"""
+LIST_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2"><w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Liste en note de fin.</w:t></w:r></w:p></w:endnote></w:endnotes>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -410,6 +454,17 @@ def tei_conversion_parts() -> dict[str, bytes | str]:
     }
 
 
+def list_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": LIST_DOCUMENT,
+        "word/styles.xml": LIST_STYLES,
+        "word/numbering.xml": LIST_NUMBERING,
+        "word/footnotes.xml": LIST_FOOTNOTES,
+        "word/endnotes.xml": LIST_ENDNOTES,
+    }
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -419,6 +474,7 @@ def main() -> None:
     write_package(FIXTURES / "native-editorial.docx", editorial_parts())
     write_package(FIXTURES / "native-quotations.docx", quotation_parts())
     write_package(FIXTURES / "native-tei-conversion.docx", tei_conversion_parts())
+    write_package(FIXTURES / "native-lists.docx", list_parts())
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

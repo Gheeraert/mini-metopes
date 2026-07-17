@@ -45,6 +45,12 @@
       "styles natifs FootnoteText, EndnoteText, FootnoteReference et EndnoteReference",
       "marques automatiques footnoteRef et endnoteRef ignorees comme contenu editorial"
     ],
+    "native-lists.docx": [
+      "definitions OOXML abstractNum, num, niveaux et surcharge startOverride",
+      "niveaux decimal, bullet et lowerLetter",
+      "listes dans le corps, une note de bas de page et une note de fin",
+      "style ListParagraph et numId=0 supprimant explicitement la numerotation"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

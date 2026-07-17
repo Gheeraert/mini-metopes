@@ -74,7 +74,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
         ("Heading5", 5),
         ("Heading6", 6),
     ),
-    paragraph_style_ids=frozenset({"Normal", "FootnoteText", "EndnoteText"}),
+    paragraph_style_ids=frozenset({"Normal", "FootnoteText", "EndnoteText", "ListParagraph"}),
     character_style_marks=(
         ("Emphasis", ("italic",)),
         ("Strong", ("bold",)),

@@ -31,6 +31,7 @@ _NON_BLOCKING_INSPECTION_CODES = frozenset(
     {
         "comments_not_inspected",
         "headers_footers_not_inspected",
+        "list_paragraph_without_numbering",
     }
 )
 _BLOCKING_EDITORIAL_CODES = frozenset(
@@ -162,6 +163,7 @@ def _inspection_diagnostics(
                 origin="inspection",
                 source_paragraph_index=issue.paragraph_index,
                 source_part=issue.part,
+                note_id=issue.note_id,
             )
         )
     return tuple(diagnostics)
@@ -201,16 +203,27 @@ def _paragraph_numbering_diagnostics(
 ) -> tuple[TeiConversionDiagnostic, ...]:
     diagnostics: list[TeiConversionDiagnostic] = []
     for paragraph in paragraphs:
-        if paragraph.numbering_id is None:
+        resolution = paragraph.numbering
+        if resolution is not None and resolution.status == "removed":
             continue
-        level = "absent" if paragraph.numbering_level is None else str(paragraph.numbering_level)
+        if resolution is None and paragraph.numbering_id is None:
+            continue
+        numbering_id = resolution.numbering_id if resolution is not None else paragraph.numbering_id
+        level_value = resolution.level if resolution is not None else paragraph.numbering_level
+        level = "absent" if level_value is None else str(level_value)
+        details = ""
+        if resolution is not None:
+            details = (
+                f", kind={resolution.list_kind or 'inconnu'}, "
+                f"numFmt={resolution.num_format or 'inconnu'}"
+            )
         diagnostics.append(
             TeiConversionDiagnostic(
                 code="numbered_paragraph_not_serializable",
                 severity="error",
                 message=(
                     "paragraphe numerote non serialisable en TEI dans cette passe "
-                    f"(numId={paragraph.numbering_id}, ilvl={level})"
+                    f"(numId={numbering_id}, ilvl={level}{details})"
                 ),
                 origin="inspection",
                 source_paragraph_index=paragraph.index,

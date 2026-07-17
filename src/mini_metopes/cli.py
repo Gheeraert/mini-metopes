@@ -223,7 +223,15 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
         if paragraph.style_id is not None:
             style_counts[paragraph.style_id] = style_counts.get(paragraph.style_id, 0) + 1
     manual_breaks = sum(paragraph.manual_breaks for paragraph in inspection.paragraphs)
-    numbered = sum(paragraph.numbering_id is not None for paragraph in inspection.paragraphs)
+    active_numbering = [
+        paragraph.numbering
+        for paragraph in inspection.paragraphs
+        if paragraph.numbering is not None and paragraph.numbering.status != "removed"
+    ]
+    numbered = len(active_numbering)
+    ordered_lists = sum(item.list_kind == "ordered" for item in active_numbering)
+    bulleted_lists = sum(item.list_kind == "bulleted" for item in active_numbering)
+    unresolved_lists = sum(item.status in {"unresolved", "unsupported"} for item in active_numbering)
     hyperlinks = sum(paragraph.hyperlink_count for paragraph in inspection.paragraphs)
     drawings = sum(paragraph.drawing_count for paragraph in inspection.paragraphs)
 
@@ -238,7 +246,10 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     print(f"Notes de bas de page : {len(inspection.footnotes)}")
     print(f"Notes de fin : {len(inspection.endnotes)}")
     print(f"Sauts manuels : {manual_breaks}")
-    print(f"Paragraphes numérotés : {numbered}")
+    print(f"Paragraphes numérotés actifs : {numbered}")
+    print(f"Listes ordonnées observées : {ordered_lists}")
+    print(f"Listes à puces observées : {bulleted_lists}")
+    print(f"Numérotations non résolues : {unresolved_lists}")
     print(f"Hyperliens : {hyperlinks}")
     print(f"Dessins : {drawings}")
     print(f"Médias : {len(inspection.media)}")
