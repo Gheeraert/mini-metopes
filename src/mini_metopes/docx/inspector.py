@@ -877,8 +877,16 @@ def _resolve_paragraph_numbering(
     override = next((item for item in instance.level_overrides if item.level == effective_level), None)
     resolved = override.level_override if override and override.level_override else base
     invalid_properties = (*resolved.invalid_properties, *((override.invalid_properties if override else ())))
-    start = override.start_override if override and override.start_override is not None else resolved.start
-    effective_start = start if start is not None else DEFAULT_NUMBER_START
+    if override and "startOverride" in override.invalid_properties:
+        effective_start = None
+    elif "start" in resolved.invalid_properties:
+        effective_start = None
+    elif override and override.start_override is not None:
+        effective_start = override.start_override
+    elif resolved.start is not None:
+        effective_start = resolved.start
+    else:
+        effective_start = DEFAULT_NUMBER_START
     effective_num_format = None if "numFmt" in invalid_properties else (resolved.num_format or DEFAULT_NUMBER_FORMAT)
     effective_suffix = None if "suff" in invalid_properties else (resolved.suffix or DEFAULT_NUMBER_SUFFIX)
     list_kind = _numbering_list_kind(effective_num_format, resolved.picture_bullet_id)

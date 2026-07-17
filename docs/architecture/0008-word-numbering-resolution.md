@@ -19,6 +19,9 @@ present sans attribut `w:val`, par exemple `<w:numFmt/>`, `<w:suff/>`,
 `<w:start/>`, `<w:startOverride/>` ou `<w:lvlRestart/>`, est une valeur OOXML
 incomplete. Elle produit un diagnostic et rend la resolution du paragraphe
 concerne non resolue, au lieu d'etre assimilee a la valeur par defaut.
+Une surcharge `startOverride` incomplete ou invalide ne retombe pas sur le
+depart du niveau abstrait : le depart effectif reste inconnu (`None`) afin de
+ne pas inventer une numerotation de depart.
 
 `numPr` direct est prioritaire. `numId="0"` signifie que la numerotation est
 supprimee : ce n'est pas une liste active. Cette suppression est egalement

@@ -209,6 +209,8 @@ def test_invalid_level_properties_make_resolution_unresolved() -> None:
     assert "invalid_numbering_level" in [issue.code for issue in inspection.issues]
     assert inspection.paragraphs[0].numbering is not None
     assert inspection.paragraphs[0].numbering.status == "unresolved"
+    assert inspection.paragraphs[0].numbering.start is None
+    assert inspection.paragraphs[0].numbering.restart_after_level is None
 
     invalid_override = runtime_docx("invalid-override.docx")
     numbering = numbering_xml(
@@ -221,6 +223,7 @@ def test_invalid_level_properties_make_resolution_unresolved() -> None:
     assert "invalid_numbering_level" in [issue.code for issue in inspection.issues]
     assert inspection.paragraphs[0].numbering is not None
     assert inspection.paragraphs[0].numbering.status == "unresolved"
+    assert inspection.paragraphs[0].numbering.start is None
 
 
 def test_missing_required_numbering_identifiers_are_diagnosed_without_partial_definitions() -> None:
@@ -331,6 +334,8 @@ def test_incomplete_numbering_level_properties_are_not_defaulted() -> None:
     assert inspection.paragraphs[0].numbering.status == "unresolved"
     assert inspection.paragraphs[0].numbering.num_format is None
     assert inspection.paragraphs[0].numbering.suffix is None
+    assert inspection.paragraphs[0].numbering.start is None
+    assert inspection.paragraphs[0].numbering.restart_after_level is None
 
     override = runtime_docx("incomplete-start-override.docx")
     write_docx(
@@ -346,6 +351,24 @@ def test_incomplete_numbering_level_properties_are_not_defaulted() -> None:
     assert "invalid_numbering_level" in [issue.code for issue in inspection.issues]
     assert inspection.paragraphs[0].numbering is not None
     assert inspection.paragraphs[0].numbering.status == "unresolved"
+    assert inspection.paragraphs[0].numbering.start is None
+
+    override_with_abstract_start = runtime_docx("incomplete-start-override-no-fallback.docx")
+    write_docx(
+        override_with_abstract_start,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0">'
+            '<w:start w:val="3"/></w:lvl></w:abstractNum>'
+            '<w:num w:numId="42"><w:abstractNumId w:val="1"/>'
+            '<w:lvlOverride w:ilvl="0"><w:startOverride/></w:lvlOverride></w:num>'
+        ),
+    )
+    inspection = inspect_docx_file(override_with_abstract_start)
+    assert "invalid_numbering_level" in [issue.code for issue in inspection.issues]
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+    assert inspection.paragraphs[0].numbering.start is None
 
 
 def test_numbering_definition_identifiers_are_canonicalized_for_duplicates() -> None:

@@ -14,6 +14,8 @@ l'element existe mais ne porte pas `w:val`, par exemple `<w:numFmt/>`,
 `<w:suff/>`, `<w:start/>`, `<w:startOverride/>` ou `<w:lvlRestart/>`,
 Mini-Metopes signale une valeur incomplete et ne la remplace pas
 silencieusement par le defaut.
+De meme, une surcharge `startOverride` incomplete ou invalide ne retombe pas
+sur le depart defini par le niveau abstrait.
 
 Les identifiants `abstractNumId` et `numId` doivent etre des entiers decimaux
 non negatifs. Les formes `1` et `01` sont numeriquement ambiguës et signalees
