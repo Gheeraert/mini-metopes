@@ -53,6 +53,9 @@ _MARK_ORDER: tuple[TextMark, ...] = (
 )
 
 
+_ListKey = tuple[str, int]
+
+
 @dataclass
 class _ListItemBuilder:
     """Noeud mutable prive, fige seulement a la sortie du constructeur."""
@@ -182,12 +185,20 @@ def _build_blocks(
     blocks: list[EditorialBlock] = []
     referenced_notes: set[tuple[str, str]] = set()
     previous_heading_level: int | None = None
+    closed_list_keys: set[_ListKey] = set()
+    interrupted_list_keys: dict[_ListKey, int] = {}
     paragraph_position = 0
     while paragraph_position < len(paragraphs):
         paragraph = paragraphs[paragraph_position]
         role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
 
         if _is_serializable_list_paragraph(paragraph, role.kind):
+            _diagnose_interrupted_list_continuation(
+                paragraph,
+                interrupted_list_keys,
+                diagnostics,
+                note_id,
+            )
             list_blocks, next_position, list_references = _build_list_sequence(
                 paragraphs,
                 paragraph_position,
@@ -198,8 +209,17 @@ def _build_blocks(
             )
             blocks.extend(list_blocks)
             referenced_notes.update(list_references)
+            closed_list_keys = _list_keys_for_paragraphs(paragraphs[paragraph_position:next_position])
             paragraph_position = next_position
             continue
+
+        if closed_list_keys:
+            for key in closed_list_keys:
+                interrupted_list_keys[key] = interrupted_list_keys.get(key, 0) + 1
+            closed_list_keys = set()
+        else:
+            for key in tuple(interrupted_list_keys):
+                interrupted_list_keys[key] += 1
 
         content, references = _build_inline_content(
             paragraph,
@@ -357,6 +377,49 @@ def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) ->
         and numbering.num_format is not None
         and numbering.picture_bullet_id is None
         and numbering.is_legal is not True
+        and numbering.restart_after_level is None
+    )
+
+
+def _numbering_key(paragraph: ParagraphInfo) -> _ListKey | None:
+    numbering = paragraph.numbering
+    if numbering is None or numbering.level is None:
+        return None
+    return (numbering.numbering_id, numbering.level)
+
+
+def _list_keys_for_paragraphs(paragraphs: tuple[ParagraphInfo, ...]) -> set[_ListKey]:
+    keys: set[_ListKey] = set()
+    for paragraph in paragraphs:
+        key = _numbering_key(paragraph)
+        if key is not None:
+            keys.add(key)
+    return keys
+
+
+def _diagnose_interrupted_list_continuation(
+    paragraph: ParagraphInfo,
+    interrupted_list_keys: dict[_ListKey, int],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> None:
+    key = _numbering_key(paragraph)
+    if key is None or key not in interrupted_list_keys:
+        return
+    numbering_id, level = key
+    interruptions = interrupted_list_keys[key]
+    diagnostics.append(
+        EditorialDiagnostic(
+            code="interrupted_list_continuation_not_serializable",
+            severity="error",
+            message=(
+                "reprise d'une meme instance de liste apres interruption non numerotee : "
+                f"numId={numbering_id}, ilvl={level}, interruptions={interruptions}"
+            ),
+            paragraph_index=paragraph.index,
+            style_id=paragraph.style_id,
+            note_id=note_id,
+        )
     )
 
 
@@ -508,20 +571,6 @@ def _new_list_builder(
     assert isinstance(numbering, ParagraphNumberingInfo)
     assert numbering.level is not None and numbering.list_kind in {"ordered", "bulleted"}
     assert numbering.num_format is not None
-    if numbering.restart_after_level not in {None, 0}:
-        diagnostics.append(
-            EditorialDiagnostic(
-                code="list_restart_semantics_normalized",
-                severity="warning",
-                message=(
-                    "semantique explicite de redemarrage de liste normalisee "
-                    f"(lvlRestart={numbering.restart_after_level})"
-                ),
-                paragraph_index=paragraph.index,
-                style_id=paragraph.style_id,
-                note_id=note_id,
-            )
-        )
     return _ListBuilder(
         list_kind=numbering.list_kind,
         num_format=numbering.num_format,
@@ -613,6 +662,9 @@ def _diagnose_nonserializable_numbering(
     if role_kind != "paragraph":
         code = "numbered_nonparagraph_style_not_serializable"
         message = f"paragraphe numerote avec role editorial {role_kind}"
+    elif numbering.restart_after_level is not None:
+        code = "explicit_list_restart_not_serializable"
+        message = f"redemarrage explicite de liste Word non serialisable (lvlRestart={numbering.restart_after_level})"
     elif numbering.origin == "style":
         code = "style_based_numbering_not_serializable"
         message = "numerotation portee uniquement par un style Word"

@@ -369,6 +369,9 @@ LIST_NUMBERING = """<?xml version="1.0" encoding="UTF-8"?>
   </w:abstractNum>
   <w:num w:numId="42"><w:abstractNumId w:val="10"/></w:num>
   <w:num w:numId="43"><w:abstractNumId w:val="10"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride></w:num>
+  <w:num w:numId="44"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="45"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="46"><w:abstractNumId w:val="10"/></w:num>
 </w:numbering>
 """
 
@@ -416,7 +419,7 @@ LIST_TEI_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
     <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Seconde sous-puce.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Second item.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Interruption ordinaire.</w:t></w:r></w:p>
-    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Puces racine locale.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="44"/></w:numPr></w:pPr><w:r><w:t>Puces racine locale.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Reprise à cinq.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Item ListParagraph.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Numérotation supprimée.</w:t></w:r></w:p>
@@ -428,14 +431,14 @@ LIST_TEI_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
 LIST_TEI_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
-  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Liste de note un.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Liste de note deux.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Liste de note un.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Liste de note deux.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 """
 
 LIST_TEI_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
-  <w:endnote w:id="2"><w:p><w:pPr><w:pStyle w:val="EndnoteText"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Puces de note de fin.</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="2"><w:p><w:pPr><w:pStyle w:val="EndnoteText"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="46"/></w:numPr></w:pPr><w:r><w:t>Puces de note de fin.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
 """
 

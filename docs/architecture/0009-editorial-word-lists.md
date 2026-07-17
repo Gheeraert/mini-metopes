@@ -14,6 +14,10 @@ Une liste porte son type (`ordered` ou `bulleted`), son format effectif Word,
 son départ, son `numId`, son niveau source et les propriétés de niveau utiles
 au diagnostic. Sa signature est `(numId, ilvl, type, numFmt, start,
 lvlRestart)`. Une nouvelle signature au même niveau crée une liste sœur.
+`numId` est l'identité d'une instance Word, et non une simple apparence : si la
+même instance reprend après un paragraphe non numéroté, Mini-Métopes refuse la
+conversion avec `interrupted_list_continuation_not_serializable` tant que les
+compteurs effectifs Word ne sont pas calculés.
 
 Une montée d'un niveau crée une liste enfant du dernier item. Une descente
 referme les listes actives. Une séquence peut commencer à un niveau différent
@@ -38,11 +42,14 @@ imbriquées.
 
 Restent refusés : numérotation par style, niveau irrésolu, `numFmt="none"`,
 format inconnu, puce illustrée, numérotation légale, saut de niveau ambigu,
-item vide et rôle éditorial autre qu'un paragraphe. `levelText`, `suffix` et
-`lvlRestart` sont conservés dans le modèle ; ils ne sont pas reproduits comme
-marqueurs visibles. Un `lvlRestart` explicite produit un avertissement de
-normalisation.
+reprise d'une même instance après interruption, item vide et rôle éditorial
+autre qu'un paragraphe. `levelText`, `suffix` et `lvlRestart` sont conservés
+dans le modèle ; ils ne sont pas reproduits comme marqueurs visibles. Tout
+`lvlRestart` explicite, y compris `lvlRestart=0` qui signifie que le niveau ne
+redémarre jamais, bloque avec `explicit_list_restart_not_serializable`.
 
 Les listes dans les notes suivent exactement le même modèle, mais restent dans
 les blocs de leur note. Les continuations non numérotées, listes de définitions,
 cases à cocher et calcul intégral des marqueurs Word restent hors périmètre.
+Le résumé humain de `model-docx` compte récursivement les listes du corps, les
+sous-listes et les listes présentes dans les notes.

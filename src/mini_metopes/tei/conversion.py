@@ -47,6 +47,8 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "legal_numbering_not_serializable",
         "numbering_without_marker_not_serializable",
         "unsupported_numbering_not_serializable",
+        "interrupted_list_continuation_not_serializable",
+        "explicit_list_restart_not_serializable",
         "list_level_jump_not_serializable",
         "empty_list_item_not_serializable",
     }
@@ -216,6 +218,8 @@ def _paragraph_numbering_diagnostics(
             continue
         if _is_editorially_supported_numbering(resolution):
             continue
+        if _is_editorially_supported_numbering_except_restart(resolution):
+            continue
         if resolution is None and paragraph.numbering_id is None:
             continue
         numbering_id = resolution.numbering_id if resolution is not None else paragraph.numbering_id
@@ -257,6 +261,24 @@ def _is_editorially_supported_numbering(resolution: object) -> bool:
         and resolution.num_format is not None
         and resolution.picture_bullet_id is None
         and resolution.is_legal is not True
+        and resolution.restart_after_level is None
+    )
+
+
+def _is_editorially_supported_numbering_except_restart(resolution: object) -> bool:
+    """Laisser le constructeur editorial porter le diagnostic precis de restart."""
+    from mini_metopes.docx import ParagraphNumberingInfo
+
+    return (
+        isinstance(resolution, ParagraphNumberingInfo)
+        and resolution.origin == "direct"
+        and resolution.status == "resolved"
+        and resolution.list_kind in {"ordered", "bulleted"}
+        and resolution.level is not None
+        and resolution.num_format is not None
+        and resolution.picture_bullet_id is None
+        and resolution.is_legal is not True
+        and resolution.restart_after_level is not None
     )
 
 

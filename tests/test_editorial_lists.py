@@ -16,6 +16,7 @@ from mini_metopes.editorial import (
     build_editorial_document,
     editorial_build_result_to_json,
 )
+from test_docx_numbering import basic_numbering, numbering_xml, paragraph, runtime_docx, write_docx
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "docx"
@@ -82,6 +83,7 @@ def test_native_lists_build_a_frozen_nested_editorial_tree() -> None:
     assert child.items[0].child_lists[0].items[0].content == (TextSpan(text="Sous-sous-item."),)
 
     assert body_lists[1].source_level == 1
+    assert body_lists[1].source_numbering_id == "44"
     assert body_lists[2].source_numbering_id == "43"
     assert body_lists[2].start == 5
     assert any(item.code == "list_root_level_normalized" for item in result.diagnostics)
@@ -173,3 +175,95 @@ def test_only_direct_resolved_marker_lists_are_eligible() -> None:
     changed = replace(inspection, paragraphs=inspection.paragraphs[:3] + (style_based,) + inspection.paragraphs[4:])
     result = build_editorial_document(changed)
     assert any(item.code == "style_based_numbering_not_serializable" for item in result.diagnostics)
+
+
+def test_interrupted_same_numbering_instance_is_not_serializable() -> None:
+    path = runtime_docx("interrupted-same-numid.docx")
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Interruption")
+        + paragraph("Reprise", num_id="42", ilvl="0"),
+        numbering=basic_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+
+    diagnostic = next(item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable")
+    assert diagnostic.paragraph_index == 2
+    assert "numId=42" in diagnostic.message
+    assert "interruptions=1" in diagnostic.message
+
+
+def test_distinct_numbering_instance_after_interruption_stays_serializable() -> None:
+    path = runtime_docx("interrupted-distinct-numid.docx")
+    numbering = numbering_xml(
+        '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>'
+        '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+        '<w:num w:numId="44"><w:abstractNumId w:val="1"/></w:num>'
+    )
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Interruption")
+        + paragraph("Nouvelle instance", num_id="44", ilvl="0"),
+        numbering=numbering,
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+
+    assert [item.source_numbering_id for item in _lists(result.document.blocks)] == ["42", "44"]
+    assert "interrupted_list_continuation_not_serializable" not in [item.code for item in result.diagnostics]
+
+
+def test_interrupted_list_continuation_is_scoped_to_each_part() -> None:
+    numbering = basic_numbering()
+    footnotes = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="1">
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Note un</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Interruption note</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Note reprise</w:t></w:r></w:p>
+  </w:footnote>
+</w:footnotes>
+"""
+    endnotes = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="2">
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Fin un</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Interruption fin</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Fin reprise</w:t></w:r></w:p>
+  </w:endnote>
+</w:endnotes>
+"""
+    path = runtime_docx("interrupted-notes.docx")
+    write_docx(
+        path,
+        paragraph("Corps", num_id="42", ilvl="0"),
+        numbering=numbering,
+        footnotes=footnotes,
+        endnotes=endnotes,
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    diagnostics = [item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable"]
+
+    assert [(item.note_id, item.paragraph_index) for item in diagnostics] == [("1", 2), ("2", 2)]
+
+
+def test_explicit_lvlrestart_values_are_blocking() -> None:
+    for value in ("0", "1", "2"):
+        path = runtime_docx(f"explicit-lvlrestart-{value}.docx")
+        write_docx(
+            path,
+            paragraph("Restart", num_id="42", ilvl="0"),
+            numbering=basic_numbering(f'<w:numFmt w:val="decimal"/><w:lvlRestart w:val="{value}"/>'),
+        )
+
+        result = build_editorial_document(inspect_docx_file(path))
+
+        assert any(
+            item.code == "explicit_list_restart_not_serializable" and item.severity == "error"
+            for item in result.diagnostics
+        )
+        assert "list_restart_semantics_normalized" not in [item.code for item in result.diagnostics]

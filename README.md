@@ -80,5 +80,9 @@ ne fournit pas de representation satisfaisante dans cette structure.
 
 Les listes Word natives résolues sont désormais converties en listes TEI
 imbriquées. Les puces illustrées, listes sans marqueur, numérotations par style
-et structures ambiguës restent refusées. `numId="0"` est traité comme une
-suppression explicite de numérotation, pas comme une liste active.
+et structures ambiguës restent refusées. Une reprise du même `numId` après une
+interruption non numérotée et tout `lvlRestart` explicite restent bloquants tant
+que Mini-Métopes ne calcule pas les compteurs effectifs Word. `numId="0"` est
+traité comme une suppression explicite de numérotation, pas comme une liste
+active. Le résumé `model-docx` compte les listes récursivement, y compris dans
+les notes.

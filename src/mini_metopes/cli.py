@@ -7,7 +7,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
-from typing import Sequence
+from typing import Iterator, Sequence
 
 from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
 from .editorial import (
@@ -269,7 +269,20 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     paragraphs = [block for block in document.blocks if block.kind == "paragraph"]
     prose_quotes = [block for block in document.blocks if isinstance(block, ProseQuote)]
     verse_quotes = [block for block in document.blocks if isinstance(block, VerseQuote)]
-    editorial_lists = [block for block in document.blocks if isinstance(block, EditorialList)]
+    body_root_lists = [block for block in document.blocks if isinstance(block, EditorialList)]
+    note_root_lists = [
+        block
+        for note in document.notes
+        for block in note.blocks
+        if isinstance(block, EditorialList)
+    ]
+    body_lists = list(_iter_editorial_lists(document.blocks))
+    note_lists = [
+        editorial_list
+        for note in document.notes
+        for editorial_list in _iter_editorial_lists(note.blocks)
+    ]
+    editorial_lists = [*body_lists, *note_lists]
     levels: dict[int, int] = {}
     for heading in headings:
         levels[heading.level] = levels.get(heading.level, 0) + 1
@@ -286,8 +299,10 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Citations poetiques : {len(verse_quotes)}")
     print(f"Strophes : {sum(len(quote.stanzas) for quote in verse_quotes)}")
     print(f"Vers : {sum(len(stanza.lines) for quote in verse_quotes for stanza in quote.stanzas)}")
-    print(f"Listes : {len(editorial_lists)}")
-    print(f"Items de listes : {sum(len(item.items) for item in editorial_lists)}")
+    print(f"Listes du corps : {len(body_lists)}")
+    print(f"Listes des notes : {len(note_lists)}")
+    print(f"Listes totales : {len(editorial_lists)}")
+    print(f"Items de listes : {sum(1 for editorial_list in [*body_root_lists, *note_root_lists] for _ in _iter_list_items(editorial_list))}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")
@@ -295,3 +310,18 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Diagnostics : {len(result.diagnostics)}")
     if codes:
         print("Diagnostics par code : " + ", ".join(f"{code} ({count})" for code, count in sorted(codes.items())))
+
+
+def _iter_editorial_lists(blocks: tuple[object, ...]) -> Iterator[EditorialList]:
+    for block in blocks:
+        if isinstance(block, EditorialList):
+            yield block
+            for item in block.items:
+                yield from _iter_editorial_lists(item.child_lists)
+
+
+def _iter_list_items(editorial_list: EditorialList) -> Iterator[object]:
+    for item in editorial_list.items:
+        yield item
+        for child in item.child_lists:
+            yield from _iter_list_items(child)

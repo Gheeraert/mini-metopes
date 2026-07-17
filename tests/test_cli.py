@@ -170,6 +170,17 @@ def test_model_docx_reports_and_serializes_native_quotations() -> None:
     assert result["document"]["blocks"][3]["stanzas"][0]["lines"][0]["kind"] == "verse_line"
 
 
+def test_model_docx_reports_recursive_native_list_totals() -> None:
+    path = DOCX_FIXTURES / "native-lists-tei.docx"
+    human = run_cli("model-docx", str(path))
+
+    assert human.returncode == 0
+    assert "Listes du corps : 5" in human.stdout
+    assert "Listes des notes : 2" in human.stdout
+    assert "Listes totales : 7" in human.stdout
+    assert "Items de listes : 11" in human.stdout
+
+
 def test_inspect_docx_json_exposes_part_scoped_relationships() -> None:
     completed = run_cli_bytes("inspect-docx", str(DOCX_FIXTURES / "native-editorial.docx"), "--json")
 

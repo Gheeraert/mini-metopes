@@ -313,6 +313,12 @@ def _append_editorial_list(
     if not editorial_list.num_format:
         state.error("missing_editorial_list_format", "format de liste editorial absent")
         return
+    if editorial_list.restart_after_level is not None:
+        state.error(
+            "explicit_list_restart_not_serializable",
+            "redemarrage explicite de liste Word non serialisable",
+        )
+        return
     attributes = {"type": "bulleted" if editorial_list.list_kind == "bulleted" else editorial_list.num_format}
     if editorial_list.list_kind == "ordered" and editorial_list.start is not None:
         attributes["n"] = str(editorial_list.start)
