@@ -68,6 +68,13 @@ class _ParsedIdentifier:
     valid: bool
 
 
+@dataclass(frozen=True)
+class _ParsedChildValue:
+    present: bool
+    raw: str | None
+    valid: bool
+
+
 def inspect_docx_file(
     path: Path,
     *,
@@ -273,6 +280,8 @@ def _read_styles(root: etree._Element | None) -> tuple[StyleInfo, ...]:
         style_id = element.get(w_tag("styleId"))
         if style_id is None:
             continue
+        numbering_properties = element.find("./w:pPr/w:numPr", namespaces=NS)
+        numbering_id = _parsed_identifier_child(element, "./w:pPr/w:numPr/w:numId")
         numbering_level = _parsed_integer_child(element, "./w:pPr/w:numPr/w:ilvl")
         styles.append(
             StyleInfo(
@@ -286,9 +295,11 @@ def _read_styles(root: etree._Element | None) -> tuple[StyleInfo, ...]:
                 outline_level=_integer_child_value(element, "./w:pPr/w:outlineLvl"),
                 quick_format=_element_bool(element, "qFormat"),
                 ui_priority=_integer_child_value(element, "./w:uiPriority"),
-                numbering_id=_child_value(element, "./w:pPr/w:numPr/w:numId"),
+                numbering_id=numbering_id.raw,
                 numbering_level=numbering_level.value,
                 numbering_level_invalid=numbering_level.present and not _valid_numbering_level(numbering_level),
+                numbering_properties_present=numbering_properties is not None,
+                numbering_id_invalid=numbering_id.present and not numbering_id.valid,
             )
         )
     return tuple(styles)
@@ -338,12 +349,22 @@ def _read_paragraph(
     runs = tuple(_read_run(run) for run in _paragraph_runs(element))
     hyperlinks = _paragraph_descendants(element, w_tag("hyperlink"))
     bookmark_starts = _paragraph_descendants(element, w_tag("bookmarkStart"))
-    numbering_id = _child_value(element, "./w:pPr/w:numPr/w:numId")
+    direct_numbering_properties = element.find("./w:pPr/w:numPr", namespaces=NS)
+    parsed_numbering_id = _parsed_identifier_child(element, "./w:pPr/w:numPr/w:numId")
+    numbering_id = parsed_numbering_id.raw
     parsed_level = _parsed_integer_child(element, "./w:pPr/w:numPr/w:ilvl")
     numbering_level = parsed_level.value
     numbering = _resolve_paragraph_numbering(
-        numbering_id, parsed_level, style_id, styles_by_id, numbering_definitions,
-        issues, part, index, note_id,
+        parsed_numbering_id,
+        parsed_level,
+        style_id,
+        styles_by_id,
+        numbering_definitions,
+        issues,
+        part,
+        index,
+        note_id,
+        has_direct_numbering_properties=direct_numbering_properties is not None,
     )
     return ParagraphInfo(
         index=index,
@@ -578,14 +599,15 @@ def _read_numbering_definitions(
     instances: dict[int, NumberingInstanceInfo] = {}
     for element in root.findall("w:abstractNum", namespaces=NS):
         identifier = _parse_identifier(element.get(w_tag("abstractNumId")))
-        if not identifier.valid:
+        if not identifier.present or not identifier.valid:
             issues.append(
                 InspectionIssue(
                     "invalid_numbering_identifier", "abstractNumId invalide", "warning", NUMBERING_PART
                 )
             )
             continue
-        assert identifier.raw is not None and identifier.canonical is not None
+        if identifier.raw is None or identifier.canonical is None:
+            continue
         if identifier.canonical in abstracts:
             issues.append(
                 InspectionIssue(
@@ -605,14 +627,15 @@ def _read_numbering_definitions(
         )
     for element in root.findall("w:num", namespaces=NS):
         identifier = _parse_identifier(element.get(w_tag("numId")))
-        if not identifier.valid:
+        if not identifier.present or not identifier.valid:
             issues.append(
                 InspectionIssue(
                     "invalid_numbering_identifier", "numId invalide", "warning", NUMBERING_PART
                 )
             )
             continue
-        assert identifier.raw is not None and identifier.canonical is not None
+        if identifier.raw is None or identifier.canonical is None:
+            continue
         if identifier.canonical in instances:
             issues.append(
                 InspectionIssue(
@@ -629,7 +652,8 @@ def _read_numbering_definitions(
             if not _valid_numbering_level(parsed_level):
                 issues.append(InspectionIssue("invalid_numbering_level", f"niveau de surcharge invalide pour numId={identifier.raw}", "warning", NUMBERING_PART))
                 continue
-            assert parsed_level.value is not None
+            if parsed_level.value is None:
+                continue
             level = parsed_level.value
             level_element = override.find("w:lvl", namespaces=NS)
             override_level = (
@@ -656,7 +680,7 @@ def _read_numbering_definitions(
                 level_override=override_level,
                 invalid_properties=invalid_properties,
             ))
-        abstract_identifier = _parse_identifier(_child_value(element, "abstractNumId"))
+        abstract_identifier = _parsed_identifier_child(element, "abstractNumId")
         if abstract_identifier.present and not abstract_identifier.valid:
             issues.append(
                 InspectionIssue(
@@ -666,9 +690,14 @@ def _read_numbering_definitions(
                     NUMBERING_PART,
                 )
             )
+        abstract_numbering_id = (
+            abstract_identifier.raw
+            if abstract_identifier.raw is not None
+            else ("" if abstract_identifier.present else None)
+        )
         instances[identifier.canonical] = NumberingInstanceInfo(
             numbering_id=identifier.raw,
-            abstract_numbering_id=abstract_identifier.raw,
+            abstract_numbering_id=abstract_numbering_id,
             level_overrides=tuple(sorted(overrides, key=lambda item: item.level)),
         )
     return NumberingDefinitionsInfo(
@@ -687,7 +716,8 @@ def _read_numbering_levels(
         if not _valid_numbering_level(parsed_level):
             issues.append(InspectionIssue("invalid_numbering_level", f"niveau invalide dans abstractNumId={identifier}", "warning", NUMBERING_PART))
             continue
-        assert parsed_level.value is not None
+        if parsed_level.value is None:
+            continue
         level = parsed_level.value
         if level in levels:
             issues.append(InspectionIssue("duplicate_numbering_level", f"niveau duplique ilvl={level} dans abstractNumId={identifier}", "warning", NUMBERING_PART))
@@ -708,10 +738,13 @@ def _read_numbering_level(
         issues.append(InspectionIssue("invalid_numbering_level", "niveau de numerotation invalide", "warning", NUMBERING_PART))
         return None
     else:
-        assert parsed_level.value is not None
+        if parsed_level.value is None:
+            return None
         level = parsed_level.value
     start = _parsed_integer_child(element, "start")
     restart = _parsed_integer_child(element, "lvlRestart")
+    num_format = _parsed_string_child(element, "numFmt")
+    suffix = _parsed_string_child(element, "suff")
     invalid_properties: list[str] = []
     if not start.valid:
         invalid_properties.append("start")
@@ -719,12 +752,18 @@ def _read_numbering_level(
     if not restart.valid:
         invalid_properties.append("lvlRestart")
         issues.append(InspectionIssue("invalid_numbering_level", f"lvlRestart invalide pour ilvl={level}", "warning", NUMBERING_PART))
+    if num_format.present and not num_format.valid:
+        invalid_properties.append("numFmt")
+        issues.append(InspectionIssue("invalid_numbering_property", f"numFmt sans valeur pour ilvl={level}", "warning", NUMBERING_PART))
+    if suffix.present and not suffix.valid:
+        invalid_properties.append("suff")
+        issues.append(InspectionIssue("invalid_numbering_property", f"suff sans valeur pour ilvl={level}", "warning", NUMBERING_PART))
     return NumberingLevelInfo(
         level=level,
         start=start.value,
-        num_format=_child_value(element, "numFmt"),
+        num_format=num_format.raw,
         level_text=_child_value(element, "lvlText"),
-        suffix=_child_value(element, "suff"),
+        suffix=suffix.raw,
         paragraph_style_id=_child_value(element, "pStyle"),
         restart_after_level=restart.value,
         is_legal=_element_bool(element, "isLgl"),
@@ -734,24 +773,36 @@ def _read_numbering_level(
 
 
 def _resolve_paragraph_numbering(
-    numbering_id: str | None, parsed_level: _ParsedInteger, style_id: str | None,
+    parsed_identifier: _ParsedIdentifier, parsed_level: _ParsedInteger, style_id: str | None,
     styles: dict[str, StyleInfo], definitions: NumberingDefinitionsInfo,
     issues: list[InspectionIssue], part: str, paragraph_index: int, note_id: str | None,
+    *,
+    has_direct_numbering_properties: bool,
 ) -> ParagraphNumberingInfo | None:
-    if numbering_id is None:
+    if not parsed_identifier.present:
+        if has_direct_numbering_properties:
+            _numbering_issue(
+                issues,
+                "invalid_numbering_identifier",
+                "numId absent dans un numPr direct",
+                part,
+                paragraph_index,
+                note_id,
+            )
+            return ParagraphNumberingInfo("", None, "unresolved", None, None, None, None, None, None, None, None, None, "direct")
         return _resolve_style_numbering(style_id, styles, issues, part, paragraph_index, note_id)
-    parsed_identifier = _parse_identifier(numbering_id)
     if not parsed_identifier.valid:
         _numbering_issue(
             issues,
             "invalid_numbering_identifier",
-            f"numId invalide : {numbering_id!r}",
+            f"numId invalide : {parsed_identifier.raw!r}",
             part,
             paragraph_index,
             note_id,
         )
-        return ParagraphNumberingInfo(numbering_id, None, "unresolved", None, None, None, None, None, None, None, None, None, "direct")
-    assert parsed_identifier.canonical is not None and parsed_identifier.raw is not None
+        return ParagraphNumberingInfo(parsed_identifier.raw or "", None, "unresolved", None, None, None, None, None, None, None, None, None, "direct")
+    if parsed_identifier.canonical is None or parsed_identifier.raw is None:
+        return ParagraphNumberingInfo("", None, "unresolved", None, None, None, None, None, None, None, None, None, "direct")
     if parsed_identifier.canonical == 0:
         level = parsed_level.value if parsed_level.valid else None
         return ParagraphNumberingInfo(parsed_identifier.raw, level, "removed", None, None, None, None, None, None, None, None, None, "direct")
@@ -798,7 +849,8 @@ def _resolve_paragraph_numbering(
             note_id,
         )
         return ParagraphNumberingInfo(parsed_identifier.raw, level, "unresolved", instance.abstract_numbering_id, None, None, None, None, None, None, None, None, "direct")
-    assert abstract_identifier.canonical is not None
+    if abstract_identifier.canonical is None:
+        return ParagraphNumberingInfo(parsed_identifier.raw, level, "unresolved", instance.abstract_numbering_id, None, None, None, None, None, None, None, None, "direct")
     abstract = next(
         (
             item
@@ -827,8 +879,8 @@ def _resolve_paragraph_numbering(
     invalid_properties = (*resolved.invalid_properties, *((override.invalid_properties if override else ())))
     start = override.start_override if override and override.start_override is not None else resolved.start
     effective_start = start if start is not None else DEFAULT_NUMBER_START
-    effective_num_format = resolved.num_format or DEFAULT_NUMBER_FORMAT
-    effective_suffix = resolved.suffix or DEFAULT_NUMBER_SUFFIX
+    effective_num_format = None if "numFmt" in invalid_properties else (resolved.num_format or DEFAULT_NUMBER_FORMAT)
+    effective_suffix = None if "suff" in invalid_properties else (resolved.suffix or DEFAULT_NUMBER_SUFFIX)
     list_kind = _numbering_list_kind(effective_num_format, resolved.picture_bullet_id)
     status = "resolved"
     if invalid_properties:
@@ -860,9 +912,19 @@ def _resolve_style_numbering(
         style = styles.get(current)
         if style is None:
             return None
+        if style.numbering_properties_present and style.numbering_id is None:
+            _numbering_issue(
+                issues,
+                "invalid_numbering_identifier",
+                f"numId absent dans le style {style.style_id}",
+                part,
+                paragraph_index,
+                note_id,
+            )
+            return ParagraphNumberingInfo("", None, "unresolved", None, None, None, None, None, None, None, None, None, "style")
         if style.numbering_id is not None:
             parsed_identifier = _parse_identifier(style.numbering_id)
-            if not parsed_identifier.valid:
+            if not parsed_identifier.present or not parsed_identifier.valid:
                 _numbering_issue(
                     issues,
                     "invalid_numbering_identifier",
@@ -872,7 +934,8 @@ def _resolve_style_numbering(
                     note_id,
                 )
                 return ParagraphNumberingInfo(style.numbering_id, None, "unresolved", None, None, None, None, None, None, None, None, None, "style")
-            assert parsed_identifier.raw is not None and parsed_identifier.canonical is not None
+            if parsed_identifier.raw is None or parsed_identifier.canonical is None:
+                return ParagraphNumberingInfo("", None, "unresolved", None, None, None, None, None, None, None, None, None, "style")
             if style.numbering_level_invalid:
                 _numbering_issue(
                     issues,
@@ -934,7 +997,8 @@ def _active_raw_numbering_id(value: str | None) -> bool:
 
 
 def _valid_numbering_identifier(value: str | None) -> bool:
-    return _parse_identifier(value).valid
+    parsed = _parse_identifier(value)
+    return parsed.present and parsed.valid
 
 
 def _parse_identifier(value: str | None) -> _ParsedIdentifier:
@@ -976,7 +1040,40 @@ def _parsed_integer_attribute(element: etree._Element, name: str) -> _ParsedInte
 
 
 def _parsed_integer_child(element: etree._Element | None, path: str) -> _ParsedInteger:
-    return _parse_decimal_integer(_child_value(element, path))
+    value = _parsed_child_value(element, path)
+    if not value.present:
+        return _ParsedInteger(False, None, True)
+    if not value.valid:
+        return _ParsedInteger(True, None, False)
+    return _parse_decimal_integer(value.raw)
+
+
+def _parsed_identifier_child(element: etree._Element | None, path: str) -> _ParsedIdentifier:
+    value = _parsed_child_value(element, path)
+    if not value.present:
+        return _ParsedIdentifier(None, None, False, True)
+    if not value.valid:
+        return _ParsedIdentifier(None, None, True, False)
+    return _parse_identifier(value.raw)
+
+
+def _parsed_string_child(element: etree._Element | None, path: str) -> _ParsedChildValue:
+    return _parsed_child_value(element, path)
+
+
+def _parsed_child_value(element: etree._Element | None, path: str) -> _ParsedChildValue:
+    if element is None:
+        return _ParsedChildValue(False, None, True)
+    if "/" in path:
+        child = element.find(path, namespaces=NS)
+    else:
+        child = element.find(f"w:{path}", namespaces=NS)
+    if child is None:
+        return _ParsedChildValue(False, None, True)
+    value = child.get(w_tag("val"))
+    if value is None:
+        return _ParsedChildValue(True, None, False)
+    return _ParsedChildValue(True, value, True)
 
 
 def _integer_attribute(element: etree._Element, name: str) -> int | None:

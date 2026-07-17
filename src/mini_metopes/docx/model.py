@@ -133,6 +133,8 @@ class StyleInfo:
     numbering_id: str | None = None
     numbering_level: int | None = None
     numbering_level_invalid: bool = False
+    numbering_properties_present: bool = False
+    numbering_id_invalid: bool = False
 
 
 @dataclass(frozen=True)

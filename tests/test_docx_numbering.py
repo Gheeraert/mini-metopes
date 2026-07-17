@@ -223,6 +223,131 @@ def test_invalid_level_properties_make_resolution_unresolved() -> None:
     assert inspection.paragraphs[0].numbering.status == "unresolved"
 
 
+def test_missing_required_numbering_identifiers_are_diagnosed_without_partial_definitions() -> None:
+    missing_abstract_id = runtime_docx("missing-abstract-id.docx")
+    write_docx(
+        missing_abstract_id,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum><w:lvl w:ilvl="0"/></w:abstractNum>'
+            '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+        ),
+    )
+    inspection = inspect_docx_file(missing_abstract_id)
+    assert "invalid_numbering_identifier" in [issue.code for issue in inspection.issues]
+    assert inspection.numbering_definitions.abstract_definitions == ()
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+
+    missing_num_id = runtime_docx("missing-num-id.docx")
+    write_docx(
+        missing_num_id,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"/></w:abstractNum>'
+            '<w:num><w:abstractNumId w:val="1"/></w:num>'
+        ),
+    )
+    inspection = inspect_docx_file(missing_num_id)
+    assert "invalid_numbering_identifier" in [issue.code for issue in inspection.issues]
+    assert inspection.numbering_definitions.instances == ()
+
+
+def test_incomplete_direct_numpr_values_are_not_ignored_or_replaced_by_style() -> None:
+    styles = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Active"><w:pPr><w:numPr><w:numId w:val="42"/></w:numPr></w:pPr></w:style>
+</w:styles>
+"""
+    missing_value = runtime_docx("direct-numid-without-value.docx")
+    body = (
+        '<w:p><w:pPr><w:pStyle w:val="Active"/><w:numPr><w:numId/></w:numPr></w:pPr>'
+        '<w:r><w:t>Direct incomplet</w:t></w:r></w:p>'
+    )
+    write_docx(missing_value, body, styles=styles, numbering=basic_numbering())
+    inspection = inspect_docx_file(missing_value)
+    assert "invalid_numbering_identifier" in [issue.code for issue in inspection.issues]
+    assert "style_based_numbering_not_resolved" not in [issue.code for issue in inspection.issues]
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.origin == "direct"
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+
+    missing_level_value = runtime_docx("direct-ilvl-without-value.docx")
+    body = (
+        '<w:p><w:pPr><w:numPr><w:ilvl/><w:numId w:val="42"/></w:numPr></w:pPr>'
+        '<w:r><w:t>Niveau incomplet</w:t></w:r></w:p>'
+    )
+    write_docx(missing_level_value, body, numbering=basic_numbering())
+    inspection = inspect_docx_file(missing_level_value)
+    codes = [issue.code for issue in inspection.issues]
+    assert "invalid_numbering_level" in codes
+    assert "missing_numbering_level_assumed_zero" not in codes
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+
+
+def test_incomplete_abstract_reference_child_is_invalid_not_missing() -> None:
+    incomplete_reference = runtime_docx("abstract-reference-without-value.docx")
+    write_docx(
+        incomplete_reference,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"/></w:abstractNum>'
+            '<w:num w:numId="42"><w:abstractNumId/></w:num>'
+        ),
+    )
+    inspection = inspect_docx_file(incomplete_reference)
+    codes = [issue.code for issue in inspection.issues]
+    assert "invalid_numbering_identifier" in codes
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+
+    absent_reference = runtime_docx("abstract-reference-absent.docx")
+    write_docx(
+        absent_reference,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"/></w:abstractNum>'
+            '<w:num w:numId="42"/>'
+        ),
+    )
+    assert "missing_abstract_numbering_definition" in issue_codes(absent_reference)
+
+
+def test_incomplete_numbering_level_properties_are_not_defaulted() -> None:
+    path = runtime_docx("incomplete-level-properties.docx")
+    write_docx(
+        path,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=basic_numbering("<w:numFmt/><w:suff/><w:start/><w:lvlRestart/>"),
+    )
+    inspection = inspect_docx_file(path)
+    codes = [issue.code for issue in inspection.issues]
+    assert "invalid_numbering_property" in codes
+    assert "invalid_numbering_level" in codes
+    assert "unsupported_numbering_format" not in codes
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+    assert inspection.paragraphs[0].numbering.num_format is None
+    assert inspection.paragraphs[0].numbering.suffix is None
+
+    override = runtime_docx("incomplete-start-override.docx")
+    write_docx(
+        override,
+        paragraph("Bad", num_id="42", ilvl="0"),
+        numbering=numbering_xml(
+            '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"/></w:abstractNum>'
+            '<w:num w:numId="42"><w:abstractNumId w:val="1"/>'
+            '<w:lvlOverride w:ilvl="0"><w:startOverride/></w:lvlOverride></w:num>'
+        ),
+    )
+    inspection = inspect_docx_file(override)
+    assert "invalid_numbering_level" in [issue.code for issue in inspection.issues]
+    assert inspection.paragraphs[0].numbering is not None
+    assert inspection.paragraphs[0].numbering.status == "unresolved"
+
+
 def test_numbering_definition_identifiers_are_canonicalized_for_duplicates() -> None:
     path = runtime_docx("duplicates.docx")
     numbering = numbering_xml(

@@ -9,12 +9,22 @@ paragraphes resolus appliquent les defauts WordprocessingML : format `decimal`
 si `numFmt` est absent, depart `0` si `start` est absent, suffixe `tab` si
 `suff` est absent.
 
+Ces valeurs par defaut valent uniquement pour les elements absents. Si
+l'element existe mais ne porte pas `w:val`, par exemple `<w:numFmt/>`,
+`<w:suff/>`, `<w:start/>`, `<w:startOverride/>` ou `<w:lvlRestart/>`,
+Mini-Metopes signale une valeur incomplete et ne la remplace pas
+silencieusement par le defaut.
+
 Les identifiants `abstractNumId` et `numId` doivent etre des entiers decimaux
 non negatifs. Les formes `1` et `01` sont numeriquement ambiguës et signalees
 comme doublons. Les niveaux natifs Word acceptes vont de `0` a `8`. Une valeur
 absente et une valeur invalide ne sont pas equivalentes : un niveau absent peut
 etre suppose `0` lorsque le niveau 0 existe ; un niveau invalide bloque la
 resolution.
+
+Les identifiants obligatoires d'une definition `abstractNum` ou d'une instance
+`num` ne sont jamais supposes valides lorsqu'ils manquent. L'element incomplet
+est ignore apres diagnostic afin d'eviter une definition OOXML partielle.
 
 Les formats `decimal`, `decimalZero`, lettres, chiffres romains et certains
 formats ordinaux sont classes comme ordonnes ; `bullet` est une puce ; `none`

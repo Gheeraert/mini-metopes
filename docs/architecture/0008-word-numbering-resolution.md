@@ -14,6 +14,12 @@ paragraphe. Les defauts WordprocessingML sont donc appliques seulement lors de
 la resolution : `numFmt` absent vaut `decimal`, `start` absent vaut `0`, et
 `suff` absent vaut `tab`.
 
+Ces defauts ne s'appliquent qu'a un element reellement absent. Un element
+present sans attribut `w:val`, par exemple `<w:numFmt/>`, `<w:suff/>`,
+`<w:start/>`, `<w:startOverride/>` ou `<w:lvlRestart/>`, est une valeur OOXML
+incomplete. Elle produit un diagnostic et rend la resolution du paragraphe
+concerne non resolue, au lieu d'etre assimilee a la valeur par defaut.
+
 `numPr` direct est prioritaire. `numId="0"` signifie que la numerotation est
 supprimee : ce n'est pas une liste active. Cette suppression est egalement
 respectee lorsqu'elle est portee par un style et annule alors une eventuelle
@@ -22,15 +28,19 @@ d'un style, y compris via `basedOn`, sont observees mais non resolues ; elles
 sont signalees conservatoirement. Les cycles `basedOn` sont diagnostiques.
 
 Les identifiants de numerotation doivent etre des entiers decimaux non
-negatifs. Ils restent stockes comme chaines dans le modele public, mais les
-recherches, les doublons et l'ordre deterministe utilisent leur valeur
+negatifs. Cette regle vaut aussi pour les identifiants obligatoires des
+definitions `abstractNum/@abstractNumId` et `num/@numId` : s'ils sont absents ou
+invalides, l'element est ignore apres diagnostic et aucune definition partielle
+n'est enregistree. Ils restent stockes comme chaines dans le modele public,
+mais les recherches, les doublons et l'ordre deterministe utilisent leur valeur
 numerique canonique. Ainsi `1` et `01` ne creent pas deux definitions
 concurrentes. Les niveaux Word natifs acceptes vont de `0` a `8`.
 
-La lecture distingue un element absent d'une valeur invalide. Un `ilvl` absent
-peut etre remplace par le niveau `0` lorsque celui-ci existe, avec
-`missing_numbering_level_assumed_zero`. En revanche, `ilvl="abc"` ou `ilvl="9"`
-produit `invalid_numbering_level` et ne declenche jamais cette hypothese.
+La lecture distingue un element absent, un element present sans `w:val` et une
+valeur invalide. Un `ilvl` absent peut etre remplace par le niveau `0` lorsque
+celui-ci existe, avec `missing_numbering_level_assumed_zero`. En revanche,
+`<w:ilvl/>`, `ilvl="abc"` ou `ilvl="9"` produit `invalid_numbering_level` et ne
+declenche jamais cette hypothese.
 
 ## Consequences
 
