@@ -15,6 +15,8 @@ from mini_metopes.editorial import (
     EditorialBlock,
     EditorialDocument,
     EditorialInline,
+    EditorialList,
+    EditorialListItem,
     EditorialLink,
     EditorialNote,
     Heading,
@@ -290,7 +292,51 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
                 element = etree.SubElement(group, _tag("l"))
                 _append_inline(element, line.content, state)
         return
+    if isinstance(block, EditorialList):
+        _append_editorial_list(parent, block, state)
+        return
     raise TypeError(f"bloc editorial inconnu : {type(block)!r}")
+
+
+def _append_editorial_list(
+    parent: etree._Element,
+    editorial_list: EditorialList,
+    state: _SerializationState,
+) -> None:
+    """Serialiser une liste deja construite par la couche editoriale."""
+    if not editorial_list.items:
+        state.error("empty_list_not_serializable", "liste editoriale vide non serialisable")
+        return
+    if editorial_list.list_kind not in {"ordered", "bulleted"}:
+        state.error("unsupported_editorial_list_kind", "nature de liste editoriale inconnue")
+        return
+    if not editorial_list.num_format:
+        state.error("missing_editorial_list_format", "format de liste editorial absent")
+        return
+    attributes = {"type": "bulleted" if editorial_list.list_kind == "bulleted" else editorial_list.num_format}
+    if editorial_list.list_kind == "ordered" and editorial_list.start is not None:
+        attributes["n"] = str(editorial_list.start)
+    element = etree.SubElement(parent, _tag("list"), **attributes)
+    for item in editorial_list.items:
+        _append_editorial_list_item(element, item, state)
+
+
+def _append_editorial_list_item(
+    parent: etree._Element,
+    item: EditorialListItem,
+    state: _SerializationState,
+) -> None:
+    if not item.content and not item.child_lists:
+        state.error(
+            "empty_list_item_not_serializable",
+            "item de liste vide non serialisable",
+            source_paragraph_index=item.source_paragraph_index,
+        )
+        return
+    element = etree.SubElement(parent, _tag("item"))
+    _append_inline(element, item.content, state)
+    for child in item.child_lists:
+        _append_editorial_list(element, child, state)
 
 
 def _append_inline(parent: etree._Element, items: tuple[EditorialInline, ...], state: _SerializationState) -> None:

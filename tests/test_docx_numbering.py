@@ -136,10 +136,7 @@ def test_lists_remain_conservatively_blocking_for_tei_conversion() -> None:
     assert metadata is not None
     result = convert_docx_to_tei(FIXTURES / "docx" / "native-lists.docx", metadata=metadata)
     assert result.xml_bytes is None
-    diagnostics = [item for item in result.diagnostics if item.code == "numbered_paragraph_not_serializable"]
-    assert diagnostics
-    assert any("kind=ordered" in item.message for item in diagnostics)
-    assert any("kind=bulleted" in item.message for item in diagnostics)
+    assert any(item.code == "list_level_jump_not_serializable" for item in result.diagnostics)
 
 
 def test_numbering_defaults_are_applied_only_to_effective_resolution() -> None:

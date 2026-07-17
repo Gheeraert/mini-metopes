@@ -10,6 +10,8 @@ from .model import (
     EditorialBlock,
     EditorialBuildResult,
     EditorialInline,
+    EditorialList,
+    EditorialListItem,
     EditorialLink,
     EditorialNote,
     Heading,
@@ -75,6 +77,8 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
             "kind": block.kind,
             "stanzas": [_verse_stanza_to_data(stanza) for stanza in block.stanzas],
         }
+    if isinstance(block, EditorialList):
+        return _list_to_data(block)
     return {
         "kind": block.kind,
         "content": [_inline_to_data(item) for item in block.content],
@@ -107,6 +111,31 @@ def _verse_line_to_data(line: VerseLine) -> dict[str, object]:
         "content": [_inline_to_data(item) for item in line.content],
         "source_paragraph_index": line.source_paragraph_index,
         "line_index": line.line_index,
+    }
+
+
+def _list_to_data(editorial_list: EditorialList) -> dict[str, object]:
+    return {
+        "kind": editorial_list.kind,
+        "list_kind": editorial_list.list_kind,
+        "num_format": editorial_list.num_format,
+        "start": editorial_list.start,
+        "source_numbering_id": editorial_list.source_numbering_id,
+        "source_level": editorial_list.source_level,
+        "level_text": editorial_list.level_text,
+        "suffix": editorial_list.suffix,
+        "restart_after_level": editorial_list.restart_after_level,
+        "items": [_list_item_to_data(item) for item in editorial_list.items],
+    }
+
+
+def _list_item_to_data(item: EditorialListItem) -> dict[str, object]:
+    return {
+        "kind": item.kind,
+        "content": [_inline_to_data(inline) for inline in item.content],
+        "child_lists": [_list_to_data(child) for child in item.child_lists],
+        "source_paragraph_index": item.source_paragraph_index,
+        "source_style_id": item.source_style_id,
     }
 
 

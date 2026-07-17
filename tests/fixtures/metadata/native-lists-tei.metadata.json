@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "native-lists-tei.docx",
+    "sha256": "097ea18029769c2903d0724ba2e5218f0760fca4e27834987d9c790372fe9c6d"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Listes synthétiques",
+    "subtitle": "Conversion TEI imbriquée",
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Ariane",
+      "family_name": "Exemple",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

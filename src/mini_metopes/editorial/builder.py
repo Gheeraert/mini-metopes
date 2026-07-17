@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from mini_metopes.docx import (
@@ -22,6 +22,8 @@ from .model import (
     EditorialDiagnostic,
     EditorialDocument,
     EditorialInline,
+    EditorialList,
+    EditorialListItem,
     EditorialLink,
     EditorialNote,
     DiagnosticSeverity,
@@ -49,6 +51,42 @@ _MARK_ORDER: tuple[TextMark, ...] = (
     "superscript",
     "subscript",
 )
+
+
+@dataclass
+class _ListItemBuilder:
+    """Noeud mutable prive, fige seulement a la sortie du constructeur."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    child_lists: list["_ListBuilder"] = field(default_factory=list)
+
+
+@dataclass
+class _ListBuilder:
+    """Representation transitoire d'une liste a un niveau OOXML donne."""
+
+    list_kind: str
+    num_format: str
+    start: int | None
+    numbering_id: str
+    level: int
+    level_text: str | None
+    suffix: str | None
+    restart_after_level: int | None
+    items: list[_ListItemBuilder] = field(default_factory=list)
+
+    @property
+    def signature(self) -> tuple[str, int, str, str, int | None, int | None]:
+        return (
+            self.numbering_id,
+            self.level,
+            self.list_kind,
+            self.num_format,
+            self.start,
+            self.restart_after_level,
+        )
 
 
 def build_editorial_document(
@@ -147,6 +185,22 @@ def _build_blocks(
     paragraph_position = 0
     while paragraph_position < len(paragraphs):
         paragraph = paragraphs[paragraph_position]
+        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+
+        if _is_serializable_list_paragraph(paragraph, role.kind):
+            list_blocks, next_position, list_references = _build_list_sequence(
+                paragraphs,
+                paragraph_position,
+                convention=convention,
+                relationships=relationships,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+            blocks.extend(list_blocks)
+            referenced_notes.update(list_references)
+            paragraph_position = next_position
+            continue
+
         content, references = _build_inline_content(
             paragraph,
             convention=convention,
@@ -155,7 +209,8 @@ def _build_blocks(
             note_id=note_id,
         )
         referenced_notes.update(references)
-        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+        if _has_active_numbering(paragraph):
+            _diagnose_nonserializable_numbering(paragraph, role.kind, diagnostics, note_id)
         if role.kind == "heading":
             assert role.heading_level is not None
             heading_level = role.heading_level
@@ -280,6 +335,306 @@ def _build_blocks(
         )
         paragraph_position += 1
     return tuple(blocks), referenced_notes
+
+
+def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
+    """Distinguer une liste active de l'annulation Word ``numId=0``."""
+    if paragraph.numbering is not None:
+        return paragraph.numbering.status != "removed"
+    return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
+
+
+def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) -> bool:
+    """Verifier les preconditions editoriales de la passe 8B."""
+    numbering = paragraph.numbering
+    return (
+        role_kind == "paragraph"
+        and numbering is not None
+        and numbering.origin == "direct"
+        and numbering.status == "resolved"
+        and numbering.list_kind in {"ordered", "bulleted"}
+        and numbering.level is not None
+        and numbering.num_format is not None
+        and numbering.picture_bullet_id is None
+        and numbering.is_legal is not True
+    )
+
+
+def _build_list_sequence(
+    paragraphs: tuple[ParagraphInfo, ...],
+    start_position: int,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> tuple[tuple[EditorialList, ...], int, set[tuple[str, str]]]:
+    """Reconstruire une sequence contigue de listes par niveaux OOXML directs.
+
+    Les objets publics restent immuables ; cette fonction utilise seulement des
+    constructeurs prives mutables le temps d'etablir les relations parent/enfant.
+    """
+    first = paragraphs[start_position]
+    assert first.numbering is not None and first.numbering.level is not None
+    root_level = first.numbering.level
+    roots: list[_ListBuilder] = []
+    active: dict[int, _ListBuilder] = {}
+    references: set[tuple[str, str]] = set()
+    previous_level: int | None = None
+    position = start_position
+
+    while position < len(paragraphs):
+        paragraph = paragraphs[position]
+        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+        if not _is_serializable_list_paragraph(paragraph, role.kind):
+            break
+        numbering = paragraph.numbering
+        assert numbering is not None and numbering.level is not None
+        level = numbering.level
+
+        if previous_level is not None and level > previous_level + 1:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="list_level_jump_not_serializable",
+                    severity="error",
+                    message=(
+                        "saut de niveau de liste ambigu : "
+                        f"{previous_level} vers {level} (numId={numbering.numbering_id})"
+                    ),
+                    paragraph_index=paragraph.index,
+                    style_id=paragraph.style_id,
+                    note_id=note_id,
+                )
+            )
+            break
+        if level < root_level:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="list_root_level_decrease_split",
+                    severity="warning",
+                    message=(
+                        "diminution sous le niveau racine local de liste : "
+                        f"{root_level} vers {level}; nouvelle liste racine"
+                    ),
+                    paragraph_index=paragraph.index,
+                    style_id=paragraph.style_id,
+                    note_id=note_id,
+                )
+            )
+            break
+
+        content, item_references = _build_inline_content(
+            paragraph,
+            convention=convention,
+            relationships=relationships,
+            diagnostics=diagnostics,
+            note_id=note_id,
+        )
+        references.update(item_references)
+        item = _ListItemBuilder(
+            content=content,
+            source_paragraph_index=paragraph.index,
+            source_style_id=paragraph.style_id,
+        )
+        signature = _numbering_signature(numbering)
+
+        if previous_level is None:
+            builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
+            roots.append(builder)
+            active[level] = builder
+            if level != 0:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="list_root_level_normalized",
+                        severity="warning",
+                        message=f"liste racine observee au niveau OOXML {level}",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+        elif level == previous_level:
+            builder = active[level]
+            if builder.signature != signature:
+                builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
+                _attach_sibling_list(builder, level, root_level, active, roots)
+                active[level] = builder
+        elif level > previous_level:
+            parent = active[previous_level]
+            builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
+            parent.items[-1].child_lists.append(builder)
+            active[level] = builder
+        else:
+            for active_level in tuple(active):
+                if active_level > level:
+                    del active[active_level]
+            builder = active[level]
+            if builder.signature != signature:
+                builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
+                _attach_sibling_list(builder, level, root_level, active, roots)
+                active[level] = builder
+
+        builder.items.append(item)
+        previous_level = level
+        position += 1
+
+    return tuple(_freeze_list(root, diagnostics, note_id) for root in roots), position, references
+
+
+def _numbering_signature(numbering: object) -> tuple[str, int, str, str, int | None, int | None]:
+    from mini_metopes.docx import ParagraphNumberingInfo
+
+    assert isinstance(numbering, ParagraphNumberingInfo)
+    assert numbering.level is not None and numbering.list_kind in {"ordered", "bulleted"}
+    assert numbering.num_format is not None
+    return (
+        numbering.numbering_id,
+        numbering.level,
+        numbering.list_kind,
+        numbering.num_format,
+        numbering.start,
+        numbering.restart_after_level,
+    )
+
+
+def _new_list_builder(
+    numbering: object,
+    paragraph: ParagraphInfo,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> _ListBuilder:
+    from mini_metopes.docx import ParagraphNumberingInfo
+
+    assert isinstance(numbering, ParagraphNumberingInfo)
+    assert numbering.level is not None and numbering.list_kind in {"ordered", "bulleted"}
+    assert numbering.num_format is not None
+    if numbering.restart_after_level not in {None, 0}:
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="list_restart_semantics_normalized",
+                severity="warning",
+                message=(
+                    "semantique explicite de redemarrage de liste normalisee "
+                    f"(lvlRestart={numbering.restart_after_level})"
+                ),
+                paragraph_index=paragraph.index,
+                style_id=paragraph.style_id,
+                note_id=note_id,
+            )
+        )
+    return _ListBuilder(
+        list_kind=numbering.list_kind,
+        num_format=numbering.num_format,
+        start=numbering.start,
+        numbering_id=numbering.numbering_id,
+        level=numbering.level,
+        level_text=numbering.level_text,
+        suffix=numbering.suffix,
+        restart_after_level=numbering.restart_after_level,
+    )
+
+
+def _attach_sibling_list(
+    builder: _ListBuilder,
+    level: int,
+    root_level: int,
+    active: dict[int, _ListBuilder],
+    roots: list[_ListBuilder],
+) -> None:
+    """Rattacher une nouvelle signature au meme niveau, sans perdre l'ordre."""
+    if level == root_level:
+        roots.append(builder)
+        return
+    parent = active[level - 1]
+    parent.items[-1].child_lists.append(builder)
+
+
+def _freeze_list(
+    builder: _ListBuilder,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> EditorialList:
+    items: list[EditorialListItem] = []
+    for item in builder.items:
+        children = tuple(_freeze_list(child, diagnostics, note_id) for child in item.child_lists)
+        if not item.content and not children:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="empty_list_item_not_serializable",
+                    severity="error",
+                    message="item de liste vide sans sous-liste",
+                    paragraph_index=item.source_paragraph_index,
+                    style_id=item.source_style_id,
+                    note_id=note_id,
+                )
+            )
+        elif not item.content:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="empty_parent_list_item",
+                    severity="warning",
+                    message="item parent de liste sans contenu textuel",
+                    paragraph_index=item.source_paragraph_index,
+                    style_id=item.source_style_id,
+                    note_id=note_id,
+                )
+            )
+        items.append(
+            EditorialListItem(
+                content=item.content,
+                child_lists=children,
+                source_paragraph_index=item.source_paragraph_index,
+                source_style_id=item.source_style_id,
+            )
+        )
+    return EditorialList(
+        list_kind=builder.list_kind,  # type: ignore[arg-type]
+        num_format=builder.num_format,
+        start=builder.start,
+        source_numbering_id=builder.numbering_id,
+        source_level=builder.level,
+        level_text=builder.level_text,
+        suffix=builder.suffix,
+        restart_after_level=builder.restart_after_level,
+        items=tuple(items),
+    )
+
+
+def _diagnose_nonserializable_numbering(
+    paragraph: ParagraphInfo,
+    role_kind: str,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> None:
+    """Conserver la raison editoriale exacte d'une liste encore refusee."""
+    numbering = paragraph.numbering
+    if numbering is None or numbering.status == "removed":
+        return
+    if role_kind != "paragraph":
+        code = "numbered_nonparagraph_style_not_serializable"
+        message = f"paragraphe numerote avec role editorial {role_kind}"
+    elif numbering.origin == "style":
+        code = "style_based_numbering_not_serializable"
+        message = "numerotation portee uniquement par un style Word"
+    elif numbering.is_legal is True:
+        code = "legal_numbering_not_serializable"
+        message = "numerotation legale Word non representable sans perte"
+    elif numbering.list_kind == "none":
+        code = "numbering_without_marker_not_serializable"
+        message = "numerotation Word sans marqueur"
+    else:
+        code = "unsupported_numbering_not_serializable"
+        message = "numerotation Word non resolue ou non prise en charge"
+    diagnostics.append(
+        EditorialDiagnostic(
+            code=code,
+            severity="error",
+            message=f"{message} (numId={numbering.numbering_id})",
+            paragraph_index=paragraph.index,
+            style_id=paragraph.style_id,
+            note_id=note_id,
+        )
+    )
 
 
 def _build_verse_stanza(
