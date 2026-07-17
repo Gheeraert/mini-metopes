@@ -57,6 +57,7 @@ class NumberingLevelInfo:
     restart_after_level: int | None
     is_legal: bool | None
     picture_bullet_id: str | None
+    invalid_properties: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class NumberingLevelOverrideInfo:
     level: int
     start_override: int | None
     level_override: NumberingLevelInfo | None
+    invalid_properties: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,7 @@ class StyleInfo:
     ui_priority: int | None
     numbering_id: str | None = None
     numbering_level: int | None = None
+    numbering_level_invalid: bool = False
 
 
 @dataclass(frozen=True)

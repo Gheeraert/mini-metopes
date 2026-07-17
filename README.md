@@ -78,5 +78,8 @@ sont refuses par diagnostics structures, sans traceback utilisateur. Dans le
 produisent `ror_not_serialized` tant que le profil Commons Publishing embarque
 ne fournit pas de representation satisfaisante dans cette structure.
 
-Les listes Word sont désormais inspectées et résolues (instances, niveaux et
-surcharges), mais leur conversion TEI sera introduite dans la passe suivante.
+Les listes Word sont désormais inspectées et résolues (instances, niveaux,
+surcharges, valeurs par défaut WordprocessingML et listes dans les notes), mais
+leur conversion TEI sera introduite dans la passe suivante. `numId="0"` est
+traité comme une suppression explicite de numérotation, pas comme une liste
+active.

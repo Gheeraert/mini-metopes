@@ -32,6 +32,7 @@ _NON_BLOCKING_INSPECTION_CODES = frozenset(
         "comments_not_inspected",
         "headers_footers_not_inspected",
         "list_paragraph_without_numbering",
+        "missing_numbering_level_assumed_zero",
     }
 )
 _BLOCKING_EDITORIAL_CODES = frozenset(

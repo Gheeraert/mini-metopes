@@ -223,9 +223,14 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
         if paragraph.style_id is not None:
             style_counts[paragraph.style_id] = style_counts.get(paragraph.style_id, 0) + 1
     manual_breaks = sum(paragraph.manual_breaks for paragraph in inspection.paragraphs)
+    all_paragraphs = [
+        *inspection.paragraphs,
+        *(paragraph for note in inspection.footnotes for paragraph in note.paragraphs),
+        *(paragraph for note in inspection.endnotes for paragraph in note.paragraphs),
+    ]
     active_numbering = [
         paragraph.numbering
-        for paragraph in inspection.paragraphs
+        for paragraph in all_paragraphs
         if paragraph.numbering is not None and paragraph.numbering.status != "removed"
     ]
     numbered = len(active_numbering)
