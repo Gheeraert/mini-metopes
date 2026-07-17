@@ -10,7 +10,7 @@ from .model import DocumentMetadata, MetadataIssue, MetadataSuggestions
 
 def metadata_consistency_issues(metadata: DocumentMetadata, docx_path: Path, suggestions: MetadataSuggestions) -> tuple[MetadataIssue, ...]:
     """Comparer sans jamais modifier le JSON, qui demeure la source d'autorite."""
-    issues: list[MetadataIssue] = list(suggestions.diagnostics)
+    issues: list[MetadataIssue] = []
     if metadata.source.filename != docx_path.name:
         issues.append(MetadataIssue("metadata_source_filename_changed", "warning", "nom du DOCX different du JSON", "source.filename"))
     if metadata.source.sha256 != compute_file_sha256(docx_path):

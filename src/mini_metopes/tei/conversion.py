@@ -42,6 +42,14 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "conflicting_vertical_alignment",
     }
 )
+_METADATA_SUGGESTION_CODES = frozenset(
+    {
+        "empty_metadata_suggestion",
+        "multiple_docx_titles",
+        "multiple_docx_subtitles",
+        "metadata_style_not_initial",
+    }
+)
 
 
 def convert_docx_to_tei(
@@ -57,6 +65,7 @@ def convert_docx_to_tei(
             (TeiConversionDiagnostic(
                 code="missing_metadata", severity="error",
                 message="une conversion DOCX complete exige des metadonnees JSON validees",
+                origin="metadata",
             ),),
             (),
         )
@@ -70,9 +79,9 @@ def convert_docx_to_tei(
     metadata_diagnostics: list[TeiConversionDiagnostic] = []
     metadata_validation = validate_metadata(metadata)
     metadata_diagnostics.extend(_metadata_diagnostics(metadata_validation.issues))
-    metadata_diagnostics.extend(_metadata_diagnostics(metadata_consistency_issues(metadata, path, suggestions)))
     metadata_diagnostics.extend(_metadata_diagnostics(suggestions.diagnostics))
-    diagnostics = diagnostics + tuple(metadata_diagnostics)
+    metadata_diagnostics.extend(_metadata_diagnostics(metadata_consistency_issues(metadata, path, suggestions)))
+    diagnostics = _deduplicate_diagnostics(diagnostics + tuple(metadata_diagnostics))
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return TeiConversionResult(None, diagnostics, ())
     return serialize_editorial_document_to_tei(
@@ -89,7 +98,41 @@ def _metadata_diagnostics(issues: tuple[object, ...]) -> tuple[TeiConversionDiag
     result: list[TeiConversionDiagnostic] = []
     for issue in issues:
         assert isinstance(issue, MetadataIssue)
-        result.append(TeiConversionDiagnostic(code=issue.code, severity=issue.severity, message=issue.message, origin="serialization"))
+        result.append(
+            TeiConversionDiagnostic(
+                code=issue.code,
+                severity=issue.severity,
+                message=issue.message,
+                origin="metadata",
+                metadata_path=issue.path,
+            )
+        )
+    return tuple(result)
+
+
+def _deduplicate_diagnostics(
+    diagnostics: tuple[TeiConversionDiagnostic, ...],
+) -> tuple[TeiConversionDiagnostic, ...]:
+    seen: set[tuple[object, ...]] = set()
+    result: list[TeiConversionDiagnostic] = []
+    for diagnostic in diagnostics:
+        if diagnostic.origin == "metadata" and diagnostic.code in _METADATA_SUGGESTION_CODES:
+            key = (diagnostic.origin, diagnostic.code)
+        else:
+            key = (
+                diagnostic.origin,
+                diagnostic.code,
+                diagnostic.metadata_path,
+                diagnostic.source_part,
+                diagnostic.source_paragraph_index,
+                diagnostic.note_id,
+                diagnostic.run_index,
+                diagnostic.style_id,
+            )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(diagnostic)
     return tuple(result)
 
 

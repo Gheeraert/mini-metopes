@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .metadata_controller import (
     MetadataEditorState, add_affiliation, add_contributor, load_metadata_editor_state,
-    next_identifier, remove_affiliation, remove_contributor, save_metadata_editor_state,
+    is_metadata_dirty, next_identifier, remove_affiliation, remove_contributor, save_metadata_editor_state,
     update_affiliation, update_contributor, validate_metadata_editor_state,
 )
 from mini_metopes.metadata import Affiliation, Contributor
@@ -15,6 +15,9 @@ from mini_metopes.metadata import Affiliation, Contributor
 
 def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | None = None) -> int:
     """Ouvrir explicitement l'editeur; aucun Tkinter n'est lance a l'import."""
+    state: MetadataEditorState | None = None
+    if docx_path is not None:
+        state = load_metadata_editor_state(docx_path, metadata_path)
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
@@ -26,7 +29,8 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             root.destroy()
             return 0
         docx_path = Path(selected)
-    state = load_metadata_editor_state(docx_path, metadata_path)
+    if state is None:
+        state = load_metadata_editor_state(docx_path, metadata_path)
     root.deiconify()
     root.title("Mini-Metopes — Metadonnees")
     root.minsize(760, 560)
@@ -36,6 +40,11 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     document.grid(row=0, column=0, sticky="ew", padx=10, pady=8)
     ttk.Label(document, text=f"DOCX : {state.docx_path}").grid(sticky="w")
     ttk.Label(document, text=f"JSON : {state.metadata_path}").grid(sticky="w")
+    diagnostics_tree = ttk.Treeview(document, columns=("severity", "path", "message"), show="headings", height=4)
+    diagnostics_tree.heading("severity", text="Niveau")
+    diagnostics_tree.heading("path", text="Emplacement")
+    diagnostics_tree.heading("message", text="Message")
+    diagnostics_tree.grid(sticky="ew", pady=(6, 0))
     fields = ttk.LabelFrame(root, text="Metadonnees generales", padding=8)
     fields.grid(row=1, column=0, sticky="nsew", padx=10, pady=4)
     fields.columnconfigure(1, weight=1)
@@ -51,6 +60,17 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     keywords = tk.Text(fields, height=4, width=60)
     keywords.insert("1.0", "\n".join(state.metadata.keywords))
     keywords.grid(row=5, column=1, sticky="nsew", pady=2)
+    initializing = True
+
+    def mark_dirty(*_args: object) -> None:
+        nonlocal state
+        if not initializing:
+            state = replace(state, dirty=True)
+
+    for value in values.values():
+        value.trace_add("write", mark_dirty)
+    abstract.bind("<<Modified>>", lambda _event: (mark_dirty(), abstract.edit_modified(False)))
+    keywords.bind("<<Modified>>", lambda _event: (mark_dirty(), keywords.edit_modified(False)))
     people = ttk.Frame(root, padding=8)
     people.grid(row=2, column=0, sticky="nsew", padx=10, pady=4)
     people.columnconfigure(0, weight=1)
@@ -82,9 +102,17 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             language=values["language"].get(), document_type=values["document_type"].get(),
             abstract=abstract.get("1.0", "end-1c") or None,
             keywords=tuple(line for line in keywords.get("1.0", "end-1c").splitlines() if line))
-        return replace(state, metadata=metadata, dirty=True)
+        return replace(state, metadata=metadata, dirty=is_metadata_dirty(state.saved_metadata, metadata))
+
+    def refresh_diagnostics() -> None:
+        diagnostics_tree.delete(*diagnostics_tree.get_children())
+        if state.loaded_from_invalid_json:
+            diagnostics_tree.insert("", "end", values=("ERROR", "metadata", "JSON existant invalide ; valeurs de secours affichees"))
+        for issue in state.issues:
+            diagnostics_tree.insert("", "end", values=(issue.severity.upper(), issue.path or "", f"[{issue.code}] {issue.message}"))
 
     def refresh_trees() -> None:
+        refresh_diagnostics()
         contributor_tree.delete(*contributor_tree.get_children())
         for contributor in state.metadata.contributors:
             name = contributor.literal_name or " ".join(part for part in (contributor.given_name, contributor.family_name) if part)
@@ -142,7 +170,10 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         nonlocal state
         selection = contributor_tree.selection()
         if selection and (item := next((value for value in state.metadata.contributors if value.contributor_id == selection[0]), None)) and (changed := contributor_dialog(item)):
-            state = update_contributor(state, changed); refresh_trees()
+            try:
+                state = update_contributor(state, item.contributor_id, changed); refresh_trees()
+            except ValueError as error:
+                messagebox.showerror("Identifiant deja utilise", str(error), parent=root)
     def delete_person() -> None:
         nonlocal state
         if selection := contributor_tree.selection():
@@ -159,7 +190,10 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         nonlocal state
         selection = affiliation_tree.selection()
         if selection and (item := next((value for value in state.metadata.affiliations if value.affiliation_id == selection[0]), None)) and (changed := affiliation_dialog(item)):
-            state = update_affiliation(state, changed); refresh_trees()
+            try:
+                state = update_affiliation(state, item.affiliation_id, changed); refresh_trees()
+            except ValueError as error:
+                messagebox.showerror("Identifiant deja utilise", str(error), parent=root)
     def delete_institution() -> None:
         nonlocal state
         if selection := affiliation_tree.selection():
@@ -178,7 +212,14 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         if not validation.valid:
             messagebox.showerror("Metadonnees invalides", "\n".join(f"[{item.code}] {item.message}" for item in validation.issues), parent=root)
             return
-        state = save_metadata_editor_state(candidate)
+        if state.loaded_from_invalid_json and not messagebox.askyesno("JSON invalide", "Le fichier JSON existant est invalide. L'ecraser avec ces valeurs ?", parent=root):
+            return
+        try:
+            state = save_metadata_editor_state(candidate)
+        except OSError as error:
+            messagebox.showerror("Echec d'enregistrement", str(error), parent=root)
+            return
+        refresh_trees()
         messagebox.showinfo("Mini-Metopes", f"Metadonnees enregistrees : {state.metadata_path}", parent=root)
         if close:
             root.destroy()
@@ -186,9 +227,11 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     ttk.Button(actions, text="Enregistrer", command=save).pack(side="left")
     ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save(True)).pack(side="left", padx=5)
     def cancel() -> None:
-        if state.dirty and not messagebox.askyesno("Modifications non enregistrées", "Abandonner les modifications ?", parent=root): return
+        if collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root): return
         root.destroy()
     ttk.Button(actions, text="Annuler", command=cancel).pack(side="right")
     refresh_trees()
+    initializing = False
+    root.protocol("WM_DELETE_WINDOW", cancel)
     root.mainloop()
     return 0

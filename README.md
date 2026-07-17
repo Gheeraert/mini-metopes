@@ -36,6 +36,7 @@ python -m mini_metopes model-docx document.docx
 python -m mini_metopes model-docx document.docx --json
 python -m mini_metopes edit-metadata document.docx
 python -m mini_metopes validate-metadata document.metadata.json
+python -m mini_metopes validate-metadata document.metadata.json --source document.docx
 python -m mini_metopes convert-docx source.docx sortie.xml
 ```
 
@@ -68,3 +69,11 @@ observes.
 
 Le répertoire `references/` est un corpus documentaire en lecture seule. Il
 n'est ni empaqueté ni utilisé directement par les tests ordinaires.
+
+`validate-metadata --source` inspecte le DOCX et affiche les avertissements de
+coherence avec le JSON: empreinte modifiee, nom source different, divergences
+`Title`/`Subtitle` ou styles de metadonnees hors preambule. Les JSON mal types
+sont refuses par diagnostics structures, sans traceback utilisateur. Dans le
+`teiHeader`, les ORCID sont normalises; les ROR restent dans le JSON et
+produisent `ror_not_serialized` tant que le profil Commons Publishing embarque
+ne fournit pas de representation satisfaisante dans cette structure.

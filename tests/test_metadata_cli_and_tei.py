@@ -5,7 +5,7 @@ from lxml import etree
 
 from mini_metopes.cli import main
 from mini_metopes.docx import inspect_docx_file
-from mini_metopes.metadata import DocumentMetadata, METADATA_SCHEMA_VERSION, MetadataSource, compute_file_sha256, load_metadata_file
+from mini_metopes.metadata import Contributor, DocumentMetadata, METADATA_SCHEMA_VERSION, MetadataSource, compute_file_sha256, load_metadata_file
 from mini_metopes.tei import convert_docx_to_tei
 
 
@@ -27,10 +27,31 @@ def test_metadata_enriches_header_and_consumes_initial_word_suggestions() -> Non
     assert tree.xpath("count(tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:author)", namespaces=NS) == 1.0
     assert tree.xpath("string(//tei:author/tei:persName/tei:forename)", namespaces=NS) == "Tony"
     assert tree.xpath("string(//tei:idno[@type='ORCID'])", namespaces=NS) == "0000-0002-1825-0097"
+    assert tree.xpath("count(//tei:idno[@type='ROR'])", namespaces=NS) == 0.0
     assert tree.xpath("string(tei:teiHeader/tei:profileDesc/tei:langUsage/tei:language/@ident)", namespaces=NS) == "fr"
     assert tree.xpath("count(tei:teiHeader/tei:profileDesc/tei:textClass/tei:keywords/tei:term)", namespaces=NS) == 3.0
     assert tree.xpath("count(tei:text/tei:body/tei:p[text()='Une conversion synthetique'])", namespaces=NS) == 0.0
     assert tree.xpath("contains(string(tei:teiHeader/tei:fileDesc/tei:sourceDesc), 'native-tei-conversion.docx')", namespaces=NS)
+    assert "ror_not_serialized" in [item.code for item in result.diagnostics]
+
+
+def test_literal_contributor_orcid_is_normalized_in_tei() -> None:
+    metadata = load_metadata_file(JSON).metadata
+    assert metadata is not None
+    literal = Contributor(
+        contributor_id="person-literal",
+        role="author",
+        literal_name="Nom non decompose",
+        orcid="https://orcid.org/0000-0002-1825-0097",
+    )
+    metadata = replace(metadata, contributors=(literal,), affiliations=())
+    result = convert_docx_to_tei(DOCX, metadata=metadata)
+
+    assert result.is_successful
+    assert result.xml_bytes is not None
+    tree = etree.fromstring(result.xml_bytes)
+    assert tree.xpath("string(//tei:author/tei:persName)", namespaces=NS) == "Nom non decompose"
+    assert tree.xpath("string(//tei:author/tei:idno[@type='ORCID'])", namespaces=NS) == "0000-0002-1825-0097"
 
 
 def test_json_has_priority_and_non_initial_title_refuses_conversion() -> None:
@@ -49,6 +70,10 @@ def test_json_has_priority_and_non_initial_title_refuses_conversion() -> None:
     late = convert_docx_to_tei(docx_with_late_title, metadata=late_metadata)
     assert late.xml_bytes is None
     assert "metadata_style_not_initial" in [item.code for item in late.diagnostics]
+    matching = [item for item in late.diagnostics if item.code == "metadata_style_not_initial"]
+    assert len(matching) == 1
+    assert matching[0].origin == "metadata"
+    assert matching[0].metadata_path and matching[0].metadata_path.startswith("paragraphs[")
 
 
 def test_cli_validates_metadata_and_requires_it_for_conversion(tmp_path: Path, capsys) -> None:
@@ -62,10 +87,44 @@ def test_cli_validates_metadata_and_requires_it_for_conversion(tmp_path: Path, c
     assert "missing_metadata" in captured.out
 
 
+def test_cli_handles_badly_typed_metadata_without_traceback(tmp_path: Path, capsys) -> None:
+    invalid = tmp_path / "bad.metadata.json"
+    invalid.write_text('{"schema_version":"1.0","source":{"filename":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
+    output = tmp_path / "output.xml"
+
+    assert main(["validate-metadata", str(invalid)]) == 1
+    assert main(["convert-docx", str(DOCX), str(output), "--metadata", str(invalid)]) == 1
+    assert not output.exists()
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.out
+    assert "document.language" in captured.out
+
+
+def test_validate_metadata_source_reports_word_divergences(tmp_path: Path, capsys) -> None:
+    metadata = load_metadata_file(JSON).metadata
+    assert metadata is not None
+    changed = replace(metadata, title="Titre JSON different", source=replace(metadata.source, sha256="b" * 64))
+    path = tmp_path / "changed.metadata.json"
+    from mini_metopes.metadata import metadata_to_json
+
+    path.write_text(metadata_to_json(changed), encoding="utf-8")
+
+    assert main(["validate-metadata", str(path), "--source", str(DOCX)]) == 0
+    captured = capsys.readouterr()
+    assert "metadata_source_changed" in captured.out
+    assert "metadata_title_differs_from_docx" in captured.out
+
+
 def test_public_docx_conversion_requires_metadata() -> None:
     result = convert_docx_to_tei(DOCX)
     assert result.xml_bytes is None
     assert [item.code for item in result.diagnostics] == ["missing_metadata"]
+
+
+def test_edit_metadata_invalid_docx_returns_2_without_traceback(capsys) -> None:
+    assert main(["edit-metadata", str(ROOT / "docx" / "not-a-zip.docx")]) == 2
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.out
 
 
 def test_gui_module_import_does_not_open_a_window() -> None:

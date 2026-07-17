@@ -43,7 +43,7 @@ def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
     affiliation_ids = [item.affiliation_id for item in metadata.affiliations]
     _duplicates(contributor_ids, "duplicate_contributor_id", "contributors", issues)
     _duplicates(affiliation_ids, "duplicate_affiliation_id", "affiliations", issues)
-    known_affiliations = set(affiliation_ids)
+    known_affiliations = {value.strip() for value in affiliation_ids}
     for index, contributor in enumerate(metadata.contributors):
         _validate_contributor(contributor, index, known_affiliations, issues)
     for index, affiliation in enumerate(metadata.affiliations):
@@ -70,6 +70,7 @@ def normalize_orcid(value: str) -> str | None:
 
 def _validate_contributor(item: Contributor, index: int, known_affiliations: set[str], issues: list[MetadataIssue]) -> None:
     path = f"contributors[{index}]"
+    _validate_identifier(item.contributor_id, "invalid_contributor_id", f"{path}.id", issues)
     if not item.contributor_id.strip():
         issues.append(_error("invalid_contributor_id", "identifiant de contributeur obligatoire", f"{path}.id"))
     if item.role not in _ROLES:
@@ -81,25 +82,42 @@ def _validate_contributor(item: Contributor, index: int, known_affiliations: set
     if item.orcid and normalize_orcid(item.orcid) is None:
         issues.append(_error("invalid_orcid", "ORCID invalide", f"{path}.orcid"))
     for affiliation_id in item.affiliation_ids:
-        if affiliation_id not in known_affiliations:
+        if affiliation_id.strip() != affiliation_id or not affiliation_id.strip():
+            issues.append(_error("invalid_affiliation_reference", f"reference d'affiliation invalide : {affiliation_id}", f"{path}.affiliations"))
+        elif affiliation_id.strip() not in known_affiliations:
             issues.append(_error("unknown_affiliation_reference", f"affiliation inconnue : {affiliation_id}", f"{path}.affiliations"))
 
 
 def _validate_affiliation(item: Affiliation, index: int, issues: list[MetadataIssue]) -> None:
     path = f"affiliations[{index}]"
+    _validate_identifier(item.affiliation_id, "invalid_affiliation_id", f"{path}.id", issues)
     if not item.affiliation_id.strip():
         issues.append(_error("invalid_affiliation_id", "identifiant d'affiliation obligatoire", f"{path}.id"))
     if not item.name.strip():
         issues.append(_error("invalid_affiliation_name", "institution obligatoire", f"{path}.name"))
     if item.ror:
         parsed = urlparse(item.ror)
-        if parsed.scheme != "https" or not parsed.netloc:
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc not in {"ror.org", "www.ror.org"}
+            or parsed.path.count("/") != 1
+            or not parsed.path.strip("/")
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
             issues.append(_error("invalid_ror", "URL ROR invalide", f"{path}.ror"))
 
 
 def _duplicates(values: list[str], code: str, path: str, issues: list[MetadataIssue]) -> None:
-    for value in sorted({candidate for candidate in values if values.count(candidate) > 1}):
+    normalized = [value.strip() for value in values]
+    for value in sorted({candidate for candidate in normalized if normalized.count(candidate) > 1 and candidate}):
         issues.append(_error(code, f"identifiant duplique : {value}", path))
+
+
+def _validate_identifier(value: str, code: str, path: str, issues: list[MetadataIssue]) -> None:
+    if value != value.strip() and value.strip():
+        issues.append(_error(code, "identifiant avec espaces initiaux ou finaux", path))
 
 
 def _error(code: str, message: str, path: str) -> MetadataIssue:

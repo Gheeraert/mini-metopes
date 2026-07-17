@@ -18,7 +18,7 @@ from .editorial import (
     editorial_build_result_to_json,
 )
 from .tei import convert_docx_to_tei, write_tei_conversion_result
-from .metadata import MetadataSuggestions, default_metadata_path, load_metadata_file, metadata_consistency_issues
+from .metadata import default_metadata_path, extract_metadata_suggestions, load_metadata_file, metadata_consistency_issues
 from .validation import ValidationIssue, validate_xml_file
 
 
@@ -82,6 +82,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .gui import run_metadata_editor
         try:
             return run_metadata_editor(arguments.path, arguments.metadata)
+        except DocxInspectionError as error:
+            print(f"ERREUR - {arguments.path}: {error}")
+            return 2
         except OSError as error:
             print(f"ERREUR — {arguments.path}: {error.strerror or error}")
             return 2
@@ -162,7 +165,9 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int
     if not result.is_successful:
         print(f"ECHEC — {source.name}")
         for diagnostic in result.diagnostics:
-            print(f"{diagnostic.severity.upper()} [{diagnostic.code}] : {diagnostic.message}")
+            path = diagnostic.metadata_path or diagnostic.source_part or ""
+            prefix = f"{path} : " if path else ""
+            print(f"{diagnostic.severity.upper()} [{diagnostic.code}] {prefix}{diagnostic.message}")
         for issue in result.validation_issues:
             print(_format_issue(issue))
         return 1
@@ -191,7 +196,12 @@ def _validate_metadata(path: Path, source: Path | None) -> int:
         print(f"ERREUR — {source}: fichier introuvable")
         return 2
     if source is not None:
-        for issue in metadata_consistency_issues(loaded.metadata, source, MetadataSuggestions(None, None, (), ())):
+        try:
+            suggestions = extract_metadata_suggestions(inspect_docx_file(source))
+        except DocxInspectionError as error:
+            print(f"ERREUR - {source}: {error}")
+            return 2
+        for issue in suggestions.diagnostics + metadata_consistency_issues(loaded.metadata, source, suggestions):
             print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
     print(f"VALIDES — {path.name}")
     return 0

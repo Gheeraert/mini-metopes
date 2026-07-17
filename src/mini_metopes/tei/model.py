@@ -9,7 +9,7 @@ from mini_metopes.validation import ValidationIssue
 
 
 TeiDiagnosticSeverity = Literal["info", "warning", "error"]
-TeiDiagnosticOrigin = Literal["inspection", "editorial", "serialization"]
+TeiDiagnosticOrigin = Literal["inspection", "editorial", "metadata", "serialization"]
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class TeiConversionDiagnostic:
     source_part: str | None = None
     run_index: int | None = None
     style_id: str | None = None
+    metadata_path: str | None = None
 
 
 @dataclass(frozen=True)

@@ -28,7 +28,7 @@ from mini_metopes.editorial import (
     VerseQuote,
 )
 from mini_metopes.validation import validate_xml_tree
-from mini_metopes.metadata import DocumentMetadata
+from mini_metopes.metadata import DocumentMetadata, normalize_orcid
 
 from .model import TeiConversionDiagnostic, TeiConversionResult
 
@@ -165,8 +165,10 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                     etree.SubElement(name, _tag("forename")).text = contributor.given_name
                 if contributor.family_name:
                     etree.SubElement(name, _tag("surname")).text = contributor.family_name
-                if contributor.orcid:
-                    etree.SubElement(person, _tag("idno"), type="ORCID").text = contributor.orcid
+            if contributor.orcid:
+                normalized = normalize_orcid(contributor.orcid)
+                if normalized:
+                    etree.SubElement(person, _tag("idno"), type="ORCID").text = normalized
             affiliations = {item.affiliation_id: item for item in metadata.affiliations}
             for affiliation_id in contributor.affiliation_ids:
                 used_affiliations.add(affiliation_id)
@@ -176,6 +178,14 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                 # duplicate an xml:id when several people share one institution.
                 rendered = etree.SubElement(person, _tag("affiliation"))
                 rendered.text = _affiliation_text(affiliation)
+                if affiliation.ror:
+                    state.diagnostics.append(
+                        TeiConversionDiagnostic(
+                            code="ror_not_serialized",
+                            severity="warning",
+                            message=f"ROR non serialise par le profil Commons Publishing : {affiliation.affiliation_id}",
+                        )
+                    )
         for affiliation in metadata.affiliations:
             if affiliation.affiliation_id not in used_affiliations:
                 state.diagnostics.append(TeiConversionDiagnostic(
