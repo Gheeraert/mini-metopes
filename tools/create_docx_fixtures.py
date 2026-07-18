@@ -442,6 +442,55 @@ LIST_TEI_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:endnotes>
 """
 
+CONSECUTIVE_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="BodyText">
+    <w:name w:val="Corps de texte"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="BodyText"/>
+    <w:pPr>
+      <w:ind w:firstLine="0"/>
+    </w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Titre 1"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Titre"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Sous-titre"/></w:style>
+  <w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="Appel de note de bas de page"/></w:style>
+</w:styles>
+"""
+
+CONSECUTIVE_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Paragraphes de suite</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Style Corps de texte</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Paragraphe normal avant suite.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:ind w:firstLine="0"/></w:pPr><w:r><w:t>Paragraphe normal avec retrait direct ignore.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>Paragraphe de suite simple.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Section de verification</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>Suite avec </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>gras</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+CONSECUTIVE_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>Note en paragraphe de suite.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+CONSECUTIVE_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+</w:endnotes>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -525,6 +574,17 @@ def list_tei_parts() -> dict[str, bytes | str]:
     }
 
 
+def consecutive_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": CONSECUTIVE_DOCUMENT,
+        "word/styles.xml": CONSECUTIVE_STYLES,
+        "word/footnotes.xml": CONSECUTIVE_FOOTNOTES,
+        "word/endnotes.xml": CONSECUTIVE_ENDNOTES,
+        "word/_rels/document.xml.rels": EDITORIAL_RELATIONSHIPS,
+    }
+
+
 def write_list_tei_metadata() -> None:
     """Ecrire la fixture associee avec le serialiseur officiel de metadonnees."""
     from mini_metopes.metadata import (
@@ -559,6 +619,40 @@ def write_list_tei_metadata() -> None:
     )
 
 
+def write_consecutive_metadata() -> None:
+    """Ecrire les metadonnees associees a la fixture BodyText."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION,
+        Contributor,
+        DocumentMetadata,
+        MetadataSource,
+        compute_file_sha256,
+        metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-consecutive-paragraphs.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="fr",
+        title="Paragraphes de suite",
+        subtitle="Style Corps de texte",
+        contributors=(
+            Contributor(
+                contributor_id="person-1",
+                role="author",
+                given_name="Camille",
+                family_name="Exemple",
+            ),
+        ),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-consecutive-paragraphs.metadata.json").write_text(
+        metadata_to_json(metadata), encoding="utf-8"
+    )
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -571,6 +665,8 @@ def main() -> None:
     write_package(FIXTURES / "native-lists.docx", list_parts())
     write_package(FIXTURES / "native-lists-tei.docx", list_tei_parts())
     write_list_tei_metadata()
+    write_package(FIXTURES / "native-consecutive-paragraphs.docx", consecutive_parts())
+    write_consecutive_metadata()
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

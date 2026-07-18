@@ -59,6 +59,14 @@
       "liens, enrichissements et appels de notes dans un item",
       "listes resolues dans une note de bas de page et une note de fin"
     ],
+    "native-consecutive-paragraphs.docx": [
+      "fixture positive synthetique pour le style natif BodyText",
+      "Title et Subtitle initiaux associes a native-consecutive-paragraphs.metadata.json",
+      "paragraphes Normal et BodyText afin de distinguer paragraphe courant et paragraphe de suite",
+      "Normal avec w:ind direct ignore comme signal semantique dans cette passe",
+      "paragraphe BodyText avec gras, lien externe et appel de note",
+      "note contenant elle-meme un paragraphe BodyText"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

@@ -371,6 +371,7 @@ def _read_paragraph(
         text="".join(run.text for run in runs),
         style_id=style_id,
         style_name=style.name if style else None,
+        style_is_custom=style.is_custom if style else None,
         outline_level=direct_outline if direct_outline is not None else (style.outline_level if style else None),
         numbering_id=numbering_id,
         numbering_level=numbering_level,

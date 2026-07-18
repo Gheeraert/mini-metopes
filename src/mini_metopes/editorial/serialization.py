@@ -79,6 +79,14 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
         }
     if isinstance(block, EditorialList):
         return _list_to_data(block)
+    if isinstance(block, Paragraph):
+        return {
+            "kind": block.kind,
+            "content": [_inline_to_data(item) for item in block.content],
+            "source_paragraph_index": block.source_paragraph_index,
+            "source_style_id": block.source_style_id,
+            "rendition": block.rendition,
+        }
     return {
         "kind": block.kind,
         "content": [_inline_to_data(item) for item in block.content],

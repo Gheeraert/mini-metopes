@@ -13,7 +13,7 @@ from mini_metopes.docx import (
     inspect_docx_file,
 )
 
-from .convention import NATIVE_WORD_CONVENTION, WordEditorialConvention
+from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, WordEditorialConvention
 from .model import (
     ColumnBreak,
     DrawingReference,
@@ -191,7 +191,7 @@ def _build_blocks(
     paragraph_position = 0
     while paragraph_position < len(paragraphs):
         paragraph = paragraphs[paragraph_position]
-        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+        role = _paragraph_role(paragraph, convention)
 
         if _is_serializable_list_paragraph(paragraph, role.kind):
             list_blocks, next_position, list_references, sequence_numbering_ids = _build_list_sequence(
@@ -289,7 +289,7 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
-                if convention.paragraph_role(next_paragraph.style_id, next_paragraph.outline_level).kind != "prose_quote":
+                if _paragraph_role(next_paragraph, convention).kind != "prose_quote":
                     break
                 next_content, next_references = _build_inline_content(
                     next_paragraph,
@@ -326,7 +326,7 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
-                if convention.paragraph_role(next_paragraph.style_id, next_paragraph.outline_level).kind != "verse_quote":
+                if _paragraph_role(next_paragraph, convention).kind != "verse_quote":
                     break
                 next_content, next_references = _build_inline_content(
                     next_paragraph,
@@ -347,6 +347,7 @@ def _build_blocks(
                 content=content,
                 source_paragraph_index=paragraph.index,
                 source_style_id=paragraph.style_id,
+                rendition=role.paragraph_rendition,
             )
         )
         paragraph_position += 1
@@ -358,6 +359,16 @@ def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
     if paragraph.numbering is not None:
         return paragraph.numbering.status != "removed"
     return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
+
+
+def _paragraph_role(paragraph: ParagraphInfo, convention: WordEditorialConvention) -> ParagraphRole:
+    """Centraliser les informations de style necessaires a la convention."""
+    return convention.paragraph_role(
+        paragraph.style_id,
+        paragraph.outline_level,
+        style_name=paragraph.style_name,
+        style_is_custom=paragraph.style_is_custom,
+    )
 
 
 def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) -> bool:
@@ -473,7 +484,7 @@ def _build_list_sequence(
 
     while position < len(paragraphs):
         paragraph = paragraphs[position]
-        role = convention.paragraph_role(paragraph.style_id, paragraph.outline_level)
+        role = _paragraph_role(paragraph, convention)
         if not _is_serializable_list_paragraph(paragraph, role.kind):
             break
         numbering = paragraph.numbering
@@ -813,6 +824,9 @@ def _diagnose_paragraph_style(
     note_id: str | None,
 ) -> None:
     style_id = paragraph.style_id
+    role = _paragraph_role(paragraph, convention)
+    if role.kind == "paragraph" and role.paragraph_rendition is not None:
+        return
     if style_id is None or style_id in convention.paragraph_style_ids:
         return
     if style_id in convention.deferred_paragraph_style_ids:

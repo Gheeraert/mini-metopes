@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from .model import TextMark
+from .model import ParagraphRendition, TextMark
 
 
 ParagraphRoleKind = Literal[
@@ -19,6 +19,7 @@ class ParagraphRole:
 
     kind: ParagraphRoleKind
     heading_level: int | None = None
+    paragraph_rendition: ParagraphRendition | None = None
 
 
 @dataclass(frozen=True)
@@ -31,12 +32,24 @@ class WordEditorialConvention:
     deferred_paragraph_style_ids: frozenset[str]
     prose_quote_style_ids: frozenset[str]
     verse_quote_style_ids: frozenset[str]
+    consecutive_paragraph_style_ids: frozenset[str] = frozenset()
+    excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
+    consecutive_paragraph_style_names: frozenset[str] = frozenset()
 
-    def paragraph_role(self, style_id: str | None, outline_level: int | None) -> ParagraphRole:
+    def paragraph_role(
+        self,
+        style_id: str | None,
+        outline_level: int | None,
+        *,
+        style_name: str | None = None,
+        style_is_custom: bool | None = None,
+    ) -> ParagraphRole:
         """Classifier un style sans dupliquer les priorites dans le constructeur."""
         for candidate, level in self.heading_style_ids:
             if style_id == candidate:
                 return ParagraphRole("heading", level)
+        if self._is_consecutive_paragraph_style(style_id, style_name, style_is_custom):
+            return ParagraphRole("paragraph", paragraph_rendition="consecutive")
         if style_id in self.paragraph_style_ids:
             return ParagraphRole("paragraph")
         if style_id in self.prose_quote_style_ids:
@@ -50,6 +63,21 @@ class WordEditorialConvention:
         if style_id is None:
             return ParagraphRole("paragraph")
         return ParagraphRole("unsupported")
+
+    def _is_consecutive_paragraph_style(
+        self,
+        style_id: str | None,
+        style_name: str | None,
+        style_is_custom: bool | None,
+    ) -> bool:
+        """Reconnaître uniquement le style Word integre BodyText non personnalise."""
+        if style_is_custom is True:
+            return False
+        if style_id in self.excluded_consecutive_paragraph_style_ids:
+            return False
+        if style_id in self.consecutive_paragraph_style_ids:
+            return True
+        return _normalize_style_name(style_name) in self.consecutive_paragraph_style_names
 
     def heading_level(self, style_id: str | None, outline_level: int | None) -> int | None:
         """Retourner le niveau natif prioritaire, puis le niveau de plan explicite."""
@@ -86,4 +114,13 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     deferred_paragraph_style_ids=frozenset({"Title", "Subtitle"}),
     prose_quote_style_ids=frozenset({"Quote"}),
     verse_quote_style_ids=frozenset({"IntenseQuote"}),
+    consecutive_paragraph_style_ids=frozenset({"BodyText"}),
+    excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
+    consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
 )
+
+
+def _normalize_style_name(name: str | None) -> str | None:
+    if name is None:
+        return None
+    return " ".join(name.casefold().split())
