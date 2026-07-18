@@ -112,6 +112,12 @@ class _BuiltFigure:
     references: set[tuple[str, str]]
 
 
+@dataclass(frozen=True)
+class _RelationshipIndex:
+    unique: dict[str, RelationshipInfo]
+    duplicates: frozenset[str]
+
+
 def build_editorial_document(
     inspection: DocxInspection,
     *,
@@ -120,13 +126,9 @@ def build_editorial_document(
 ) -> EditorialBuildResult:
     """Construire un modele editorial immuable sans produire de TEI."""
     diagnostics: list[EditorialDiagnostic] = []
-    body_relationships = {relation.relationship_id: relation for relation in inspection.relationships}
-    footnote_relationships = {
-        relation.relationship_id: relation for relation in inspection.footnote_relationships
-    }
-    endnote_relationships = {
-        relation.relationship_id: relation for relation in inspection.endnote_relationships
-    }
+    body_relationship_index = _relationship_index(inspection.relationships)
+    footnote_relationship_index = _relationship_index(inspection.footnote_relationships)
+    endnote_relationship_index = _relationship_index(inspection.endnote_relationships)
     media_by_path = {media.path: media for media in inspection.media}
     notes_by_key: dict[tuple[str, str], EditorialNote] = {}
     notes: list[EditorialNote] = []
@@ -146,7 +148,16 @@ def build_editorial_document(
         blocks, note_references = _build_blocks(
             note.paragraphs,
             convention=convention,
-            relationships=footnote_relationships if note.kind == "footnote" else endnote_relationships,
+            relationships=(
+                footnote_relationship_index.unique
+                if note.kind == "footnote"
+                else endnote_relationship_index.unique
+            ),
+            figure_relationships=(
+                footnote_relationship_index
+                if note.kind == "footnote"
+                else endnote_relationship_index
+            ),
             media_by_path=media_by_path,
             source_part=FOOTNOTES_PART if note.kind == "footnote" else ENDNOTES_PART,
             diagnostics=diagnostics,
@@ -168,7 +179,8 @@ def build_editorial_document(
     blocks, body_references = _build_blocks(
         body_paragraphs,
         convention=convention,
-        relationships=body_relationships,
+        relationships=body_relationship_index.unique,
+        figure_relationships=body_relationship_index,
         media_by_path=media_by_path,
         source_part=DOCUMENT_PART,
         diagnostics=diagnostics,
@@ -203,6 +215,7 @@ def _build_blocks(
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
+    figure_relationships: _RelationshipIndex,
     media_by_path: dict[str, MediaInfo],
     source_part: str,
     diagnostics: list[EditorialDiagnostic],
@@ -225,6 +238,7 @@ def _build_blocks(
                 paragraph_position,
                 convention=convention,
                 relationships=relationships,
+                figure_relationships=figure_relationships,
                 media_by_path=media_by_path,
                 source_part=source_part,
                 diagnostics=diagnostics,
@@ -418,12 +432,24 @@ def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
     return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
 
 
+def _relationship_index(relationships: tuple[RelationshipInfo, ...]) -> _RelationshipIndex:
+    unique: dict[str, RelationshipInfo] = {}
+    duplicates: set[str] = set()
+    for relationship in relationships:
+        if relationship.relationship_id in unique:
+            duplicates.add(relationship.relationship_id)
+        else:
+            unique[relationship.relationship_id] = relationship
+    return _RelationshipIndex(unique=unique, duplicates=frozenset(duplicates))
+
+
 def _build_figure_if_supported(
     paragraphs: tuple[ParagraphInfo, ...],
     position: int,
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
+    figure_relationships: _RelationshipIndex,
     media_by_path: dict[str, MediaInfo],
     source_part: str,
     diagnostics: list[EditorialDiagnostic],
@@ -434,6 +460,7 @@ def _build_figure_if_supported(
         paragraph,
         convention=convention,
         relationships=relationships,
+        figure_relationships=figure_relationships,
         media_by_path=media_by_path,
         source_part=source_part,
         diagnostics=diagnostics,
@@ -512,6 +539,7 @@ def _graphic_from_paragraph(
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
+    figure_relationships: _RelationshipIndex,
     media_by_path: dict[str, MediaInfo],
     source_part: str,
     diagnostics: list[EditorialDiagnostic],
@@ -568,7 +596,30 @@ def _graphic_from_paragraph(
             )
         )
         return None
+    hyperlink_context = _drawing_hyperlink_context(paragraph)
+    if hyperlink_context is not None:
+        diagnostics.append(
+            _figure_error(
+                "hyperlinked_image_not_serializable",
+                f"image hyperliee non serialisable : {hyperlink_context}",
+                paragraph,
+                note_id,
+                drawings[0],
+            )
+        )
+        return None
     drawing = drawings[0]
+    if drawing.invalid_properties:
+        diagnostics.append(
+            _figure_error(
+                "invalid_drawing_property_not_serializable",
+                f"proprietes DrawingML invalides : {', '.join(drawing.invalid_properties)}",
+                paragraph,
+                note_id,
+                drawing,
+            )
+        )
+        return None
     if drawing.placement == "anchor":
         diagnostics.append(_figure_error("floating_image_not_serializable", "image flottante Word non serialisable", paragraph, note_id, drawing))
         return None
@@ -588,6 +639,17 @@ def _graphic_from_paragraph(
         diagnostics.append(_figure_error("multiple_image_sources_not_serializable", "source d'image incorporee absente ou multiple", paragraph, note_id, drawing))
         return None
     relationship_id = drawing.embedded_relationship_ids[0]
+    if relationship_id in figure_relationships.duplicates:
+        diagnostics.append(
+            _figure_error(
+                "duplicate_image_relationship_not_serializable",
+                f"relation d'image dupliquee dans {source_part} : {relationship_id}",
+                paragraph,
+                note_id,
+                drawing,
+            )
+        )
+        return None
     relationship = relationships.get(relationship_id)
     if relationship is None:
         diagnostics.append(_figure_error("missing_image_relationship", f"relation d'image absente : {relationship_id}", paragraph, note_id, drawing))
@@ -638,7 +700,9 @@ def _graphic_from_paragraph(
 def resolve_internal_media_target(source_part: str, relationship: RelationshipInfo) -> str | None:
     """Résoudre une cible média interne en chemin ZIP canonique sûr."""
     target = relationship.target
-    if target.startswith("/") or "\\" in target:
+    if not target or target.startswith("/") or "\\" in target:
+        return None
+    if any(segment == ".." for segment in target.split("/")):
         return None
     base = posixpath.dirname(source_part)
     resolved = posixpath.normpath(posixpath.join(base, target))
@@ -647,6 +711,17 @@ def resolve_internal_media_target(source_part: str, relationship: RelationshipIn
     if not resolved.startswith("word/media/"):
         return None
     return resolved
+
+
+def _drawing_hyperlink_context(paragraph: ParagraphInfo) -> str | None:
+    for run in paragraph.runs:
+        if not any(item.kind == "drawing" for item in run.contents):
+            continue
+        if run.hyperlink_relationship_id:
+            return f"relation={run.hyperlink_relationship_id}"
+        if run.hyperlink_anchor:
+            return f"ancre={run.hyperlink_anchor}"
+    return None
 
 
 def _paragraph_drawings(paragraph: ParagraphInfo) -> tuple[DrawingInfo, ...]:

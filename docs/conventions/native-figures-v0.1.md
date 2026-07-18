@@ -52,3 +52,24 @@ Les formats acceptés sont PNG et JPEG. Les fichiers sont écrits dans `media/`
 sortent avec l'extension `.jpg`, même si le DOCX utilisait `.jpeg`.
 
 Les médias inutilisés dans le DOCX ne sont pas exportés.
+
+## Invariants de securite 10A1
+
+Les images hyperliees sont refusees, y compris lorsqu'elles sont seules dans le
+paragraphe : le lien par relation ou par ancre interne porterait une semantique
+non modelisee.
+
+Un identifiant de relation duplique dans la partie source rend la figure non
+serialisable si l'image le reference. Les doublons non utilises ne modifient pas
+les relations uniques.
+
+Toute cible de relation contenant un segment brut `..`, une barre oblique
+inverse, une forme absolue ou une valeur vide est refusee avant normalisation.
+
+Les valeurs DrawingML presentes mais invalides ne sont pas assimilees a une
+absence de valeur. Elles produisent `invalid_drawing_property_not_serializable`.
+
+La limite totale de medias s'applique seulement aux medias utilises par la TEI,
+apres deduplication. Avant ecriture, tous les assets sont prevalider ; un asset
+invalide ou un conflit empeche toute ecriture de media et preserve le XML
+existant.

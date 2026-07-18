@@ -18,6 +18,7 @@ from mini_metopes.editorial import (
     EditorialGraphic,
     WordEditorialConvention,
     build_editorial_document,
+    NoteReference,
 )
 from mini_metopes.metadata import DocumentMetadata, extract_metadata_suggestions, metadata_consistency_issues, validate_metadata
 
@@ -26,6 +27,7 @@ from .serializer import serialize_editorial_document_to_tei
 
 
 MAX_MEDIA_PART_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_MEDIA_BYTES = 256 * 1024 * 1024
 
 _BLOCKING_INSPECTION_CODES = frozenset(
     {
@@ -68,6 +70,9 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "list_level_jump_not_serializable",
         "empty_list_item_not_serializable",
         "missing_figure_description",
+        "hyperlinked_image_not_serializable",
+        "duplicate_image_relationship_not_serializable",
+        "invalid_drawing_property_not_serializable",
         "floating_image_not_serializable",
         "cropped_image_not_serializable",
         "transformed_image_not_serializable",
@@ -366,9 +371,12 @@ def _extract_tei_assets(
             ),
         )
     with archive:
+        unique_graphics: dict[str, EditorialGraphic] = {}
         for graphic in graphics:
-            if graphic.media_url in assets:
-                continue
+            unique_graphics.setdefault(graphic.media_url, graphic)
+        media_infos: dict[str, object] = {}
+        total_media_bytes = 0
+        for graphic in unique_graphics.values():
             try:
                 info = archive.getinfo(graphic.source_media_path)
             except KeyError:
@@ -387,10 +395,37 @@ def _extract_tei_assets(
                         code="image_media_too_large",
                         severity="error",
                         message=f"media image trop volumineux : {graphic.source_media_path}",
+                        origin="serialization",
                     )
                 )
                 continue
-            data = archive.read(info)
+            total_media_bytes += info.file_size
+            media_infos[graphic.media_url] = info
+        if total_media_bytes > MAX_TOTAL_MEDIA_BYTES:
+            diagnostics.append(
+                TeiConversionDiagnostic(
+                    code="total_image_media_too_large",
+                    severity="error",
+                    message="taille totale des medias image utilises trop volumineuse",
+                    origin="serialization",
+                )
+            )
+        if diagnostics:
+            return (), tuple(diagnostics)
+        for graphic in unique_graphics.values():
+            info = media_infos[graphic.media_url]
+            try:
+                data = archive.read(info)
+            except (BadZipFile, OSError, RuntimeError, NotImplementedError, EOFError) as error:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="unreadable_image_media",
+                        severity="error",
+                        message=f"media image illisible pendant l'extraction : {graphic.source_media_path}",
+                        origin="serialization",
+                    )
+                )
+                continue
             sha256 = hashlib.sha256(data).hexdigest()
             if sha256 != graphic.sha256:
                 diagnostics.append(
@@ -423,9 +458,20 @@ def _document_graphics(document: EditorialDocument) -> tuple[EditorialGraphic, .
     result: list[EditorialGraphic] = []
     for block in document.blocks:
         result.extend(_block_graphics(block))
-    for note in document.notes:
+    notes = {(note.note_kind, note.note_id): note for note in document.notes}
+    pending = list(_block_note_references(document.blocks))
+    visited: set[tuple[str, str]] = set()
+    while pending:
+        key = pending.pop(0)
+        if key in visited:
+            continue
+        visited.add(key)
+        note = notes.get(key)
+        if note is None:
+            continue
         for block in note.blocks:
             result.extend(_block_graphics(block))
+        pending.extend(reference for reference in _block_note_references(note.blocks) if reference not in visited)
     return tuple(result)
 
 
@@ -439,6 +485,54 @@ def _block_graphics(block: object) -> tuple[EditorialGraphic, ...]:
                 result.extend(_block_graphics(child))
         return tuple(result)
     return ()
+
+
+def _block_note_references(blocks: tuple[object, ...]) -> tuple[tuple[str, str], ...]:
+    result: list[tuple[str, str]] = []
+    for block in blocks:
+        result.extend(_object_note_references(block))
+    return tuple(result)
+
+
+def _object_note_references(item: object) -> tuple[tuple[str, str], ...]:
+    if isinstance(item, EditorialFigure):
+        if item.caption is None:
+            return ()
+        return _inline_note_references(item.caption.content)
+    if isinstance(item, EditorialList):
+        result: list[tuple[str, str]] = []
+        for list_item in item.items:
+            result.extend(_inline_note_references(list_item.content))
+            for paragraph in list_item.continuation_paragraphs:
+                result.extend(_inline_note_references(paragraph.content))
+            for child in list_item.child_lists:
+                result.extend(_object_note_references(child))
+        return tuple(result)
+    content = getattr(item, "content", None)
+    if isinstance(content, tuple):
+        return _inline_note_references(content)
+    stanzas = getattr(item, "stanzas", None)
+    if isinstance(stanzas, tuple):
+        result: list[tuple[str, str]] = []
+        for stanza in stanzas:
+            for verse in stanza.lines:
+                result.extend(_inline_note_references(verse.content))
+        return tuple(result)
+    paragraphs = getattr(item, "paragraphs", None)
+    if isinstance(paragraphs, tuple):
+        result: list[tuple[str, str]] = []
+        for paragraph in paragraphs:
+            result.extend(_inline_note_references(paragraph.content))
+        return tuple(result)
+    return ()
+
+
+def _inline_note_references(content: tuple[object, ...]) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (inline.note_kind, inline.note_id)
+        for inline in content
+        if isinstance(inline, NoteReference)
+    )
 
 
 def _detected_content_type(data: bytes) -> str | None:

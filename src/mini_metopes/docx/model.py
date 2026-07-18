@@ -36,6 +36,7 @@ class DrawingInfo:
     flip_horizontal: bool
     flip_vertical: bool
     has_vml_fallback: bool = False
+    invalid_properties: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

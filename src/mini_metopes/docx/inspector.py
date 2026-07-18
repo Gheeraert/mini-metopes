@@ -81,6 +81,20 @@ class _ParsedChildValue:
     valid: bool
 
 
+@dataclass(frozen=True)
+class _ParsedDrawingInteger:
+    present: bool
+    value: int | None
+    valid: bool
+
+
+@dataclass(frozen=True)
+class _ParsedDrawingBool:
+    present: bool
+    value: bool | None
+    valid: bool
+
+
 def inspect_docx_file(
     path: Path,
     *,
@@ -513,8 +527,13 @@ def _read_run_contents(element: etree._Element) -> tuple[RunContentInfo, ...]:
 
 def _read_drawing(element: etree._Element) -> DrawingInfo:
     """Lire les propriétés DrawingML utiles sans interprétation éditoriale."""
-    inline = element.find(".//wp:inline", namespaces=NS)
-    anchor = element.find(".//wp:anchor", namespaces=NS)
+    inline_elements = element.xpath(".//wp:inline", namespaces=NS)
+    anchor_elements = element.xpath(".//wp:anchor", namespaces=NS)
+    invalid_properties: list[str] = []
+    if len(inline_elements) + len(anchor_elements) != 1:
+        invalid_properties.append("placement")
+    inline = inline_elements[0] if len(inline_elements) == 1 else None
+    anchor = anchor_elements[0] if len(anchor_elements) == 1 else None
     container = inline if inline is not None else anchor
     placement = "inline" if inline is not None else ("anchor" if anchor is not None else "unknown")
     embedded_ids = tuple(
@@ -529,10 +548,36 @@ def _read_drawing(element: etree._Element) -> DrawingInfo:
     )
     doc_properties = element.find(".//wp:docPr", namespaces=NS)
     extent = container.find("wp:extent", namespaces=NS) if container is not None else None
-    width = _positive_integer_attribute(extent, "cx") if extent is not None else None
-    height = _positive_integer_attribute(extent, "cy") if extent is not None else None
+    width = None
+    height = None
+    if extent is not None:
+        width_parsed = _parsed_drawing_positive_integer_attribute(extent, "cx")
+        height_parsed = _parsed_drawing_positive_integer_attribute(extent, "cy")
+        width = width_parsed.value
+        height = height_parsed.value
+        if width_parsed.present and not width_parsed.valid:
+            invalid_properties.append("extent.cx")
+        if height_parsed.present and not height_parsed.valid:
+            invalid_properties.append("extent.cy")
     transform = element.find(".//a:xfrm", namespaces=NS)
-    rotation = _decimal_attribute(transform, "rot") if transform is not None else None
+    rotation = None
+    flip_horizontal = False
+    flip_vertical = False
+    if transform is not None:
+        rotation_parsed = _parsed_drawing_integer_attribute(transform, "rot")
+        rotation = rotation_parsed.value
+        if rotation_parsed.present and not rotation_parsed.valid:
+            invalid_properties.append("xfrm.rot")
+        flip_h = _parsed_drawing_bool_attribute(transform, "flipH")
+        flip_v = _parsed_drawing_bool_attribute(transform, "flipV")
+        flip_horizontal = flip_h.value is True
+        flip_vertical = flip_v.value is True
+        if flip_h.present and not flip_h.valid:
+            invalid_properties.append("xfrm.flipH")
+        if flip_v.present and not flip_v.valid:
+            invalid_properties.append("xfrm.flipV")
+    is_cropped, crop_invalid = _drawing_crop_info(element)
+    invalid_properties.extend(crop_invalid)
     return DrawingInfo(
         placement=placement,  # type: ignore[arg-type]
         embedded_relationship_ids=embedded_ids,
@@ -543,11 +588,12 @@ def _read_drawing(element: etree._Element) -> DrawingInfo:
         description=_normalized_optional_text(doc_properties.get("descr") if doc_properties is not None else None),
         width_emu=width,
         height_emu=height,
-        is_cropped=_has_nonzero_crop(element),
+        is_cropped=is_cropped,
         rotation=rotation,
-        flip_horizontal=_xml_bool(transform.get("flipH")) is True if transform is not None else False,
-        flip_vertical=_xml_bool(transform.get("flipV")) is True if transform is not None else False,
+        flip_horizontal=flip_horizontal,
+        flip_vertical=flip_vertical,
         has_vml_fallback=bool(element.xpath(".//w:pict | .//v:imagedata", namespaces=NS)),
+        invalid_properties=tuple(dict.fromkeys(invalid_properties)),
     )
 
 
@@ -1158,6 +1204,43 @@ def _positive_integer_attribute(element: etree._Element | None, name: str) -> in
     return value if value is not None and value > 0 else None
 
 
+def _parsed_drawing_integer_attribute(element: etree._Element | None, name: str) -> _ParsedDrawingInteger:
+    if element is None:
+        return _ParsedDrawingInteger(False, None, True)
+    raw = element.get(name)
+    if raw is None:
+        return _ParsedDrawingInteger(False, None, True)
+    if raw.strip() != raw or raw == "":
+        return _ParsedDrawingInteger(True, None, False)
+    try:
+        return _ParsedDrawingInteger(True, int(raw), True)
+    except ValueError:
+        return _ParsedDrawingInteger(True, None, False)
+
+
+def _parsed_drawing_positive_integer_attribute(element: etree._Element | None, name: str) -> _ParsedDrawingInteger:
+    parsed = _parsed_drawing_integer_attribute(element, name)
+    if not parsed.present or not parsed.valid:
+        return parsed
+    if parsed.value is None or parsed.value <= 0:
+        return _ParsedDrawingInteger(True, None, False)
+    return parsed
+
+
+def _parsed_drawing_bool_attribute(element: etree._Element | None, name: str) -> _ParsedDrawingBool:
+    if element is None:
+        return _ParsedDrawingBool(False, None, True)
+    raw = element.get(name)
+    if raw is None:
+        return _ParsedDrawingBool(False, None, True)
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "on"}:
+        return _ParsedDrawingBool(True, True, True)
+    if normalized in {"0", "false", "off"}:
+        return _ParsedDrawingBool(True, False, True)
+    return _ParsedDrawingBool(True, None, False)
+
+
 def _normalized_optional_text(value: str | None) -> str | None:
     if value is None:
         return None
@@ -1172,6 +1255,19 @@ def _has_nonzero_crop(element: etree._Element) -> bool:
             if value not in {None, 0}:
                 return True
     return False
+
+
+def _drawing_crop_info(element: etree._Element) -> tuple[bool, tuple[str, ...]]:
+    invalid_properties: list[str] = []
+    cropped = False
+    for crop in element.xpath(".//a:srcRect", namespaces=NS):
+        for attribute in ("l", "t", "r", "b"):
+            parsed = _parsed_drawing_integer_attribute(crop, attribute)
+            if parsed.present and not parsed.valid:
+                invalid_properties.append(f"srcRect.{attribute}")
+            elif parsed.value not in {None, 0}:
+                cropped = True
+    return cropped, tuple(dict.fromkeys(invalid_properties))
 
 
 def _read_relationships(root: etree._Element | None) -> tuple[RelationshipInfo, ...]:
@@ -1204,11 +1300,9 @@ def _read_media(
 ) -> tuple[MediaInfo, ...]:
     content_types = _content_types(content_types_root)
     media: list[MediaInfo] = []
-    total_media_bytes = 0
     for info in sorted(infos, key=lambda item: item.filename):
         if info.is_dir() or not info.filename.startswith("word/media/"):
             continue
-        total_media_bytes += info.file_size
         sha256: str | None = None
         detected = None
         if info.file_size > MAX_MEDIA_PART_BYTES:
@@ -1216,15 +1310,6 @@ def _read_media(
                 InspectionIssue(
                     code="image_media_too_large",
                     message=f"media image trop volumineux : {info.filename}",
-                    severity="warning",
-                    part=info.filename,
-                )
-            )
-        elif total_media_bytes > MAX_TOTAL_MEDIA_BYTES:
-            issues.append(
-                InspectionIssue(
-                    code="total_image_media_too_large",
-                    message="taille totale des medias image trop volumineuse",
                     severity="warning",
                     part=info.filename,
                 )

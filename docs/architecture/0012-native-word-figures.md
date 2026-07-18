@@ -74,3 +74,33 @@ orphelines, légendes vides ou contenant une image.
 
 Un échec d'écriture du XML après écriture d'un média content-addressé peut
 laisser un média orphelin, mais ne corrompt jamais une TEI existante.
+
+## Durcissement 10A1
+
+Une image placee dans un `w:hyperlink` est refusee, que le lien soit porte par
+une relation ou par une ancre interne. La semantique de lien d'une image n'est
+pas encore modelisee et ne doit pas disparaitre silencieusement.
+
+Les relations de la partie source sont indexees sans ecrasement silencieux. Si
+un dessin reference un identifiant de relation duplique, la figure est refusee :
+Mini-Metopes ne choisit ni la premiere ni la derniere declaration.
+
+Les cibles de medias sont controlees avant `posixpath.normpath` : cible vide,
+cible absolue, barre oblique inverse et segment brut `..` sont bloques. Une
+cible telle que `./media/image.png` reste acceptable si sa forme canonique reste
+strictement sous `word/media/`.
+
+Les proprietes DrawingML distinguent absence et valeur invalide. Une dimension
+absente peut rester inconnue ; une dimension presente mais non numerique, nulle
+ou negative devient bloquante. Les rotations, flips, recadrages et placements
+incoherents (`wp:inline` et `wp:anchor` simultanes, multiples ou absents) sont
+traites de la meme maniere.
+
+La limite totale des medias est appliquee pendant l'extraction uniquement aux
+medias effectivement references par la TEI, apres deduplication. Les medias
+inutilises presents dans `word/media/` ne bloquent pas la conversion.
+
+L'ecriture effectue une prevalidation complete de tous les `TeiAsset` avant le
+premier octet ecrit : chemin, type MIME, signature, extension, SHA-256 reel,
+nom content-addresse exact, conflits internes et conflits avec des fichiers
+existants.
