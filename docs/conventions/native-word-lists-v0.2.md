@@ -18,6 +18,13 @@ Le départ effectif Word (`start` ou `startOverride`) est conservé dans le TEI
 par `list/@n` pour les listes ordonnées. Les marqueurs visibles Word ne sont
 pas recopiés dans le texte des items.
 
+Un paragraphe non numéroté de style intégré `ListParagraph` peut prolonger
+l'item précédent uniquement si le paragraphe numéroté suivant reprend la même
+instance (`numId`), le même niveau (`ilvl`) et la même signature résolue. Dans
+ce cas, l'item devient multiparagraphe en TEI. Aucun repli par nom localisé
+n'est utilisé pour cette règle, et un `ListParagraph` personnalisé est refusé
+comme continuation.
+
 Ne sont pas encore publiables : `numId=0` n'est pas une liste et reste un
 paragraphe ; numérotation portée seulement par un style, puces illustrées,
 listes sans marqueur, numérotation légale, listes ambiguës et cases à cocher.

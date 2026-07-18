@@ -48,6 +48,8 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "numbering_without_marker_not_serializable",
         "unsupported_numbering_not_serializable",
         "interrupted_list_continuation_not_serializable",
+        "ambiguous_list_continuation_not_serializable",
+        "empty_list_continuation_not_serializable",
         "explicit_list_restart_not_serializable",
         "list_level_jump_not_serializable",
         "empty_list_item_not_serializable",

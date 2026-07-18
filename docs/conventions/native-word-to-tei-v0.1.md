@@ -7,6 +7,7 @@ Mini-Metopes convertit actuellement les styles Word natifs suivants :
 - `BodyText`, affiche comme `Corps de texte` ou `Body Text`, devient un paragraphe de suite `<p rend="consecutive">` ;
 - `Quote` devient une citation en prose ;
 - `IntenseQuote` devient une citation poetique ; un paragraphe est une strophe et `Maj+Entree` separe les vers ;
+- les listes Word natives resolues deviennent des listes TEI, avec continuations explicites `ListParagraph` lorsque le rattachement est prouve ;
 - gras, italique, petites capitales, capitales, exposant et indice deviennent des enrichissements TEI ;
 - les notes Word deviennent des notes TEI ;
 - les hyperliens externes deviennent des liens TEI.
@@ -28,8 +29,9 @@ Les marques internes `footnoteRef` et `endnoteRef` qui affichent le numero au
 debut de la note Word ne sont pas reprises comme texte TEI.
 
 La conversion refuse actuellement les dessins ou images, liens internes,
-vers vides, paragraphes vides, listes Word, tableaux et zones de texte. Ces
-objets ne sont pas transformes silencieusement en paragraphes.
+vers vides, paragraphes vides, listes Word ambiguës ou non resolues, tableaux
+et zones de texte. Ces objets ne sont pas transformes silencieusement en
+paragraphes.
 
 Les titres `Title` et `Subtitle` sont reserves aux metadonnees futures : leur
 presence bloque donc la conversion TEI pour eviter un `teiHeader` trompeur ou

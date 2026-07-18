@@ -64,6 +64,7 @@ class _ListItemBuilder:
     content: tuple[EditorialInline, ...]
     source_paragraph_index: int
     source_style_id: str | None
+    continuation_paragraphs: list[Paragraph] = field(default_factory=list)
     child_lists: list["_ListBuilder"] = field(default_factory=list)
 
 
@@ -486,6 +487,35 @@ def _build_list_sequence(
         paragraph = paragraphs[position]
         role = _paragraph_role(paragraph, convention)
         if not _is_serializable_list_paragraph(paragraph, role.kind):
+            if previous_level is not None and _is_list_continuation_candidate(paragraph, role, convention):
+                next_position = _handle_list_continuations(
+                    paragraphs,
+                    position,
+                    previous_builder=active[previous_level],
+                    previous_signature=active[previous_level].signature,
+                    previous_numbering_id=active[previous_level].numbering_id,
+                    previous_level=previous_level,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                    references=references,
+                )
+                if next_position == position:
+                    break
+                position = next_position
+                continue
+            if previous_level is not None and _is_rejected_list_continuation_style(paragraph, convention):
+                _diagnose_ambiguous_list_continuation(
+                    paragraph,
+                    count=1,
+                    previous_numbering_id=active[previous_level].numbering_id,
+                    previous_level=previous_level,
+                    next_paragraph=None,
+                    reason="style personnalise",
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
             break
         numbering = paragraph.numbering
         assert numbering is not None and numbering.level is not None
@@ -617,6 +647,166 @@ def _build_list_sequence(
     )
 
 
+def _is_list_continuation_candidate(
+    paragraph: ParagraphInfo,
+    role: ParagraphRole,
+    convention: WordEditorialConvention,
+) -> bool:
+    return (
+        role.kind == "paragraph"
+        and convention.is_list_continuation_style(paragraph.style_id, paragraph.style_is_custom)
+        and paragraph.numbering is None
+        and paragraph.numbering_id is None
+    )
+
+
+def _is_rejected_list_continuation_style(
+    paragraph: ParagraphInfo,
+    convention: WordEditorialConvention,
+) -> bool:
+    return (
+        paragraph.style_id in convention.list_continuation_style_ids
+        and paragraph.style_is_custom is True
+        and paragraph.numbering is None
+        and paragraph.numbering_id is None
+    )
+
+
+def _handle_list_continuations(
+    paragraphs: tuple[ParagraphInfo, ...],
+    start_position: int,
+    *,
+    previous_builder: _ListBuilder,
+    previous_signature: tuple[str, int, str, str, int | None, int | None],
+    previous_numbering_id: str,
+    previous_level: int,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+    references: set[tuple[str, str]],
+) -> int:
+    """Rattacher une suite prouvee de ListParagraph au dernier item numerote."""
+    position = start_position
+    candidates: list[ParagraphInfo] = []
+    while position < len(paragraphs):
+        paragraph = paragraphs[position]
+        role = _paragraph_role(paragraph, convention)
+        if not _is_list_continuation_candidate(paragraph, role, convention):
+            break
+        candidates.append(paragraph)
+        position += 1
+
+    next_paragraph = paragraphs[position] if position < len(paragraphs) else None
+    next_role = _paragraph_role(next_paragraph, convention) if next_paragraph is not None else None
+    if (
+        next_paragraph is None
+        or next_role is None
+        or not _is_serializable_list_paragraph(next_paragraph, next_role.kind)
+    ):
+        _diagnose_ambiguous_list_continuation(
+            candidates[0],
+            count=len(candidates),
+            previous_numbering_id=previous_numbering_id,
+            previous_level=previous_level,
+            next_paragraph=next_paragraph,
+            reason="fin de sequence",
+            diagnostics=diagnostics,
+            note_id=note_id,
+        )
+        return start_position
+
+    next_numbering = next_paragraph.numbering
+    assert next_numbering is not None and next_numbering.level is not None
+    next_signature = _numbering_signature(next_numbering)
+    if next_numbering.numbering_id != previous_numbering_id:
+        reason = "autre instance"
+    elif next_numbering.level != previous_level:
+        reason = "autre niveau"
+        if next_numbering.level < previous_level:
+            reason = "autre niveau; reprise apres sous-liste ambigue"
+    elif next_signature != previous_signature:
+        reason = "autre signature"
+    else:
+        reason = ""
+
+    if reason:
+        _diagnose_ambiguous_list_continuation(
+            candidates[0],
+            count=len(candidates),
+            previous_numbering_id=previous_numbering_id,
+            previous_level=previous_level,
+            next_paragraph=next_paragraph,
+            reason=reason,
+            diagnostics=diagnostics,
+            note_id=note_id,
+        )
+        return start_position
+
+    target_item = previous_builder.items[-1]
+    for candidate in candidates:
+        content, continuation_references = _build_inline_content(
+            candidate,
+            convention=convention,
+            relationships=relationships,
+            diagnostics=diagnostics,
+            note_id=note_id,
+        )
+        references.update(continuation_references)
+        if not content:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="empty_list_continuation_not_serializable",
+                    severity="error",
+                    message="paragraphe de continuation de liste vide",
+                    paragraph_index=candidate.index,
+                    style_id=candidate.style_id,
+                    note_id=note_id,
+                )
+            )
+        target_item.continuation_paragraphs.append(
+            Paragraph(
+                content=content,
+                source_paragraph_index=candidate.index,
+                source_style_id=candidate.style_id,
+                rendition=None,
+            )
+        )
+    return position
+
+
+def _diagnose_ambiguous_list_continuation(
+    paragraph: ParagraphInfo,
+    *,
+    count: int,
+    previous_numbering_id: str,
+    previous_level: int,
+    next_paragraph: ParagraphInfo | None,
+    reason: str,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> None:
+    next_numbering = next_paragraph.numbering if next_paragraph is not None else None
+    next_id = next_numbering.numbering_id if next_numbering is not None else "absent"
+    next_level_value = next_numbering.level if next_numbering is not None else None
+    next_level = "absent" if next_level_value is None else str(next_level_value)
+    diagnostics.append(
+        EditorialDiagnostic(
+            code="ambiguous_list_continuation_not_serializable",
+            severity="error",
+            message=(
+                "continuation de liste ambigue : "
+                f"candidats={count}, numId precedent={previous_numbering_id}, "
+                f"ilvl precedent={previous_level}, numId suivant={next_id}, "
+                f"ilvl suivant={next_level}, raison={reason}"
+            ),
+            paragraph_index=paragraph.index,
+            style_id=paragraph.style_id,
+            note_id=note_id,
+        )
+    )
+
+
 def _numbering_signature(numbering: object) -> tuple[str, int, str, str, int | None, int | None]:
     from mini_metopes.docx import ParagraphNumberingInfo
 
@@ -679,12 +869,24 @@ def _freeze_list(
     items: list[EditorialListItem] = []
     for item in builder.items:
         children = tuple(_freeze_list(child, diagnostics, note_id) for child in item.child_lists)
-        if not item.content and not children:
+        continuations = tuple(item.continuation_paragraphs)
+        if not item.content and not children and not continuations:
             diagnostics.append(
                 EditorialDiagnostic(
                     code="empty_list_item_not_serializable",
                     severity="error",
                     message="item de liste vide sans sous-liste",
+                    paragraph_index=item.source_paragraph_index,
+                    style_id=item.source_style_id,
+                    note_id=note_id,
+                )
+            )
+        elif not item.content and continuations:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="empty_list_item_not_serializable",
+                    severity="error",
+                    message="item de liste multiparagraphe sans paragraphe initial",
                     paragraph_index=item.source_paragraph_index,
                     style_id=item.source_style_id,
                     note_id=note_id,
@@ -707,6 +909,7 @@ def _freeze_list(
                 child_lists=children,
                 source_paragraph_index=item.source_paragraph_index,
                 source_style_id=item.source_style_id,
+                continuation_paragraphs=continuations,
             )
         )
     return EditorialList(

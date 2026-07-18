@@ -144,6 +144,7 @@ def _list_item_to_data(item: EditorialListItem) -> dict[str, object]:
         "child_lists": [_list_to_data(child) for child in item.child_lists],
         "source_paragraph_index": item.source_paragraph_index,
         "source_style_id": item.source_style_id,
+        "continuation_paragraphs": [_block_to_data(paragraph) for paragraph in item.continuation_paragraphs],
     }
 
 

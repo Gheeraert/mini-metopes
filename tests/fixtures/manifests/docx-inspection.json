@@ -59,6 +59,14 @@
       "liens, enrichissements et appels de notes dans un item",
       "listes resolues dans une note de bas de page et une note de fin"
     ],
+    "native-list-continuations.docx": [
+      "fixture positive synthetique pour les continuations de liste Word",
+      "Title et Subtitle initiaux associes a native-list-continuations.metadata.json",
+      "paragraphes ListParagraph non numerotes rattaches a l'item precedent lorsque la reprise est prouvee",
+      "continuations multiples dans un item et continuation dans une sous-liste",
+      "continuation avec gras, italique, lien externe, retour manuel et appels de notes",
+      "continuations de liste dans une note de bas de page et une note de fin"
+    ],
     "native-consecutive-paragraphs.docx": [
       "fixture positive synthetique pour le style natif BodyText",
       "Title et Subtitle initiaux associes a native-consecutive-paragraphs.metadata.json",

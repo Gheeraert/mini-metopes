@@ -107,8 +107,15 @@ ordinaires dans le modele, meme si le fichier DOCX leur associe un niveau de
 plan. Dans la conversion TEI courante, leur presence bloque l'ecriture afin de
 ne pas transformer des metadonnees potentielles en paragraphes du corps.
 
-Les metadonnees, listes, tableaux, figures editoriales et bibliographies
-restent hors de cette version. La conversion TEI bloque les listes, tableaux,
-zones de texte et styles inconnus afin d'eviter une TEI incomplete ou
-trompeuse. Les styles Metopes ou locaux ne sont pas assimiles automatiquement a
-cette convention native.
+Les listes Word natives resolues sont prises en charge par la convention de
+listes. Un paragraphe `ListParagraph` non numerote peut prolonger un item
+seulement si le paragraphe numerote suivant reprend exactement le meme `numId`,
+le meme `ilvl` et la meme signature. Aucun repli par nom localise n'est applique
+a cette regle, et un `ListParagraph` personnalise n'est pas reconnu comme
+continuation.
+
+Les metadonnees avancees, tableaux, figures editoriales et bibliographies
+restent hors de cette version. La conversion TEI bloque les listes ambiguës ou
+non resolues, tableaux, zones de texte et styles inconnus afin d'eviter une TEI
+incomplete ou trompeuse. Les styles Metopes ou locaux ne sont pas assimiles
+automatiquement a cette convention native.

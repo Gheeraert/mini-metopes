@@ -293,6 +293,14 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
         for editorial_list in _iter_editorial_lists(note.blocks)
     ]
     editorial_lists = [*body_lists, *note_lists]
+    body_continuations = sum(len(item.continuation_paragraphs) for editorial_list in body_lists for item in _iter_list_items(editorial_list))
+    note_continuations = sum(len(item.continuation_paragraphs) for editorial_list in note_lists for item in _iter_list_items(editorial_list))
+    multiparagraph_items = sum(
+        1
+        for editorial_list in editorial_lists
+        for item in _iter_list_items(editorial_list)
+        if item.continuation_paragraphs
+    )
     levels: dict[int, int] = {}
     for heading in headings:
         levels[heading.level] = levels.get(heading.level, 0) + 1
@@ -316,6 +324,10 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Listes des notes : {len(note_lists)}")
     print(f"Listes totales : {len(editorial_lists)}")
     print(f"Items de listes : {sum(1 for editorial_list in [*body_root_lists, *note_root_lists] for _ in _iter_list_items(editorial_list))}")
+    print(f"Paragraphes de continuation de liste du corps : {body_continuations}")
+    print(f"Paragraphes de continuation de liste dans les notes : {note_continuations}")
+    print(f"Paragraphes de continuation de liste totaux : {body_continuations + note_continuations}")
+    print(f"Items de liste multiparagraphe : {multiparagraph_items}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")

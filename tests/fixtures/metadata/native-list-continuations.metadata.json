@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "native-list-continuations.docx",
+    "sha256": "eea84e57744109c4b61ac4981a0d8a81b519ef37995300e72f0da5e02cd08842"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Continuations de listes",
+    "subtitle": "Items multiparagraphes",
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Lucie",
+      "family_name": "Exemple",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}
