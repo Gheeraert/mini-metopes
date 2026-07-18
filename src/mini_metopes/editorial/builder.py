@@ -54,6 +54,7 @@ _MARK_ORDER: tuple[TextMark, ...] = (
 
 
 _NumberingInterruptions = dict[str, int]
+_ClosedNumberingLevel = tuple[str, int]
 
 
 @dataclass
@@ -418,6 +419,32 @@ def _diagnose_interrupted_list_continuation(
     )
 
 
+def _add_interrupted_list_continuation_diagnostic(
+    paragraph: ParagraphInfo,
+    *,
+    interruptions: int,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> None:
+    numbering = paragraph.numbering
+    if numbering is None:
+        return
+    level = "absent" if numbering.level is None else str(numbering.level)
+    diagnostics.append(
+        EditorialDiagnostic(
+            code="interrupted_list_continuation_not_serializable",
+            severity="error",
+            message=(
+                "reouverture discontinue d'une meme instance de liste : "
+                f"numId={numbering.numbering_id}, ilvl={level}, interruptions={interruptions}"
+            ),
+            paragraph_index=paragraph.index,
+            style_id=paragraph.style_id,
+            note_id=note_id,
+        )
+    )
+
+
 def _build_list_sequence(
     paragraphs: tuple[ParagraphInfo, ...],
     start_position: int,
@@ -438,7 +465,8 @@ def _build_list_sequence(
     root_level = first.numbering.level
     roots: list[_ListBuilder] = []
     active: dict[int, _ListBuilder] = {}
-    locally_closed_numbering_ids: _NumberingInterruptions = {}
+    locally_closed_levels: set[_ClosedNumberingLevel] = set()
+    locally_closed_numbering_ids: set[str] = set()
     references: set[tuple[str, str]] = set()
     previous_level: int | None = None
     position = start_position
@@ -452,21 +480,31 @@ def _build_list_sequence(
         assert numbering is not None and numbering.level is not None
         level = numbering.level
         active_numbering_ids = {builder.numbering_id for builder in active.values()}
-        if numbering.numbering_id not in active_numbering_ids:
-            if numbering.numbering_id in interrupted_numbering_ids:
-                _diagnose_interrupted_list_continuation(
-                    paragraph,
-                    interrupted_numbering_ids,
-                    diagnostics,
-                    note_id,
-                )
-            elif numbering.numbering_id in locally_closed_numbering_ids:
-                _diagnose_interrupted_list_continuation(
-                    paragraph,
-                    locally_closed_numbering_ids,
-                    diagnostics,
-                    note_id,
-                )
+        closed_level = (numbering.numbering_id, level)
+        if numbering.numbering_id in interrupted_numbering_ids:
+            _diagnose_interrupted_list_continuation(
+                paragraph,
+                interrupted_numbering_ids,
+                diagnostics,
+                note_id,
+            )
+        elif closed_level in locally_closed_levels:
+            _add_interrupted_list_continuation_diagnostic(
+                paragraph,
+                interruptions=0,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+        elif (
+            numbering.numbering_id in locally_closed_numbering_ids
+            and numbering.numbering_id not in active_numbering_ids
+        ):
+            _add_interrupted_list_continuation_diagnostic(
+                paragraph,
+                interruptions=0,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
 
         if previous_level is not None and level > previous_level + 1:
             diagnostics.append(
@@ -532,7 +570,8 @@ def _build_list_sequence(
         elif level == previous_level:
             builder = active[level]
             if builder.signature != signature:
-                locally_closed_numbering_ids.setdefault(builder.numbering_id, 0)
+                locally_closed_levels.add((builder.numbering_id, builder.level))
+                locally_closed_numbering_ids.add(builder.numbering_id)
                 builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
                 _attach_sibling_list(builder, level, root_level, active, roots)
                 active[level] = builder
@@ -544,11 +583,13 @@ def _build_list_sequence(
         else:
             for active_level in tuple(active):
                 if active_level > level:
-                    locally_closed_numbering_ids.setdefault(active[active_level].numbering_id, 0)
+                    locally_closed_levels.add((active[active_level].numbering_id, active[active_level].level))
+                    locally_closed_numbering_ids.add(active[active_level].numbering_id)
                     del active[active_level]
             builder = active[level]
             if builder.signature != signature:
-                locally_closed_numbering_ids.setdefault(builder.numbering_id, 0)
+                locally_closed_levels.add((builder.numbering_id, builder.level))
+                locally_closed_numbering_ids.add(builder.numbering_id)
                 builder = _new_list_builder(numbering, paragraph, diagnostics, note_id)
                 _attach_sibling_list(builder, level, root_level, active, roots)
                 active[level] = builder

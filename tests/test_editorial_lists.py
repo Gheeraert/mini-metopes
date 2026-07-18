@@ -26,6 +26,10 @@ def _lists(blocks):
     return [block for block in blocks if isinstance(block, EditorialList)]
 
 
+def _interrupted_list_diagnostics(result):
+    return [item for item in result.diagnostics if item.code == "interrupted_list_continuation_not_serializable"]
+
+
 def _inspection_with_levels(levels: tuple[int, ...]):
     inspection = inspect_docx_file(FIXTURES / "native-lists-tei.docx")
     template = inspection.paragraphs[3]
@@ -291,6 +295,127 @@ def test_normal_return_to_active_parent_numbering_is_not_a_discontinuous_reopeni
     assert roots[0].items[0].child_lists[0].source_numbering_id == "44"
 
 
+def test_reopening_closed_child_level_of_active_instance_is_not_serializable() -> None:
+    path = runtime_docx("closed-child-level-reopening.docx")
+    write_docx(
+        path,
+        paragraph("Parent", num_id="42", ilvl="0")
+        + paragraph("Enfant", num_id="42", ilvl="1")
+        + paragraph("Liste soeur", num_id="44", ilvl="1")
+        + paragraph("Reprise enfant", num_id="42", ilvl="1"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    diagnostics = _interrupted_list_diagnostics(result)
+
+    assert len([item for item in diagnostics if item.paragraph_index == 3]) == 1
+    diagnostic = next(item for item in diagnostics if item.paragraph_index == 3)
+    assert "numId=42" in diagnostic.message
+    assert "ilvl=1" in diagnostic.message
+
+
+def test_first_use_of_parent_instance_child_level_stays_serializable() -> None:
+    path = runtime_docx("first-use-parent-child-level.docx")
+    write_docx(
+        path,
+        paragraph("Parent", num_id="42", ilvl="0")
+        + paragraph("Autre enfant", num_id="44", ilvl="1")
+        + paragraph("Premier enfant 42", num_id="42", ilvl="1"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    roots = _lists(result.document.blocks)
+
+    assert _interrupted_list_diagnostics(result) == []
+    assert len(roots) == 1
+    assert [child.source_numbering_id for child in roots[0].items[0].child_lists] == ["44", "42"]
+
+
+def test_return_to_parent_after_child_level_was_closed_stays_serializable() -> None:
+    path = runtime_docx("return-parent-after-child-closed.docx")
+    write_docx(
+        path,
+        paragraph("Parent", num_id="42", ilvl="0")
+        + paragraph("Enfant", num_id="42", ilvl="1")
+        + paragraph("Autre enfant", num_id="44", ilvl="1")
+        + paragraph("Parent deux", num_id="42", ilvl="0"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    roots = _lists(result.document.blocks)
+
+    assert _interrupted_list_diagnostics(result) == []
+    assert len(roots) == 1
+    assert [item.source_paragraph_index for item in roots[0].items] == [0, 3]
+
+
+def test_reopening_deeper_closed_level_is_not_serializable() -> None:
+    path = runtime_docx("closed-deeper-level-reopening.docx")
+    write_docx(
+        path,
+        paragraph("Parent", num_id="42", ilvl="0")
+        + paragraph("Enfant", num_id="42", ilvl="1")
+        + paragraph("Profond", num_id="42", ilvl="2")
+        + paragraph("Autre profond", num_id="44", ilvl="2")
+        + paragraph("Reprise profond", num_id="42", ilvl="2"),
+        numbering=_three_level_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    diagnostics = _interrupted_list_diagnostics(result)
+
+    assert len([item for item in diagnostics if item.paragraph_index == 4]) == 1
+    diagnostic = next(item for item in diagnostics if item.paragraph_index == 4)
+    assert "numId=42" in diagnostic.message
+    assert "ilvl=2" in diagnostic.message
+
+
+def test_fully_closed_instance_reopening_at_another_level_is_not_serializable() -> None:
+    path = runtime_docx("fully-closed-instance-other-level.docx")
+    write_docx(
+        path,
+        paragraph("Premier", num_id="42", ilvl="0")
+        + paragraph("Autre racine", num_id="44", ilvl="0")
+        + paragraph("Reprise autre niveau", num_id="42", ilvl="1"),
+        numbering=_two_instance_numbering(),
+    )
+
+    result = build_editorial_document(inspect_docx_file(path))
+    diagnostics = _interrupted_list_diagnostics(result)
+
+    assert len([item for item in diagnostics if item.paragraph_index == 2]) == 1
+    diagnostic = next(item for item in diagnostics if item.paragraph_index == 2)
+    assert "numId=42" in diagnostic.message
+    assert "ilvl=1" in diagnostic.message
+
+
+def test_closed_child_level_reopening_is_detected_in_notes() -> None:
+    numbering = _two_instance_numbering()
+    footnotes = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="1">
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Parent</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Enfant</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="44"/></w:numPr></w:pPr><w:r><w:t>Autre</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Reprise</w:t></w:r></w:p>
+  </w:footnote>
+</w:footnotes>
+"""
+    path = runtime_docx("closed-child-level-reopening-note.docx")
+    write_docx(path, paragraph("Corps"), numbering=numbering, footnotes=footnotes)
+
+    result = build_editorial_document(inspect_docx_file(path))
+    diagnostics = _interrupted_list_diagnostics(result)
+
+    assert len([item for item in diagnostics if item.note_id == "1" and item.paragraph_index == 3]) == 1
+    diagnostic = next(item for item in diagnostics if item.note_id == "1" and item.paragraph_index == 3)
+    assert "numId=42" in diagnostic.message
+    assert "ilvl=1" in diagnostic.message
+
+
 def test_interrupted_list_continuation_is_scoped_to_each_part() -> None:
     numbering = basic_numbering()
     footnotes = """<?xml version="1.0" encoding="UTF-8"?>
@@ -362,4 +487,16 @@ def _two_level_numbering() -> str:
         '<w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/></w:lvl>'
         '</w:abstractNum>'
         '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+    )
+
+
+def _three_level_two_instance_numbering() -> str:
+    return numbering_xml(
+        '<w:abstractNum w:abstractNumId="1">'
+        '<w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl>'
+        '<w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/></w:lvl>'
+        '<w:lvl w:ilvl="2"><w:numFmt w:val="lowerLetter"/></w:lvl>'
+        '</w:abstractNum>'
+        '<w:num w:numId="42"><w:abstractNumId w:val="1"/></w:num>'
+        '<w:num w:numId="44"><w:abstractNumId w:val="1"/></w:num>'
     )

@@ -20,6 +20,14 @@ seulement son niveau. Mini-Métopes refuse toute réouverture discontinue d'une
 instance avec `interrupted_list_continuation_not_serializable` tant que les
 compteurs effectifs Word ne sont pas calculés.
 
+Le constructeur distingue donc deux états : l'instance Word active, suivie par
+`numId`, et les niveaux éditoriaux actuellement ouverts, suivis par le couple
+`(numId, ilvl)`. Une instance peut rester active au niveau parent alors qu'un
+de ses niveaux enfants a été fermé par une liste sœur. Dans ce cas, la
+réouverture du niveau enfant fermé reste non sérialisable sans calcul des
+compteurs effectifs Word ; le retour au niveau parent encore actif reste, lui,
+autorisé.
+
 Une montée d'un niveau crée une liste enfant du dernier item. Une descente
 referme les listes actives. Une séquence peut commencer à un niveau différent
 de zéro : ce niveau reste sa racine locale et déclenche
