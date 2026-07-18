@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "native-figures.docx",
+    "sha256": "6af49a67c4f20f446a8ffe95e3541bd6a16e04beba199d8ac496b306e8d0b6b6"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Figures simples",
+    "subtitle": "Images Word autonomes",
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Claire",
+      "family_name": "Exemple",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

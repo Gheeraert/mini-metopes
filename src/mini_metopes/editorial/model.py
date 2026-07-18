@@ -10,7 +10,7 @@ TextMark = Literal["bold", "italic", "small_caps", "caps", "superscript", "subsc
 LinkKind = Literal["external", "internal", "unresolved"]
 DiagnosticSeverity = Literal["info", "warning", "error"]
 EditorialListKind = Literal["ordered", "bulleted"]
-ParagraphRendition = Literal["consecutive"]
+ParagraphRendition = Literal["consecutive", "caption"]
 
 
 @dataclass(frozen=True)
@@ -179,7 +179,36 @@ class EditorialList:
     kind: Literal["list"] = "list"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList
+@dataclass(frozen=True)
+class EditorialGraphic:
+    """Image éditoriale publiée comme ressource externe content-addressée."""
+
+    source_part: str
+    source_relationship_id: str
+    source_media_path: str
+    media_url: str
+    content_type: Literal["image/png", "image/jpeg"]
+    sha256: str
+    description: str
+    width_emu: int | None
+    height_emu: int | None
+    source_name: str | None = None
+    source_title: str | None = None
+    kind: Literal["graphic"] = "graphic"
+
+
+@dataclass(frozen=True)
+class EditorialFigure:
+    """Figure autonome issue d'une image Word simple."""
+
+    graphic: EditorialGraphic
+    caption: Paragraph | None
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["figure"] = "figure"
+
+
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure
 
 
 @dataclass(frozen=True)

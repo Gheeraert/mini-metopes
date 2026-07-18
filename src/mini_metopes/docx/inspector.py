@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+import hashlib
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile, ZipInfo
 
@@ -13,6 +14,7 @@ from .model import (
     AbstractNumberingInfo,
     DocxInspection,
     DocxInspectionError,
+    DrawingInfo,
     InspectionIssue,
     MediaInfo,
     NumberingDefinitionsInfo,
@@ -40,7 +42,11 @@ FOOTNOTE_RELATIONSHIPS_PART = "word/_rels/footnotes.xml.rels"
 ENDNOTE_RELATIONSHIPS_PART = "word/_rels/endnotes.xml.rels"
 CONTENT_TYPES_PART = "[Content_Types].xml"
 MAX_XML_PART_BYTES = 16 * 1024 * 1024
+MAX_MEDIA_PART_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_MEDIA_BYTES = 256 * 1024 * 1024
 DRAWING_MARKER = "[drawing]"
+IMAGE_RELATIONSHIP_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+SUPPORTED_IMAGE_CONTENT_TYPES = frozenset({"image/png", "image/jpeg"})
 ORDERED_NUMBER_FORMATS = frozenset(
     {
         "decimal", "decimalZero", "lowerLetter", "upperLetter", "lowerRoman",
@@ -154,7 +160,7 @@ def inspect_docx_file(
         relationships = _read_relationships(relationships_root)
         footnote_relationships = _read_relationships(footnote_relationships_root)
         endnote_relationships = _read_relationships(endnote_relationships_root)
-        media = _read_media(infos, content_types_root)
+        media = _read_media(archive, infos, content_types_root, issues)
         issues.extend(_part_observation_issues(document, DOCUMENT_PART))
         if footnotes_root is not None:
             issues.extend(_part_observation_issues(footnotes_root, FOOTNOTES_PART))
@@ -493,14 +499,56 @@ def _read_run_contents(element: etree._Element) -> tuple[RunContentInfo, ...]:
             if note_id is not None:
                 contents.append(RunContentInfo(kind="endnote_reference", reference_id=note_id))
         elif tag == w_tag("drawing"):
-            relationship_ids = tuple(
-                embedded.get(r_tag("embed"), "")
-                for embedded in child.xpath(".//*[@r:embed]", namespaces=NS)
-                if embedded.get(r_tag("embed")) is not None
+            drawing = _read_drawing(child)
+            contents.append(
+                RunContentInfo(
+                    kind="drawing",
+                    relationship_ids=drawing.embedded_relationship_ids,
+                    drawing=drawing,
+                )
             )
-            contents.append(RunContentInfo(kind="drawing", relationship_ids=relationship_ids))
 
     return tuple(contents)
+
+
+def _read_drawing(element: etree._Element) -> DrawingInfo:
+    """Lire les propriétés DrawingML utiles sans interprétation éditoriale."""
+    inline = element.find(".//wp:inline", namespaces=NS)
+    anchor = element.find(".//wp:anchor", namespaces=NS)
+    container = inline if inline is not None else anchor
+    placement = "inline" if inline is not None else ("anchor" if anchor is not None else "unknown")
+    embedded_ids = tuple(
+        value
+        for value in (blip.get(r_tag("embed")) for blip in element.xpath(".//a:blip", namespaces=NS))
+        if value is not None
+    )
+    linked_ids = tuple(
+        value
+        for value in (blip.get(r_tag("link")) for blip in element.xpath(".//a:blip", namespaces=NS))
+        if value is not None
+    )
+    doc_properties = element.find(".//wp:docPr", namespaces=NS)
+    extent = container.find("wp:extent", namespaces=NS) if container is not None else None
+    width = _positive_integer_attribute(extent, "cx") if extent is not None else None
+    height = _positive_integer_attribute(extent, "cy") if extent is not None else None
+    transform = element.find(".//a:xfrm", namespaces=NS)
+    rotation = _decimal_attribute(transform, "rot") if transform is not None else None
+    return DrawingInfo(
+        placement=placement,  # type: ignore[arg-type]
+        embedded_relationship_ids=embedded_ids,
+        linked_relationship_ids=linked_ids,
+        doc_property_id=doc_properties.get("id") if doc_properties is not None else None,
+        name=_normalized_optional_text(doc_properties.get("name") if doc_properties is not None else None),
+        title=_normalized_optional_text(doc_properties.get("title") if doc_properties is not None else None),
+        description=_normalized_optional_text(doc_properties.get("descr") if doc_properties is not None else None),
+        width_emu=width,
+        height_emu=height,
+        is_cropped=_has_nonzero_crop(element),
+        rotation=rotation,
+        flip_horizontal=_xml_bool(transform.get("flipH")) is True if transform is not None else False,
+        flip_vertical=_xml_bool(transform.get("flipV")) is True if transform is not None else False,
+        has_vml_fallback=bool(element.xpath(".//w:pict | .//v:imagedata", namespaces=NS)),
+    )
 
 
 def _run_convenience_values(
@@ -1093,6 +1141,39 @@ def _integer_attribute(element: etree._Element, name: str) -> int | None:
         return None
 
 
+def _decimal_attribute(element: etree._Element | None, name: str) -> int | None:
+    if element is None:
+        return None
+    value = element.get(name)
+    if value is None or value.strip() != value or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _positive_integer_attribute(element: etree._Element | None, name: str) -> int | None:
+    value = _decimal_attribute(element, name)
+    return value if value is not None and value > 0 else None
+
+
+def _normalized_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _has_nonzero_crop(element: etree._Element) -> bool:
+    for crop in element.xpath(".//a:srcRect", namespaces=NS):
+        for attribute in ("l", "t", "r", "b"):
+            value = _decimal_attribute(crop, attribute)
+            if value not in {None, 0}:
+                return True
+    return False
+
+
 def _read_relationships(root: etree._Element | None) -> tuple[RelationshipInfo, ...]:
     if root is None:
         return ()
@@ -1116,14 +1197,50 @@ def _read_relationships(root: etree._Element | None) -> tuple[RelationshipInfo, 
 
 
 def _read_media(
+    archive: ZipFile,
     infos: Iterable[ZipInfo],
     content_types_root: etree._Element | None,
+    issues: list[InspectionIssue],
 ) -> tuple[MediaInfo, ...]:
     content_types = _content_types(content_types_root)
     media: list[MediaInfo] = []
+    total_media_bytes = 0
     for info in sorted(infos, key=lambda item: item.filename):
         if info.is_dir() or not info.filename.startswith("word/media/"):
             continue
+        total_media_bytes += info.file_size
+        sha256: str | None = None
+        detected = None
+        if info.file_size > MAX_MEDIA_PART_BYTES:
+            issues.append(
+                InspectionIssue(
+                    code="image_media_too_large",
+                    message=f"media image trop volumineux : {info.filename}",
+                    severity="warning",
+                    part=info.filename,
+                )
+            )
+        elif total_media_bytes > MAX_TOTAL_MEDIA_BYTES:
+            issues.append(
+                InspectionIssue(
+                    code="total_image_media_too_large",
+                    message="taille totale des medias image trop volumineuse",
+                    severity="warning",
+                    part=info.filename,
+                )
+            )
+        else:
+            try:
+                sha256, detected = _hash_and_detect_media(archive, info)
+            except DocxInspectionError as error:
+                issues.append(
+                    InspectionIssue(
+                        code=error.code,
+                        message=str(error),
+                        severity="warning",
+                        part=info.filename,
+                    )
+                )
         media.append(
             MediaInfo(
                 path=info.filename,
@@ -1131,9 +1248,54 @@ def _read_media(
                 uncompressed_size=info.file_size,
                 content_type=content_types.get(info.filename)
                 or content_types.get(Path(info.filename).suffix.lower()),
+                sha256=sha256,
+                detected_content_type=detected,
             )
         )
     return tuple(media)
+
+
+def _hash_and_detect_media(archive: ZipFile, info: ZipInfo) -> tuple[str, str | None]:
+    digest = hashlib.sha256()
+    first = b""
+    total = 0
+    try:
+        with archive.open(info, "r") as source:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                if not first:
+                    first = chunk[:16]
+                total += len(chunk)
+                if total > MAX_MEDIA_PART_BYTES:
+                    raise DocxInspectionError(
+                        "image_media_too_large",
+                        f"media image trop volumineux : {info.filename}",
+                        part=info.filename,
+                    )
+                digest.update(chunk)
+    except (OSError, RuntimeError, NotImplementedError, EOFError, BadZipFile) as error:
+        raise DocxInspectionError(
+            "unreadable_image_media",
+            f"media image illisible : {info.filename}",
+            part=info.filename,
+        ) from error
+    if total != info.file_size:
+        raise DocxInspectionError(
+            "unreadable_image_media",
+            f"media image tronque : {info.filename}",
+            part=info.filename,
+        )
+    return digest.hexdigest(), _detect_image_content_type(first)
+
+
+def _detect_image_content_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    return None
 
 
 def _content_types(root: etree._Element | None) -> dict[str, str]:
@@ -1175,6 +1337,15 @@ def _part_observation_issues(root: etree._Element, part: str) -> list[Inspection
                 code="table_not_modeled",
                 message="des tableaux sont présents ; leur structure n'est pas encore modélisée",
                 severity="info",
+                part=part,
+            )
+        )
+    if root.xpath(".//w:pict | .//v:imagedata", namespaces=NS):
+        issues.append(
+            InspectionIssue(
+                code="vml_image_not_supported",
+                message="des images VML anciennes sont presentes et ne sont pas prises en charge",
+                severity="warning",
                 part=part,
             )
         )

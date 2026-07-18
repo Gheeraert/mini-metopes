@@ -4,6 +4,7 @@ from .inspector import inspect_docx_file
 from .model import (
     DocxInspection,
     DocxInspectionError,
+    DrawingInfo,
     InspectionIssue,
     MediaInfo,
     NumberingDefinitionsInfo,
@@ -25,6 +26,7 @@ from .model import (
 __all__ = [
     "DocxInspection",
     "DocxInspectionError",
+    "DrawingInfo",
     "InspectionIssue",
     "MediaInfo",
     "NumberingDefinitionsInfo",

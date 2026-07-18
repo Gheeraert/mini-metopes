@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+import posixpath
 
 from mini_metopes.docx import (
     DocxInspection,
+    DrawingInfo,
+    MediaInfo,
     ParagraphInfo,
     RelationshipInfo,
     RunInfo,
@@ -21,6 +24,8 @@ from .model import (
     EditorialBuildResult,
     EditorialDiagnostic,
     EditorialDocument,
+    EditorialFigure,
+    EditorialGraphic,
     EditorialInline,
     EditorialList,
     EditorialListItem,
@@ -41,6 +46,12 @@ from .model import (
     VerseQuote,
     VerseStanza,
 )
+
+
+DOCUMENT_PART = "word/document.xml"
+FOOTNOTES_PART = "word/footnotes.xml"
+ENDNOTES_PART = "word/endnotes.xml"
+IMAGE_RELATIONSHIP_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 
 
 _MARK_ORDER: tuple[TextMark, ...] = (
@@ -94,6 +105,13 @@ class _ListBuilder:
         )
 
 
+@dataclass(frozen=True)
+class _BuiltFigure:
+    figure: EditorialFigure
+    next_position: int
+    references: set[tuple[str, str]]
+
+
 def build_editorial_document(
     inspection: DocxInspection,
     *,
@@ -109,6 +127,7 @@ def build_editorial_document(
     endnote_relationships = {
         relation.relationship_id: relation for relation in inspection.endnote_relationships
     }
+    media_by_path = {media.path: media for media in inspection.media}
     notes_by_key: dict[tuple[str, str], EditorialNote] = {}
     notes: list[EditorialNote] = []
     referenced_notes: set[tuple[str, str]] = set()
@@ -128,6 +147,8 @@ def build_editorial_document(
             note.paragraphs,
             convention=convention,
             relationships=footnote_relationships if note.kind == "footnote" else endnote_relationships,
+            media_by_path=media_by_path,
+            source_part=FOOTNOTES_PART if note.kind == "footnote" else ENDNOTES_PART,
             diagnostics=diagnostics,
             note_id=note.note_id,
             detect_heading_jumps=False,
@@ -148,6 +169,8 @@ def build_editorial_document(
         body_paragraphs,
         convention=convention,
         relationships=body_relationships,
+        media_by_path=media_by_path,
+        source_part=DOCUMENT_PART,
         diagnostics=diagnostics,
         note_id=None,
         detect_heading_jumps=True,
@@ -180,6 +203,8 @@ def _build_blocks(
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
+    media_by_path: dict[str, MediaInfo],
+    source_part: str,
     diagnostics: list[EditorialDiagnostic],
     note_id: str | None,
     detect_heading_jumps: bool,
@@ -194,12 +219,43 @@ def _build_blocks(
         paragraph = paragraphs[paragraph_position]
         role = _paragraph_role(paragraph, convention)
 
+        if paragraph.drawing_count:
+            figure = _build_figure_if_supported(
+                paragraphs,
+                paragraph_position,
+                convention=convention,
+                relationships=relationships,
+                media_by_path=media_by_path,
+                source_part=source_part,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+            if figure is not None:
+                blocks.append(figure.figure)
+                referenced_notes.update(figure.references)
+                paragraph_position = figure.next_position
+                continue
+
+        if convention.is_figure_caption_style(paragraph.style_id, paragraph.style_is_custom):
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="orphan_figure_caption_not_serializable",
+                    severity="error",
+                    message="legende de figure sans figure immediate precedente",
+                    paragraph_index=paragraph.index,
+                    style_id=paragraph.style_id,
+                    note_id=note_id,
+                )
+            )
+
         if _is_serializable_list_paragraph(paragraph, role.kind):
             list_blocks, next_position, list_references, sequence_numbering_ids = _build_list_sequence(
                 paragraphs,
                 paragraph_position,
                 convention=convention,
                 relationships=relationships,
+                media_by_path=media_by_path,
+                source_part=source_part,
                 diagnostics=diagnostics,
                 note_id=note_id,
                 interrupted_numbering_ids=interrupted_numbering_ids,
@@ -362,6 +418,280 @@ def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
     return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
 
 
+def _build_figure_if_supported(
+    paragraphs: tuple[ParagraphInfo, ...],
+    position: int,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    media_by_path: dict[str, MediaInfo],
+    source_part: str,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> _BuiltFigure | None:
+    paragraph = paragraphs[position]
+    graphic = _graphic_from_paragraph(
+        paragraph,
+        convention=convention,
+        relationships=relationships,
+        media_by_path=media_by_path,
+        source_part=source_part,
+        diagnostics=diagnostics,
+        note_id=note_id,
+    )
+    if graphic is None:
+        return None
+    caption: Paragraph | None = None
+    references: set[tuple[str, str]] = set()
+    next_position = position + 1
+    if next_position < len(paragraphs):
+        candidate = paragraphs[next_position]
+        if convention.is_figure_caption_style(candidate.style_id, candidate.style_is_custom):
+            caption_content, caption_references = _build_inline_content(
+                candidate,
+                convention=convention,
+                relationships=relationships,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+            references.update(caption_references)
+            if _has_active_numbering(candidate):
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="numbered_figure_caption_not_serializable",
+                        severity="error",
+                        message="legende de figure numerotee",
+                        paragraph_index=candidate.index,
+                        style_id=candidate.style_id,
+                        note_id=note_id,
+                    )
+                )
+            if candidate.drawing_count:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="image_in_figure_caption_not_serializable",
+                        severity="error",
+                        message="image presente dans une legende de figure",
+                        paragraph_index=candidate.index,
+                        style_id=candidate.style_id,
+                        note_id=note_id,
+                    )
+                )
+            if not caption_content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_figure_caption_not_serializable",
+                        severity="error",
+                        message="legende de figure vide",
+                        paragraph_index=candidate.index,
+                        style_id=candidate.style_id,
+                        note_id=note_id,
+                    )
+                )
+            caption = Paragraph(
+                content=caption_content,
+                source_paragraph_index=candidate.index,
+                source_style_id=candidate.style_id,
+                rendition="caption",
+            )
+            next_position += 1
+    return _BuiltFigure(
+        figure=EditorialFigure(
+            graphic=graphic,
+            caption=caption,
+            source_paragraph_index=paragraph.index,
+            source_style_id=paragraph.style_id,
+        ),
+        next_position=next_position,
+        references=references,
+    )
+
+
+def _graphic_from_paragraph(
+    paragraph: ParagraphInfo,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    media_by_path: dict[str, MediaInfo],
+    source_part: str,
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> EditorialGraphic | None:
+    drawings = _paragraph_drawings(paragraph)
+    if not drawings:
+        return None
+    if _has_active_numbering(paragraph):
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="numbered_figure_not_serializable",
+                severity="error",
+                message="image dans un paragraphe numerote",
+                paragraph_index=paragraph.index,
+                style_id=paragraph.style_id,
+                note_id=note_id,
+            )
+        )
+        return None
+    if not convention.is_figure_container_style(paragraph.style_id, paragraph.style_is_custom):
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="mixed_text_and_image_not_serializable",
+                severity="error",
+                message="image dans un style de paragraphe non admis comme conteneur de figure",
+                paragraph_index=paragraph.index,
+                style_id=paragraph.style_id,
+                note_id=note_id,
+            )
+        )
+        return None
+    if len(drawings) > 1:
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="multiple_images_in_paragraph_not_serializable",
+                severity="error",
+                message="plusieurs images dans un meme paragraphe",
+                paragraph_index=paragraph.index,
+                style_id=paragraph.style_id,
+                note_id=note_id,
+            )
+        )
+        return None
+    if _paragraph_has_non_image_inline(paragraph):
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="mixed_text_and_image_not_serializable",
+                severity="error",
+                message="texte ou inline non image melange a une image",
+                paragraph_index=paragraph.index,
+                style_id=paragraph.style_id,
+                note_id=note_id,
+            )
+        )
+        return None
+    drawing = drawings[0]
+    if drawing.placement == "anchor":
+        diagnostics.append(_figure_error("floating_image_not_serializable", "image flottante Word non serialisable", paragraph, note_id, drawing))
+        return None
+    if drawing.placement != "inline":
+        diagnostics.append(_figure_error("floating_image_not_serializable", "placement d'image Word inconnu", paragraph, note_id, drawing))
+        return None
+    if drawing.is_cropped:
+        diagnostics.append(_figure_error("cropped_image_not_serializable", "image recadree non serialisable", paragraph, note_id, drawing))
+        return None
+    if (drawing.rotation not in {None, 0}) or drawing.flip_horizontal or drawing.flip_vertical:
+        diagnostics.append(_figure_error("transformed_image_not_serializable", "image transformee non serialisable", paragraph, note_id, drawing))
+        return None
+    if drawing.linked_relationship_ids:
+        diagnostics.append(_figure_error("external_image_not_serializable", "image liee externement non serialisable", paragraph, note_id, drawing))
+        return None
+    if len(drawing.embedded_relationship_ids) != 1:
+        diagnostics.append(_figure_error("multiple_image_sources_not_serializable", "source d'image incorporee absente ou multiple", paragraph, note_id, drawing))
+        return None
+    relationship_id = drawing.embedded_relationship_ids[0]
+    relationship = relationships.get(relationship_id)
+    if relationship is None:
+        diagnostics.append(_figure_error("missing_image_relationship", f"relation d'image absente : {relationship_id}", paragraph, note_id, drawing))
+        return None
+    media_path = resolve_internal_media_target(source_part, relationship)
+    if relationship.target_mode == "External":
+        diagnostics.append(_figure_error("external_image_not_serializable", f"relation d'image externe : {relationship_id}", paragraph, note_id, drawing))
+        return None
+    if relationship.relationship_type != IMAGE_RELATIONSHIP_TYPE:
+        diagnostics.append(_figure_error("unsupported_image_relationship", f"relation d'image de type non pris en charge : {relationship.relationship_type}", paragraph, note_id, drawing))
+        return None
+    if media_path is None:
+        diagnostics.append(_figure_error("unsafe_image_target", f"cible d'image dangereuse : {relationship.target}", paragraph, note_id, drawing))
+        return None
+    media = media_by_path.get(media_path)
+    if media is None:
+        diagnostics.append(_figure_error("missing_image_media_part", f"media d'image absent : {media_path}", paragraph, note_id, drawing))
+        return None
+    content_type = media.content_type
+    if content_type not in {"image/png", "image/jpeg"}:
+        diagnostics.append(_figure_error("unsupported_image_format", f"format image non pris en charge : {content_type or 'absent'}", paragraph, note_id, drawing))
+        return None
+    if media.detected_content_type != content_type:
+        diagnostics.append(_figure_error("image_content_type_mismatch", f"signature image incoherente pour {media_path}", paragraph, note_id, drawing))
+        return None
+    if not media.sha256:
+        diagnostics.append(_figure_error("unreadable_image_media", f"empreinte image indisponible : {media_path}", paragraph, note_id, drawing))
+        return None
+    if not drawing.description:
+        diagnostics.append(_figure_error("missing_figure_description", "description alternative Word absente", paragraph, note_id, drawing))
+        return None
+    extension = ".png" if content_type == "image/png" else ".jpg"
+    return EditorialGraphic(
+        source_part=source_part,
+        source_relationship_id=relationship_id,
+        source_media_path=media_path,
+        media_url=f"media/{media.sha256}{extension}",
+        content_type=content_type,  # type: ignore[arg-type]
+        sha256=media.sha256,
+        description=drawing.description,
+        width_emu=drawing.width_emu,
+        height_emu=drawing.height_emu,
+        source_name=drawing.name,
+        source_title=drawing.title,
+    )
+
+
+def resolve_internal_media_target(source_part: str, relationship: RelationshipInfo) -> str | None:
+    """Résoudre une cible média interne en chemin ZIP canonique sûr."""
+    target = relationship.target
+    if target.startswith("/") or "\\" in target:
+        return None
+    base = posixpath.dirname(source_part)
+    resolved = posixpath.normpath(posixpath.join(base, target))
+    if resolved.startswith("../") or "/../" in resolved or resolved == "..":
+        return None
+    if not resolved.startswith("word/media/"):
+        return None
+    return resolved
+
+
+def _paragraph_drawings(paragraph: ParagraphInfo) -> tuple[DrawingInfo, ...]:
+    return tuple(
+        item.drawing
+        for run in paragraph.runs
+        for item in run.contents
+        if item.kind == "drawing" and item.drawing is not None
+    )
+
+
+def _paragraph_has_non_image_inline(paragraph: ParagraphInfo) -> bool:
+    for run in paragraph.runs:
+        for item in run.contents:
+            if item.kind == "drawing":
+                continue
+            if item.kind == "text" and (item.text or "").strip() == "":
+                continue
+            return True
+    return False
+
+
+def _figure_error(
+    code: str,
+    message: str,
+    paragraph: ParagraphInfo,
+    note_id: str | None,
+    drawing: DrawingInfo,
+) -> EditorialDiagnostic:
+    relationship = (
+        drawing.embedded_relationship_ids[0]
+        if drawing.embedded_relationship_ids
+        else (drawing.linked_relationship_ids[0] if drawing.linked_relationship_ids else "absente")
+    )
+    name = f", nom={drawing.name}" if drawing.name else ""
+    return EditorialDiagnostic(
+        code=code,
+        severity="error",
+        message=f"{message} (relation={relationship}{name})",
+        paragraph_index=paragraph.index,
+        style_id=paragraph.style_id,
+        note_id=note_id,
+    )
+
+
 def _paragraph_role(paragraph: ParagraphInfo, convention: WordEditorialConvention) -> ParagraphRole:
     """Centraliser les informations de style necessaires a la convention."""
     return convention.paragraph_role(
@@ -463,6 +793,8 @@ def _build_list_sequence(
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
+    media_by_path: dict[str, MediaInfo],
+    source_part: str,
     diagnostics: list[EditorialDiagnostic],
     note_id: str | None,
     interrupted_numbering_ids: _NumberingInterruptions,
@@ -519,6 +851,17 @@ def _build_list_sequence(
             break
         numbering = paragraph.numbering
         assert numbering is not None and numbering.level is not None
+        if paragraph.drawing_count:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="image_in_list_item_not_serializable",
+                    severity="error",
+                    message="image presente dans un item de liste",
+                    paragraph_index=paragraph.index,
+                    style_id=paragraph.style_id,
+                    note_id=note_id,
+                )
+            )
         level = numbering.level
         active_numbering_ids = {builder.numbering_id for builder in active.values()}
         closed_level = (numbering.numbering_id, level)
@@ -745,6 +1088,17 @@ def _handle_list_continuations(
 
     target_item = previous_builder.items[-1]
     for candidate in candidates:
+        if candidate.drawing_count:
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="image_in_list_item_not_serializable",
+                    severity="error",
+                    message="image presente dans une continuation d'item de liste",
+                    paragraph_index=candidate.index,
+                    style_id=candidate.style_id,
+                    note_id=note_id,
+                )
+            )
         content, continuation_references = _build_inline_content(
             candidate,
             convention=convention,
@@ -1029,6 +1383,8 @@ def _diagnose_paragraph_style(
     style_id = paragraph.style_id
     role = _paragraph_role(paragraph, convention)
     if role.kind == "paragraph" and role.paragraph_rendition is not None:
+        return
+    if convention.is_figure_caption_style(style_id, paragraph.style_is_custom):
         return
     if style_id is None or style_id in convention.paragraph_style_ids:
         return

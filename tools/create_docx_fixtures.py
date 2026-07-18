@@ -30,6 +30,21 @@ CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8"?>
 </Types>
 """
 
+FIGURE_CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Default Extension="gif" ContentType="image/gif"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
+</Types>
+"""
+
 RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/notice" TargetMode="External"/>
@@ -530,6 +545,123 @@ CONSECUTIVE_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:endnotes>
 """
 
+FIGURE_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+    b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+FIGURE_JPEG = (
+    b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00"
+    b"\xff\xdb\x00C\x00" + bytes([8] * 64) +
+    b"\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00"
+    b"\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    b"\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xd2\xcf \xff\xd9"
+)
+UNUSED_GIF = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+
+
+def figure_paragraph(
+    relationship_id: str,
+    description: str,
+    *,
+    doc_property_id: int,
+    name: str,
+    style: str = "Normal",
+) -> str:
+    return f"""<w:p>
+      <w:pPr><w:pStyle w:val="{style}"/></w:pPr>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:extent cx="914400" cy="914400"/>
+            <wp:docPr id="{doc_property_id}" name="{name}" descr="{description}" title="Titre Word ignore"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:pic>
+                  <pic:blipFill><a:blip r:embed="{relationship_id}"/></pic:blipFill>
+                  <pic:spPr><a:xfrm/></pic:spPr>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>"""
+
+
+FIGURE_STYLES = TEI_CONVERSION_STYLES.replace(
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+    '  <w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="Légende"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+).replace(
+    '  <w:style w:type="character" w:styleId="UnknownCharacter">',
+    '  <w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Lien hypertexte"/></w:style>\n'
+    '  <w:style w:type="character" w:styleId="UnknownCharacter">',
+)
+
+FIGURE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/figure-caption" TargetMode="External"/>
+  <Relationship Id="rIdPng" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.png"/>
+  <Relationship Id="rIdJpeg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo.jpeg"/>
+</Relationships>
+"""
+
+FIGURE_FOOTNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNotePng" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.png"/>
+</Relationships>
+"""
+
+FIGURE_ENDNOTE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEndJpeg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo.jpeg"/>
+</Relationships>
+"""
+
+FIGURE_DOCUMENT = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Figures simples</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Images Word autonomes</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Avant les figures.</w:t></w:r><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteReference w:id="2"/></w:r></w:p>
+    {figure_paragraph("rIdPng", "Description accessible du carré PNG.", doc_property_id=1, name="Picture PNG")}
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Légende avec </w:t></w:r><w:r><w:rPr><w:b/><w:i/></w:rPr><w:t>marques</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r></w:p>
+    {figure_paragraph("rIdJpeg", "Description accessible du JPEG.", doc_property_id=2, name="Picture JPEG")}
+    {figure_paragraph("rIdPng", "Description accessible du PNG réutilisé.", doc_property_id=3, name="Picture PNG reprise")}
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Section de figures</w:t></w:r></w:p>
+    {figure_paragraph("rIdPng", "Description accessible après titre.", doc_property_id=4, name="Picture Section")}
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+FIGURE_FOOTNOTES = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:r><w:t>Note appelée par la légende.</w:t></w:r></w:p>{figure_paragraph("rIdNotePng", "Description accessible en note.", doc_property_id=5, name="Picture Note", style="FootnoteText")}<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Légende de note.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+FIGURE_ENDNOTES = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="2">{figure_paragraph("rIdEndJpeg", "Description accessible en note de fin.", doc_property_id=6, name="Picture End", style="EndnoteText")}</w:endnote>
+</w:endnotes>
+"""
+
 
 def write_package(path: Path, files: dict[str, bytes | str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -636,6 +768,22 @@ def consecutive_parts() -> dict[str, bytes | str]:
     }
 
 
+def figure_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": FIGURE_CONTENT_TYPES,
+        "word/document.xml": FIGURE_DOCUMENT,
+        "word/styles.xml": FIGURE_STYLES,
+        "word/footnotes.xml": FIGURE_FOOTNOTES,
+        "word/endnotes.xml": FIGURE_ENDNOTES,
+        "word/_rels/document.xml.rels": FIGURE_RELATIONSHIPS,
+        "word/_rels/footnotes.xml.rels": FIGURE_FOOTNOTE_RELATIONSHIPS,
+        "word/_rels/endnotes.xml.rels": FIGURE_ENDNOTE_RELATIONSHIPS,
+        "word/media/figure.png": FIGURE_PNG,
+        "word/media/photo.jpeg": FIGURE_JPEG,
+        "word/media/unused.gif": UNUSED_GIF,
+    }
+
+
 def write_list_tei_metadata() -> None:
     """Ecrire la fixture associee avec le serialiseur officiel de metadonnees."""
     from mini_metopes.metadata import (
@@ -738,6 +886,40 @@ def write_consecutive_metadata() -> None:
     )
 
 
+def write_figure_metadata() -> None:
+    """Ecrire les metadonnees associees a la fixture de figures."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION,
+        Contributor,
+        DocumentMetadata,
+        MetadataSource,
+        compute_file_sha256,
+        metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-figures.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="fr",
+        title="Figures simples",
+        subtitle="Images Word autonomes",
+        contributors=(
+            Contributor(
+                contributor_id="person-1",
+                role="author",
+                given_name="Claire",
+                family_name="Exemple",
+            ),
+        ),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-figures.metadata.json").write_text(
+        metadata_to_json(metadata), encoding="utf-8"
+    )
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -754,6 +936,8 @@ def main() -> None:
     write_list_continuation_metadata()
     write_package(FIXTURES / "native-consecutive-paragraphs.docx", consecutive_parts())
     write_consecutive_metadata()
+    write_package(FIXTURES / "native-figures.docx", figure_parts())
+    write_figure_metadata()
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

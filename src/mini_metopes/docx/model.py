@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -15,6 +15,27 @@ RunContentKind = Literal[
     "endnote_reference",
     "drawing",
 ]
+DrawingPlacement = Literal["inline", "anchor", "unknown"]
+
+
+@dataclass(frozen=True)
+class DrawingInfo:
+    """Observation structurée d'un dessin DrawingML dans un run Word."""
+
+    placement: DrawingPlacement
+    embedded_relationship_ids: tuple[str, ...]
+    linked_relationship_ids: tuple[str, ...]
+    doc_property_id: str | None
+    name: str | None
+    title: str | None
+    description: str | None
+    width_emu: int | None
+    height_emu: int | None
+    is_cropped: bool
+    rotation: int | None
+    flip_horizontal: bool
+    flip_vertical: bool
+    has_vml_fallback: bool = False
 
 
 @dataclass(frozen=True)
@@ -26,6 +47,7 @@ class RunContentInfo:
     break_type: str | None = None
     reference_id: str | None = None
     relationship_ids: tuple[str, ...] = ()
+    drawing: DrawingInfo | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -214,6 +236,8 @@ class MediaInfo:
     compressed_size: int
     uncompressed_size: int
     content_type: str | None
+    sha256: str | None = None
+    detected_content_type: str | None = None
 
 
 @dataclass(frozen=True)

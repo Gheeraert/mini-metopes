@@ -98,3 +98,11 @@ Le style intégré `ListParagraph` peut prolonger un item lorsque le paragraphe
 numéroté suivant reprend exactement la même liste ; ces continuations deviennent
 des paragraphes enfants de `<item>`. Les paragraphes `Normal` et les cas
 ambigus restent des interruptions conservatoires.
+
+Les images Word simples sont prises en charge lorsqu'elles sont autonomes,
+incorporees en DrawingML `wp:inline`, decrites par `wp:docPr/@descr`, et au
+format PNG ou JPEG. Elles deviennent des figures TEI avec `graphic`, `figDesc`
+et eventuellement une legende `Caption` rendue par `<p rend="caption">`. Les
+fichiers medias utilises sont extraits dans un repertoire `media/` a cote du
+XML avec un nom fonde sur leur SHA-256. Les images flottantes, VML, liees,
+transformees, melangees a du texte ou placees dans des listes restent refusees.
