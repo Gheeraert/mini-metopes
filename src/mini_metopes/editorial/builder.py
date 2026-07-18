@@ -440,6 +440,8 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
                 if _paragraph_role(next_paragraph, convention).kind != "prose_quote":
                     break
                 next_content, next_references = _build_inline_content(
@@ -477,6 +479,8 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
                 if _paragraph_role(next_paragraph, convention).kind != "verse_quote":
                     break
                 next_content, next_references = _build_inline_content(
