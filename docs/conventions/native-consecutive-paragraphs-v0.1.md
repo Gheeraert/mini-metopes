@@ -7,7 +7,10 @@ précédent et sans alinéa de première ligne dans une future sortie papier.
 Mini-Métopes reconnaît d'abord l'identifiant OOXML `BodyText`. Il accepte aussi
 les noms intégrés exacts `Corps de texte` et `Body Text`, car le nom visible
 peut varier selon la langue de Word. La comparaison est exacte après
-normalisation des espaces et de la casse.
+normalisation des espaces et de la casse. Les identifiants de variantes
+connues `BodyText2` et `BodyText3` sont exclus avant ce repli par nom : les
+renommer visiblement en `Corps de texte` ou `Body Text` ne leur donne pas la
+sémantique de paragraphe de suite.
 
 Ne sont pas reconnus dans cette version :
 

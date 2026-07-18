@@ -26,6 +26,9 @@ La reconnaissance principale repose sur l'identifiant OOXML stable `BodyText`.
 Un repli exact par nom est accepté pour les noms intégrés `Corps de texte` et
 `Body Text`, après normalisation de la casse et des espaces. Ce repli est
 refusé pour tout style explicitement personnalisé par `w:customStyle="1"`.
+Il est également refusé pour les identifiants de variantes intégrées connues
+`BodyText2` et `BodyText3`, même si leur nom visible a été renommé exactement
+`Corps de texte` ou `Body Text`.
 
 Les styles `Corps de texte 2`, `Corps de texte 3`, `Retrait corps de texte`,
 les styles locaux ressemblants et le style Métopes `TEI_paragraph_consecutive`

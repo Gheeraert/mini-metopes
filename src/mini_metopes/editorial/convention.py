@@ -33,6 +33,7 @@ class WordEditorialConvention:
     prose_quote_style_ids: frozenset[str]
     verse_quote_style_ids: frozenset[str]
     consecutive_paragraph_style_ids: frozenset[str] = frozenset()
+    excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_names: frozenset[str] = frozenset()
 
     def paragraph_role(
@@ -71,6 +72,8 @@ class WordEditorialConvention:
     ) -> bool:
         """Reconnaître uniquement le style Word integre BodyText non personnalise."""
         if style_is_custom is True:
+            return False
+        if style_id in self.excluded_consecutive_paragraph_style_ids:
             return False
         if style_id in self.consecutive_paragraph_style_ids:
             return True
@@ -112,6 +115,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     prose_quote_style_ids=frozenset({"Quote"}),
     verse_quote_style_ids=frozenset({"IntenseQuote"}),
     consecutive_paragraph_style_ids=frozenset({"BodyText"}),
+    excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
     consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
 )
 

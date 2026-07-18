@@ -99,6 +99,10 @@ def test_convention_recognizes_only_integrated_body_text_semantics() -> None:
 
     assert convention.paragraph_role("CustomBodyText", None, style_name="Corps de texte", style_is_custom=True).kind == "unsupported"
     assert convention.paragraph_role("BodyText", None, style_name="Corps de texte", style_is_custom=True).kind == "unsupported"
+    assert convention.paragraph_role("BodyText2", None, style_name="Corps de texte", style_is_custom=False).kind == "unsupported"
+    assert convention.paragraph_role("BodyText2", None, style_name="Body Text", style_is_custom=False).kind == "unsupported"
+    assert convention.paragraph_role("BodyText3", None, style_name="Corps de texte", style_is_custom=False).kind == "unsupported"
+    assert convention.paragraph_role("BodyText3", None, style_name="Body Text", style_is_custom=False).kind == "unsupported"
     assert convention.paragraph_role("BodyText2", None, style_name="Corps de texte 2", style_is_custom=False).kind == "unsupported"
     assert convention.paragraph_role("BodyText3", None, style_name="Corps de texte 3", style_is_custom=False).kind == "unsupported"
     for name in ("Corps de texte 2", "Corps  de texte 2", "Corps de textes", "Retrait corps de texte", "Mon Corps de texte"):
@@ -178,6 +182,30 @@ def test_unsupported_body_text_variants_refuse_conversion_and_preserve_output(tm
         assert result.xml_bytes is None
         assert "unsupported_paragraph_style" in [diagnostic.code for diagnostic in result.diagnostics]
         assert destination.read_text(encoding="utf-8") == "ancienne sortie"
+
+
+def test_excluded_body_text_variants_ignore_exact_name_fallback(tmp_path: Path) -> None:
+    for style_id, name in (
+        ("BodyText2", "Corps de texte"),
+        ("BodyText2", "Body Text"),
+        ("BodyText3", "Corps de texte"),
+        ("BodyText3", "Body Text"),
+    ):
+        path = _runtime_docx_for_style(style_id, name)
+        missing_destination = tmp_path / f"{style_id}-{name.replace(' ', '-')}-missing.xml"
+        preserved_destination = tmp_path / f"{style_id}-{name.replace(' ', '-')}-preserved.xml"
+        preserved_destination.write_text("ancienne sortie", encoding="utf-8")
+
+        result = convert_docx_to_tei(path, metadata=_metadata())
+        missing_code = main(["convert-docx", str(path), str(missing_destination), "--metadata", str(METADATA)])
+        preserved_code = main(["convert-docx", str(path), str(preserved_destination), "--metadata", str(METADATA)])
+
+        assert result.xml_bytes is None
+        assert "unsupported_paragraph_style" in [diagnostic.code for diagnostic in result.diagnostics]
+        assert missing_code == 1
+        assert preserved_code == 1
+        assert not missing_destination.exists()
+        assert preserved_destination.read_text(encoding="utf-8") == "ancienne sortie"
 
 
 def test_unknown_manual_paragraph_rendition_is_rejected() -> None:

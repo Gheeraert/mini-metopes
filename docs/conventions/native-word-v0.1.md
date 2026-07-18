@@ -16,8 +16,10 @@ ordinaire. Le style Word integre **Corps de texte** (`BodyText`) produit un
 paragraphe de suite, conserve dans le modele par
 `rendition="consecutive"`. Mini-Metopes accepte aussi les noms integres exacts
 `Corps de texte` et `Body Text` lorsqu'ils ne sont pas declares comme styles
-personnalises. Les variantes `Corps de texte 2`, `Corps de texte 3`, `Retrait
-corps de texte` et les homonymes personnalises ne sont pas reconnus.
+personnalises. Les identifiants de variantes connues `BodyText2` et
+`BodyText3` sont exclus avant ce repli par nom. Les variantes `Corps de texte
+2`, `Corps de texte 3`, `Retrait corps de texte` et les homonymes
+personnalises ne sont pas reconnus.
 
 Un autre style conserve toujours son texte. S'il ne porte pas de niveau de plan
 exploitable, Mini-Metopes le signale pour permettre une decision editoriale
