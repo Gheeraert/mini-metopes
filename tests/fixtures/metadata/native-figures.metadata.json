@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "source_document": {
     "path": "native-figures.docx",
     "sha256": "6af49a67c4f20f446a8ffe95e3541bd6a16e04beba199d8ac496b306e8d0b6b6"

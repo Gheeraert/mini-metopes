@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "source_document": {
     "path": "native-consecutive-paragraphs.docx",
     "sha256": "8dc16b1d451989349850e013ce357e6c13e9bbf0401eaca4cc7df0126c3f2796"

@@ -121,3 +121,21 @@ def test_normalizations_are_explicit_and_local() -> None:
     assert normalize_issn("0000-0019") == "0000-0019"
     assert normalize_issn("00000019") == "0000-0019"
     assert normalize_issn("0000-0018") is None
+
+
+@pytest.mark.parametrize(("date", "valid"), [
+    ("2026", True),
+    ("2026-03", True),
+    ("2026-03-15", True),
+    ("2026-02-31", False),
+    ("2026-13", False),
+    ("2025-02-29", False),
+    ("2024-02-29", True),
+    ("2026-3", False),
+    ("26", False),
+])
+def test_publication_dates_must_be_calendar_possible(metadata, date: str, valid: bool) -> None:
+    changed = replace(metadata, publication=Publication(publication_date=date))
+    codes = [issue.code for issue in validate_metadata(changed).issues]
+
+    assert ("invalid_publication_date" not in codes) is valid

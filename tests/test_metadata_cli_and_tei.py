@@ -123,7 +123,7 @@ def test_cli_reports_missing_docx_before_missing_metadata(tmp_path: Path, capsys
 
 def test_cli_handles_badly_typed_metadata_without_traceback(tmp_path: Path, capsys) -> None:
     invalid = tmp_path / "bad.metadata.json"
-    invalid.write_text('{"schema_version":"2.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
+    invalid.write_text('{"schema_version":"1.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
     output = tmp_path / "output.xml"
 
     assert main(["validate-metadata", str(invalid)]) == 1

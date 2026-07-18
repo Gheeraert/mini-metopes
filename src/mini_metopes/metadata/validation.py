@@ -231,7 +231,7 @@ def _validate_publication(publication: Publication, issues: list[MetadataIssue])
     for index, line in enumerate(publisher.address):
         if not line.strip():
             issues.append(_error("invalid_publisher_address", "ligne d'adresse vide", f"publication.publisher.address[{index}]"))
-    if publication.publication_date is not None and not _DATE_RE.fullmatch(publication.publication_date):
+    if publication.publication_date is not None and not _is_valid_partial_date(publication.publication_date):
         issues.append(_error("invalid_publication_date", "date attendue : AAAA, AAAA-MM ou AAAA-MM-JJ", "publication.publication_date"))
 
 
@@ -339,6 +339,21 @@ def _validate_language(value: str, path: str, issues: list[MetadataIssue], *, re
         return
     if not _LANGUAGE_RE.fullmatch(value):
         issues.append(_error("invalid_language", "langue BCP 47 invalide", path))
+
+
+def _is_valid_partial_date(value: str) -> bool:
+    """Accepter AAAA, AAAA-MM ou AAAA-MM-JJ calendairement possibles."""
+    if not _DATE_RE.fullmatch(value):
+        return False
+    parts = value.split("-")
+    if len(parts) == 3:
+        import datetime
+
+        try:
+            datetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+        except ValueError:
+            return False
+    return True
 
 
 def _validate_http_url(value: str, code: str, path: str, issues: list[MetadataIssue]) -> None:

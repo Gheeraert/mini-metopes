@@ -1,4 +1,4 @@
-"""Lecture, ecriture atomique et JSON deterministe des metadonnees (v2)."""
+"""Lecture, ecriture atomique et JSON deterministe des metadonnees."""
 
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from mini_metopes.metadata import load_metadata_file, metadata_from_json, metada
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "metadata"
-VALID = ("minimal-v0.1.json", "complete-purh-v0.2.json", "multilingual-v0.2.json")
+VALID = ("minimal.json", "complete-purh.json", "multilingual.json")
 
 
 @pytest.mark.parametrize("name", VALID)
@@ -24,7 +24,7 @@ def test_valid_fixtures_load_and_round_trip_byte_identical(name: str) -> None:
 
 
 def test_complete_purh_fixture_covers_all_groups() -> None:
-    metadata = load_metadata_file(FIXTURES / "complete-purh-v0.2.json").metadata
+    metadata = load_metadata_file(FIXTURES / "complete-purh.json").metadata
     assert metadata is not None
     assert metadata.language == "fr-FR"
     assert [item.role for item in metadata.contributors] == ["author", "translator"]
@@ -39,7 +39,7 @@ def test_complete_purh_fixture_covers_all_groups() -> None:
 
 
 def test_multilingual_fixture_preserves_unicode_and_order() -> None:
-    metadata = load_metadata_file(FIXTURES / "multilingual-v0.2.json").metadata
+    metadata = load_metadata_file(FIXTURES / "multilingual.json").metadata
     assert metadata is not None
     assert metadata.title.startswith("Οἰδίπους")
     assert [item.language for item in metadata.abstracts] == ["fr", "en", "grc"]

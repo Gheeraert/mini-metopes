@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "source_document": {
     "path": "source.docx",
     "sha256": "a50f07645064490b91f993a9ee7881cfc65925615411784a48ec72b695c8ffdb"

@@ -382,7 +382,7 @@ def build_document_b() -> None:
 
 
 def write_rich_purh_metadata(directory: Path) -> None:
-    """Metadonnees completes PURH pour le document B, relues comme reference."""
+    """Metadonnees completes PURH du document B (relecture humaine attendue)."""
     from mini_metopes.metadata import (
         METADATA_SCHEMA_VERSION,
         Abstract,

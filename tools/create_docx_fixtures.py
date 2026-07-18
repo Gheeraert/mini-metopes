@@ -1129,7 +1129,7 @@ def write_contract_metadata_fixtures() -> None:
         source=SourceDocument(path="document.docx", sha256=sha),
         document_type="chapter", language="fr", title="Titre minimal",
     )
-    (METADATA_FIXTURES / "minimal-v0.1.json").write_text(metadata_to_json(minimal), encoding="utf-8")
+    (METADATA_FIXTURES / "minimal.json").write_text(metadata_to_json(minimal), encoding="utf-8")
 
     complete = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
@@ -1172,7 +1172,7 @@ def write_contract_metadata_fixtures() -> None:
         collection=Collection(title="Cours de littérature", issn="0000-0019", volume="7"),
         pagination=Pagination(page_from=125, page_to=148),
     )
-    (METADATA_FIXTURES / "complete-purh-v0.2.json").write_text(metadata_to_json(complete), encoding="utf-8")
+    (METADATA_FIXTURES / "complete-purh.json").write_text(metadata_to_json(complete), encoding="utf-8")
 
     multilingual = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
@@ -1190,7 +1190,7 @@ def write_contract_metadata_fixtures() -> None:
             KeywordGroup("grc", ("τραγῳδία", "Οἰδίπους")),
         ),
     )
-    (METADATA_FIXTURES / "multilingual-v0.2.json").write_text(metadata_to_json(multilingual), encoding="utf-8")
+    (METADATA_FIXTURES / "multilingual.json").write_text(metadata_to_json(multilingual), encoding="utf-8")
 
     def invalid(name: str, mutate: str) -> None:
         import json as json_module

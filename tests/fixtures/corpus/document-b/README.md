@@ -16,11 +16,21 @@ Contenu :
 - hyperlien externe → `ref target="…"` ;
 - deux notes de bas de page → `note place="foot"`.
 
-Depuis la passe métadonnées v2, ce document porte des **métadonnées PURH
-complètes** (éditeur, date, DOI, ISBN par support, ISSN, licence CC, résumés
-français/anglais, quatrième de couverture, mots-clés bilingues, collection,
-pagination, responsable d'édition) sérialisées dans le `teiHeader` et le
-`front`.
+Depuis la passe 3 (métadonnées), ce document porte des **métadonnées PURH
+complètes**. Sont sérialisés dans le `teiHeader` et le `front` : éditeur (nom
+et URL), date, DOI, ISBN print et PDF, ISSN, licence CC, détenteur et mention
+de droits, résumés français/anglais, quatrième de couverture, mots-clés
+bilingues, collection (titre, ISSN, volume) et pagination.
+
+Restent **uniquement dans le JSON**, avec diagnostics explicites : le
+responsable d'édition (le profil embarqué n'admet ni `editionStmt` ni
+`respStmt`), le lieu et l'adresse de l'éditeur (pas de `pubPlace`/`address`),
+et le support précis de l'ISBN électronique (sérialisé `eISBN` sans
+distinction pdf/epub/html).
 
 Conversion attendue : succès ; deux diagnostics informatifs documentés
 (`publisher_address_not_serialized`, `editorial_responsibility_not_serialized`).
+
+Le fichier `expected.xml` est généré puis validé contre le RNG embarqué ; il
+doit encore faire l'objet d'une validation éditoriale humaine avant d'être
+considéré comme référence définitive.

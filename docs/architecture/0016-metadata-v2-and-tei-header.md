@@ -1,4 +1,4 @@
-# 0016 — Métadonnées v2 et teiHeader Commons Publishing
+# 0016 — Métadonnées enrichies et teiHeader Commons Publishing
 
 ## Contexte
 
@@ -7,17 +7,19 @@ plats) ne suffisait pas aux publications des PURH : éditeur, responsables
 d'édition, identifiants par support, licence, résumés multilingues,
 quatrième de couverture, collection simple, pagination. La passe 3 étend le
 JSON compagnon et sa sérialisation dans le `teiHeader`, sans compatibilité
-ascendante (choix assumé, `schema_version` passe à `2.0`).
+ascendante avec le prototype (choix assumé). Aucun JSON de production
+antérieur n'existant, le contrat enrichi constitue la première version stable
+`schema_version: "1.0"`.
 
 ## Décisions
 
-- **Modèle v2** (`metadata/model.py`) : groupes `source_document` (chemin
+- **Modèle enrichi** (`metadata/model.py`) : groupes `source_document` (chemin
   relatif au JSON + SHA-256, jamais de base64), `document`, `contributors`
   (rôles `author`, `editor`, `translator`, `scientific_editor`, `other` +
   libellé), `affiliations`, `editorial_responsibility`, `publication`,
   `identifiers`, `rights`, `abstracts`, `keywords` (groupes linguistiques),
   `collection` simple, `pagination`. Spécification et table JSON → TEI :
-  `docs/conventions/metadata-json-v2.md`.
+  `docs/conventions/metadata-json-v1.md`.
 - **Toutes les cibles TEI ont été vérifiées contre le RNG embarqué** avant
   d'être figées. Le profil n'admet ni `editionStmt`/`respStmt`, ni `abstract`
   dans `profileDesc`, ni `seriesStmt`, `extent`, `pubPlace`, `address` ;
@@ -43,9 +45,11 @@ ascendante (choix assumé, `schema_version` passe à `2.0`).
 ## Conséquences
 
 - Le corpus `document-b` porte des métadonnées PURH complètes de bout en
-  bout, validées RNG et relues.
-- Les anciens JSON v1 sont rejetés explicitement ; les fixtures et les
-  générateurs ont été régénérés.
+  bout, validées contre le RNG embarqué ; la relecture éditoriale humaine des
+  `expected.xml` reste à faire avant de les considérer comme références
+  définitives.
+- Les JSON du prototype antérieur sont rejetés explicitement ; les fixtures
+  et les générateurs ont été régénérés.
 
 ## Décisions restant à valider humainement
 

@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "source_document": {
     "path": "native-list-continuations.docx",
     "sha256": "eea84e57744109c4b61ac4981a0d8a81b519ef37995300e72f0da5e02cd08842"

@@ -1,4 +1,4 @@
-"""Modele immuable des metadonnees associees a un DOCX (schema JSON v2)."""
+"""Modele immuable des metadonnees associees a un DOCX (schema JSON 1.0)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-METADATA_SCHEMA_VERSION = "2.0"
+METADATA_SCHEMA_VERSION = "1.0"
 
 ContributorRole = Literal["author", "editor", "translator", "scientific_editor", "other"]
 DocumentType = Literal["article", "chapter", "introduction", "conclusion", "bibliography", "other"]
