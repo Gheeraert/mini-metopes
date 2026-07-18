@@ -114,8 +114,17 @@ le meme `ilvl` et la meme signature. Aucun repli par nom localise n'est applique
 a cette regle, et un `ListParagraph` personnalise n'est pas reconnu comme
 continuation.
 
-Les metadonnees avancees, tableaux, figures editoriales et bibliographies
-restent hors de cette version. La conversion TEI bloque les listes ambiguës ou
-non resolues, tableaux, zones de texte et styles inconnus afin d'eviter une TEI
-incomplete ou trompeuse. Les styles Metopes ou locaux ne sont pas assimiles
-automatiquement a cette convention native.
+Les metadonnees avancees, tableaux, figures complexes et bibliographies restent
+hors de cette version. La conversion TEI bloque les listes ambigues ou non
+resolues, tableaux, zones de texte, figures non autonomes et styles inconnus
+afin d'eviter une TEI incomplete ou trompeuse. Les styles Metopes ou locaux ne
+sont pas assimiles automatiquement a cette convention native.
+
+## Figures simples
+
+Les images Word simples sont reconnues uniquement par leur structure OOXML : un
+dessin DrawingML `wp:inline` autonome dans un paragraphe sans style, `Normal`,
+`FootnoteText` ou `EndnoteText`. La legende eventuelle utilise l'identifiant
+integre exact `Caption`. Aucun repli par nom localise n'est applique. Les styles
+personnalises, images flottantes, VML, images liees, transformees ou placees
+dans des listes restent refuses.

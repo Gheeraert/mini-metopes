@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import os
 import tempfile
@@ -14,6 +15,8 @@ from mini_metopes.editorial import (
     DrawingReference,
     EditorialBlock,
     EditorialDocument,
+    EditorialFigure,
+    EditorialGraphic,
     EditorialInline,
     EditorialList,
     EditorialListItem,
@@ -32,7 +35,7 @@ from mini_metopes.editorial import (
 from mini_metopes.validation import validate_xml_tree
 from mini_metopes.metadata import DocumentMetadata, normalize_orcid
 
-from .model import TeiConversionDiagnostic, TeiConversionResult
+from .model import TeiAsset, TeiConversionDiagnostic, TeiConversionResult, TeiWriteResult
 
 
 TEI_NS = "http://www.tei-c.org/ns/1.0"
@@ -118,11 +121,12 @@ def serialize_editorial_document_to_tei(
     return TeiConversionResult(xml_bytes, tuple(state.diagnostics), ())
 
 
-def write_tei_conversion_result(result: TeiConversionResult, output_path: Path) -> None:
+def write_tei_conversion_result(result: TeiConversionResult, output_path: Path) -> TeiWriteResult:
     """Ecrire atomiquement une conversion valide sans ecraser de cible en cas d'echec."""
     if not result.is_successful or result.xml_bytes is None:
         raise ValueError("une conversion TEI invalide ne peut pas etre ecrite")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    written, reused = _write_assets(result.assets, output_path)
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -138,6 +142,115 @@ def write_tei_conversion_result(result: TeiConversionResult, output_path: Path) 
             except OSError:
                 pass
         raise
+    return TeiWriteResult(
+        media_written=written,
+        media_reused=reused,
+        media_directory=str(output_path.parent / "media") if result.assets else None,
+    )
+
+
+def _write_assets(assets: tuple[TeiAsset, ...], output_path: Path) -> tuple[int, int]:
+    if not assets:
+        return 0, 0
+    preflight = _preflight_assets(assets, output_path)
+    media_directory = output_path.parent / "media"
+    media_directory.mkdir(parents=True, exist_ok=True)
+    written = 0
+    reused = 0
+    for asset, destination, exists in preflight:
+        if exists:
+            reused += 1
+            continue
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=destination.parent, prefix=f".{destination.name}.", delete=False
+            ) as temporary:
+                temporary.write(asset.data)
+                temporary_path = Path(temporary.name)
+            if _file_sha256(temporary_path) != asset.sha256:
+                raise ValueError(f"image_media_changed_during_conversion: {asset.relative_path}")
+            os.replace(temporary_path, destination)
+            written += 1
+        except (OSError, ValueError):
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
+    return written, reused
+
+
+def _preflight_assets(assets: tuple[TeiAsset, ...], output_path: Path) -> tuple[tuple[TeiAsset, Path, bool], ...]:
+    seen: dict[str, TeiAsset] = {}
+    planned: list[tuple[TeiAsset, Path, bool]] = []
+    for asset in assets:
+        previous = seen.get(asset.relative_path)
+        if previous is not None and (
+            previous.sha256 != asset.sha256
+            or previous.content_type != asset.content_type
+            or previous.data != asset.data
+        ):
+            raise ValueError(f"duplicate_figure_asset_conflict: {asset.relative_path}")
+        if previous is not None:
+            continue
+        relative = _validate_asset(asset)
+        destination = output_path.parent / relative
+        exists = destination.exists()
+        if exists and _file_sha256(destination) != asset.sha256:
+            raise ValueError(f"existing_media_hash_mismatch: {asset.relative_path}")
+        seen[asset.relative_path] = asset
+        planned.append((asset, destination, exists))
+    return tuple(planned)
+
+
+def _validate_asset(asset: TeiAsset) -> Path:
+    relative = _safe_asset_path(asset.relative_path)
+    if len(asset.sha256) != 64 or any(character not in "0123456789abcdef" for character in asset.sha256):
+        raise ValueError(f"invalid_figure_sha256: {asset.relative_path}")
+    actual_sha256 = hashlib.sha256(asset.data).hexdigest()
+    if actual_sha256 != asset.sha256:
+        raise ValueError(f"invalid_figure_sha256: {asset.relative_path}")
+    if asset.content_type not in {"image/png", "image/jpeg"}:
+        raise ValueError(f"unsupported_figure_media_type: {asset.relative_path}")
+    detected = _detect_asset_content_type(asset.data)
+    if detected != asset.content_type:
+        raise ValueError(f"image_content_type_mismatch: {asset.relative_path}")
+    suffix = ".png" if asset.content_type == "image/png" else ".jpg"
+    expected = f"media/{asset.sha256}{suffix}"
+    if asset.relative_path != expected:
+        raise ValueError(f"invalid_figure_media_url: {asset.relative_path}")
+    return relative
+
+
+def _safe_asset_path(relative_path: str) -> Path:
+    path = Path(relative_path)
+    if (
+        not relative_path
+        or "\\" in relative_path
+        or path.is_absolute()
+        or ".." in path.parts
+        or Path(path.parts[0] if path.parts else "") != Path("media")
+    ):
+        raise ValueError(f"invalid_figure_media_url: {relative_path}")
+    return path
+
+
+def _detect_asset_content_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    return None
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _append_header(root: etree._Element, source_name: str, metadata: DocumentMetadata | None, state: _SerializationState) -> None:
@@ -299,7 +412,54 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
     if isinstance(block, EditorialList):
         _append_editorial_list(parent, block, state)
         return
+    if isinstance(block, EditorialFigure):
+        _append_figure(parent, block, state)
+        return
     raise TypeError(f"bloc editorial inconnu : {type(block)!r}")
+
+
+def _append_figure(parent: etree._Element, figure: EditorialFigure, state: _SerializationState) -> None:
+    diagnostic = _validate_graphic(figure.graphic)
+    if diagnostic is not None:
+        state.diagnostics.append(diagnostic)
+        return
+    element = etree.SubElement(parent, _tag("figure"))
+    etree.SubElement(element, _tag("graphic"), url=figure.graphic.media_url)
+    etree.SubElement(element, _tag("figDesc")).text = figure.graphic.description
+    if figure.caption is not None:
+        if figure.caption.rendition != "caption":
+            state.error(
+                "unsupported_paragraph_rendition",
+                "rendition de legende de figure non prise en charge",
+                source_paragraph_index=figure.caption.source_paragraph_index,
+            )
+            return
+        _append_paragraph_element(
+            element,
+            figure.caption.content,
+            rendition="caption",
+            source_paragraph_index=figure.caption.source_paragraph_index,
+            state=state,
+            empty_code="empty_figure_caption_not_serializable",
+            empty_message="legende de figure vide non serialisable",
+        )
+
+
+def _validate_graphic(graphic: EditorialGraphic) -> TeiConversionDiagnostic | None:
+    if (
+        not graphic.media_url
+        or graphic.media_url.startswith("/")
+        or ".." in Path(graphic.media_url).parts
+        or not graphic.media_url.startswith("media/")
+    ):
+        return TeiConversionDiagnostic("invalid_figure_media_url", "error", "URL de media de figure invalide")
+    if len(graphic.sha256) != 64 or any(character not in "0123456789abcdef" for character in graphic.sha256):
+        return TeiConversionDiagnostic("invalid_figure_sha256", "error", "empreinte de figure invalide")
+    if graphic.content_type not in {"image/png", "image/jpeg"}:
+        return TeiConversionDiagnostic("unsupported_figure_media_type", "error", "type de media de figure non pris en charge")
+    if not graphic.description.strip():
+        return TeiConversionDiagnostic("missing_figure_description", "error", "description de figure absente")
+    return None
 
 
 def _append_editorial_list(
@@ -390,14 +550,14 @@ def _append_paragraph_element(
     if not content:
         state.error(empty_code, empty_message, source_paragraph_index=source_paragraph_index)
         return
-    if rendition not in {None, "consecutive"}:
+    if rendition not in {None, "consecutive", "caption"}:
         state.error(
             "unsupported_paragraph_rendition",
             f"rendition de paragraphe non prise en charge : {rendition}",
             source_paragraph_index=source_paragraph_index,
         )
         return
-    attributes = {"rend": "consecutive"} if rendition == "consecutive" else {}
+    attributes = {"rend": rendition} if rendition in {"consecutive", "caption"} else {}
     element = etree.SubElement(parent, _tag("p"), **attributes)
     _append_inline(element, content, state)
 

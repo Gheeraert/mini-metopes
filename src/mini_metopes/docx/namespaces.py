@@ -8,12 +8,22 @@ OFFICE_DOCUMENT_RELATIONSHIPS = (
 )
 PACKAGE_RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships"
 CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
+WORDPROCESSING_DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+DRAWINGML = "http://schemas.openxmlformats.org/drawingml/2006/main"
+DRAWINGML_PICTURE = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+MARKUP_COMPATIBILITY = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+VML = "urn:schemas-microsoft-com:vml"
 
 NS = {
     "w": WORDPROCESSINGML,
     "r": OFFICE_DOCUMENT_RELATIONSHIPS,
     "pr": PACKAGE_RELATIONSHIPS,
     "ct": CONTENT_TYPES,
+    "wp": WORDPROCESSING_DRAWING,
+    "a": DRAWINGML,
+    "pic": DRAWINGML_PICTURE,
+    "mc": MARKUP_COMPATIBILITY,
+    "v": VML,
 }
 
 

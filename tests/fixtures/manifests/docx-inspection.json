@@ -75,6 +75,14 @@
       "paragraphe BodyText avec gras, lien externe et appel de note",
       "note contenant elle-meme un paragraphe BodyText"
     ],
+    "native-figures.docx": [
+      "fixture positive synthetique pour les figures Word simples",
+      "Title et Subtitle initiaux associes a native-figures.metadata.json",
+      "images DrawingML wp:inline autonomes en PNG et JPEG",
+      "legende Caption avec marques, lien externe et appel de note",
+      "reutilisation du meme PNG et media GIF inutilise non exporte",
+      "figure dans une note de bas de page et figure dans une note de fin"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

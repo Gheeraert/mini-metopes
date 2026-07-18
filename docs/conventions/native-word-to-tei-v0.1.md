@@ -42,3 +42,11 @@ explicite n'a pas ete decidee.
 Les commentaires, en-tetes et pieds de page Word sont signales comme
 avertissements. Ils ne bloquent pas encore une conversion du corps principal,
 mais ils restent visibles dans les diagnostics.
+
+## Figures simples
+
+Une figure Word autonome valide produit `figure/graphic`, `figDesc` depuis
+`wp:docPr/@descr` et, si le paragraphe suivant porte `Caption`,
+`p rend="caption"`. Les medias PNG/JPEG utilises sont extraits dans
+`media/<sha256>.png` ou `media/<sha256>.jpg` a cote du XML. Les medias non
+references par la TEI ne sont pas exportes.

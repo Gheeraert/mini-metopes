@@ -12,6 +12,7 @@ from typing import Iterator, Sequence
 from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
 from .editorial import (
     EditorialBuildResult,
+    EditorialFigure,
     EditorialList,
     Paragraph,
     ProseQuote,
@@ -182,11 +183,19 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int
             print(_format_issue(issue))
         return 1
     try:
-        write_tei_conversion_result(result, output)
+        write_result = write_tei_conversion_result(result, output)
     except OSError as error:
         print(f"ERREUR — {output}: {error.strerror or error}")
         return 2
+    except ValueError as error:
+        print(f"ECHEC — {output}")
+        print(f"ERROR [{str(error).split(':', 1)[0]}] : {error}")
+        return 1
     print(f"TEI ECRITE — {output}")
+    if result.assets:
+        print(f"Médias écrits : {write_result.media_written}")
+        print(f"Médias réutilisés : {write_result.media_reused}")
+        print(f"Répertoire médias : {write_result.media_directory}")
     print("Validation Commons Publishing : réussie")
     for diagnostic in result.diagnostics:
         print(_format_conversion_diagnostic(diagnostic))
@@ -241,6 +250,20 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     unresolved_lists = sum(item.status in {"unresolved", "unsupported"} for item in active_numbering)
     hyperlinks = sum(paragraph.hyperlink_count for paragraph in inspection.paragraphs)
     drawings = sum(paragraph.drawing_count for paragraph in inspection.paragraphs)
+    all_drawings = [
+        content.drawing
+        for paragraph in all_paragraphs
+        for run in paragraph.runs
+        for content in run.contents
+        if content.kind == "drawing" and content.drawing is not None
+    ]
+    inline_drawings = sum(drawing.placement == "inline" for drawing in all_drawings)
+    floating_drawings = sum(drawing.placement == "anchor" for drawing in all_drawings)
+    png_media = sum(media.content_type == "image/png" for media in inspection.media)
+    jpeg_media = sum(media.content_type == "image/jpeg" for media in inspection.media)
+    unsupported_media = sum(
+        media.content_type not in {"image/png", "image/jpeg"} for media in inspection.media
+    )
 
     print(f"DOCX — {inspection.source.name}")
     print(f"Paragraphes : {len(inspection.paragraphs)}")
@@ -259,6 +282,12 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     print(f"Numérotations non résolues : {unresolved_lists}")
     print(f"Hyperliens : {hyperlinks}")
     print(f"Dessins : {drawings}")
+    print(f"Images DrawingML inline : {inline_drawings}")
+    print(f"Images DrawingML flottantes : {floating_drawings}")
+    print(f"Images VML : {sum(issue.code == 'vml_image_not_supported' for issue in inspection.issues)}")
+    print(f"Médias PNG : {png_media}")
+    print(f"Médias JPEG : {jpeg_media}")
+    print(f"Médias non pris en charge : {unsupported_media}")
     print(f"Médias : {len(inspection.media)}")
     for issue in inspection.issues:
         print(f"{issue.severity.upper()} [{issue.code}] : {issue.message}")
@@ -280,6 +309,13 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     prose_quotes = [block for block in document.blocks if isinstance(block, ProseQuote)]
     verse_quotes = [block for block in document.blocks if isinstance(block, VerseQuote)]
     body_root_lists = [block for block in document.blocks if isinstance(block, EditorialList)]
+    body_figures = [block for block in document.blocks if isinstance(block, EditorialFigure)]
+    note_figures = [
+        block
+        for note in document.notes
+        for block in note.blocks
+        if isinstance(block, EditorialFigure)
+    ]
     note_root_lists = [
         block
         for note in document.notes
@@ -299,6 +335,8 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     body_continuations = sum(len(item.continuation_paragraphs) for item in body_items)
     note_continuations = sum(len(item.continuation_paragraphs) for item in note_items)
     multiparagraph_items = sum(1 for item in all_list_items if item.continuation_paragraphs)
+    figures = [*body_figures, *note_figures]
+    figure_media_urls = {figure.graphic.media_url for figure in figures}
     levels: dict[int, int] = {}
     for heading in headings:
         levels[heading.level] = levels.get(heading.level, 0) + 1
@@ -326,6 +364,12 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Paragraphes de continuation de liste dans les notes : {note_continuations}")
     print(f"Paragraphes de continuation de liste totaux : {body_continuations + note_continuations}")
     print(f"Items de liste multiparagraphe : {multiparagraph_items}")
+    print(f"Figures du corps : {len(body_figures)}")
+    print(f"Figures dans les notes : {len(note_figures)}")
+    print(f"Figures totales : {len(figures)}")
+    print(f"Figures avec légende : {sum(figure.caption is not None for figure in figures)}")
+    print(f"Figures sans légende : {sum(figure.caption is None for figure in figures)}")
+    print(f"Médias uniques référencés : {len(figure_media_urls)}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")

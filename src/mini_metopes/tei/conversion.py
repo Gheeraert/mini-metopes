@@ -2,20 +2,32 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+import hashlib
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from mini_metopes.docx import DocxInspection, InspectionIssue, NoteInfo, ParagraphInfo, inspect_docx_file
 from mini_metopes.editorial import (
     NATIVE_WORD_CONVENTION,
+    EditorialFigure,
+    EditorialList,
     EditorialBuildResult,
     EditorialDiagnostic,
+    EditorialDocument,
+    EditorialGraphic,
     WordEditorialConvention,
     build_editorial_document,
+    NoteReference,
 )
 from mini_metopes.metadata import DocumentMetadata, extract_metadata_suggestions, metadata_consistency_issues, validate_metadata
 
-from .model import TeiConversionDiagnostic, TeiConversionResult
+from .model import TeiAsset, TeiConversionDiagnostic, TeiConversionResult
 from .serializer import serialize_editorial_document_to_tei
+
+
+MAX_MEDIA_PART_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_MEDIA_BYTES = 256 * 1024 * 1024
 
 _BLOCKING_INSPECTION_CODES = frozenset(
     {
@@ -25,6 +37,10 @@ _BLOCKING_INSPECTION_CODES = frozenset(
         "unreadable_part",
         "malformed_xml_part",
         "xml_part_too_large",
+        "vml_image_not_supported",
+        "image_media_too_large",
+        "total_image_media_too_large",
+        "unreadable_image_media",
     }
 )
 _NON_BLOCKING_INSPECTION_CODES = frozenset(
@@ -53,6 +69,30 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "explicit_list_restart_not_serializable",
         "list_level_jump_not_serializable",
         "empty_list_item_not_serializable",
+        "missing_figure_description",
+        "hyperlinked_image_not_serializable",
+        "duplicate_image_relationship_not_serializable",
+        "invalid_drawing_property_not_serializable",
+        "floating_image_not_serializable",
+        "cropped_image_not_serializable",
+        "transformed_image_not_serializable",
+        "multiple_image_sources_not_serializable",
+        "mixed_text_and_image_not_serializable",
+        "multiple_images_in_paragraph_not_serializable",
+        "numbered_figure_not_serializable",
+        "image_in_list_item_not_serializable",
+        "orphan_figure_caption_not_serializable",
+        "empty_figure_caption_not_serializable",
+        "image_in_figure_caption_not_serializable",
+        "numbered_figure_caption_not_serializable",
+        "missing_image_relationship",
+        "unsupported_image_relationship",
+        "external_image_not_serializable",
+        "unsafe_image_target",
+        "missing_image_media_part",
+        "unsupported_image_format",
+        "image_content_type_mismatch",
+        "multiple_image_sources_not_serializable",
     }
 )
 _METADATA_SUGGESTION_CODES = frozenset(
@@ -97,11 +137,17 @@ def convert_docx_to_tei(
     diagnostics = _deduplicate_diagnostics(diagnostics + tuple(metadata_diagnostics))
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return TeiConversionResult(None, diagnostics, ())
-    return serialize_editorial_document_to_tei(
+    result = serialize_editorial_document_to_tei(
         editorial.document,
         metadata=metadata,
         initial_diagnostics=diagnostics,
     )
+    if not result.is_successful:
+        return result
+    assets, asset_diagnostics = _extract_tei_assets(path, editorial.document)
+    if asset_diagnostics:
+        return TeiConversionResult(None, result.diagnostics + asset_diagnostics, ())
+    return replace(result, assets=assets)
 
 
 def _metadata_diagnostics(issues: tuple[object, ...]) -> tuple[TeiConversionDiagnostic, ...]:
@@ -303,3 +349,195 @@ def _editorial_diagnostics(
             )
         )
     return tuple(result)
+
+
+def _extract_tei_assets(
+    docx_path: Path,
+    document: EditorialDocument,
+) -> tuple[tuple[TeiAsset, ...], tuple[TeiConversionDiagnostic, ...]]:
+    graphics = _document_graphics(document)
+    if not graphics:
+        return (), ()
+    diagnostics: list[TeiConversionDiagnostic] = []
+    assets: dict[str, TeiAsset] = {}
+    try:
+        archive = ZipFile(docx_path)
+    except (BadZipFile, OSError) as error:
+        return (), (
+            TeiConversionDiagnostic(
+                code="unreadable_image_media",
+                severity="error",
+                message=f"impossible de rouvrir le DOCX pour extraire les medias : {error}",
+            ),
+        )
+    with archive:
+        unique_graphics: dict[str, EditorialGraphic] = {}
+        for graphic in graphics:
+            unique_graphics.setdefault(graphic.media_url, graphic)
+        media_infos: dict[str, object] = {}
+        total_media_bytes = 0
+        for graphic in unique_graphics.values():
+            try:
+                info = archive.getinfo(graphic.source_media_path)
+            except KeyError:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="missing_image_media_part",
+                        severity="error",
+                        message=f"media absent pendant l'extraction : {graphic.source_media_path}",
+                        origin="serialization",
+                    )
+                )
+                continue
+            if info.file_size > MAX_MEDIA_PART_BYTES:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="image_media_too_large",
+                        severity="error",
+                        message=f"media image trop volumineux : {graphic.source_media_path}",
+                        origin="serialization",
+                    )
+                )
+                continue
+            total_media_bytes += info.file_size
+            media_infos[graphic.media_url] = info
+        if total_media_bytes > MAX_TOTAL_MEDIA_BYTES:
+            diagnostics.append(
+                TeiConversionDiagnostic(
+                    code="total_image_media_too_large",
+                    severity="error",
+                    message="taille totale des medias image utilises trop volumineuse",
+                    origin="serialization",
+                )
+            )
+        if diagnostics:
+            return (), tuple(diagnostics)
+        for graphic in unique_graphics.values():
+            info = media_infos[graphic.media_url]
+            try:
+                data = archive.read(info)
+            except (BadZipFile, OSError, RuntimeError, NotImplementedError, EOFError) as error:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="unreadable_image_media",
+                        severity="error",
+                        message=f"media image illisible pendant l'extraction : {graphic.source_media_path}",
+                        origin="serialization",
+                    )
+                )
+                continue
+            sha256 = hashlib.sha256(data).hexdigest()
+            if sha256 != graphic.sha256:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="image_media_changed_during_conversion",
+                        severity="error",
+                        message=f"empreinte modifiee pendant la conversion : {graphic.source_media_path}",
+                    )
+                )
+                continue
+            if _detected_content_type(data) != graphic.content_type:
+                diagnostics.append(
+                    TeiConversionDiagnostic(
+                        code="image_content_type_mismatch",
+                        severity="error",
+                        message=f"signature image incoherente pendant l'extraction : {graphic.source_media_path}",
+                    )
+                )
+                continue
+            assets[graphic.media_url] = TeiAsset(
+                relative_path=graphic.media_url,
+                content_type=graphic.content_type,
+                sha256=graphic.sha256,
+                data=data,
+            )
+    return tuple(assets[key] for key in sorted(assets)), tuple(diagnostics)
+
+
+def _document_graphics(document: EditorialDocument) -> tuple[EditorialGraphic, ...]:
+    result: list[EditorialGraphic] = []
+    for block in document.blocks:
+        result.extend(_block_graphics(block))
+    notes = {(note.note_kind, note.note_id): note for note in document.notes}
+    pending = list(_block_note_references(document.blocks))
+    visited: set[tuple[str, str]] = set()
+    while pending:
+        key = pending.pop(0)
+        if key in visited:
+            continue
+        visited.add(key)
+        note = notes.get(key)
+        if note is None:
+            continue
+        for block in note.blocks:
+            result.extend(_block_graphics(block))
+        pending.extend(reference for reference in _block_note_references(note.blocks) if reference not in visited)
+    return tuple(result)
+
+
+def _block_graphics(block: object) -> tuple[EditorialGraphic, ...]:
+    if isinstance(block, EditorialFigure):
+        return (block.graphic,)
+    if isinstance(block, EditorialList):
+        result: list[EditorialGraphic] = []
+        for item in block.items:
+            for child in item.child_lists:
+                result.extend(_block_graphics(child))
+        return tuple(result)
+    return ()
+
+
+def _block_note_references(blocks: tuple[object, ...]) -> tuple[tuple[str, str], ...]:
+    result: list[tuple[str, str]] = []
+    for block in blocks:
+        result.extend(_object_note_references(block))
+    return tuple(result)
+
+
+def _object_note_references(item: object) -> tuple[tuple[str, str], ...]:
+    if isinstance(item, EditorialFigure):
+        if item.caption is None:
+            return ()
+        return _inline_note_references(item.caption.content)
+    if isinstance(item, EditorialList):
+        result: list[tuple[str, str]] = []
+        for list_item in item.items:
+            result.extend(_inline_note_references(list_item.content))
+            for paragraph in list_item.continuation_paragraphs:
+                result.extend(_inline_note_references(paragraph.content))
+            for child in list_item.child_lists:
+                result.extend(_object_note_references(child))
+        return tuple(result)
+    content = getattr(item, "content", None)
+    if isinstance(content, tuple):
+        return _inline_note_references(content)
+    stanzas = getattr(item, "stanzas", None)
+    if isinstance(stanzas, tuple):
+        result: list[tuple[str, str]] = []
+        for stanza in stanzas:
+            for verse in stanza.lines:
+                result.extend(_inline_note_references(verse.content))
+        return tuple(result)
+    paragraphs = getattr(item, "paragraphs", None)
+    if isinstance(paragraphs, tuple):
+        result: list[tuple[str, str]] = []
+        for paragraph in paragraphs:
+            result.extend(_inline_note_references(paragraph.content))
+        return tuple(result)
+    return ()
+
+
+def _inline_note_references(content: tuple[object, ...]) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (inline.note_kind, inline.note_id)
+        for inline in content
+        if isinstance(inline, NoteReference)
+    )
+
+
+def _detected_content_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    return None

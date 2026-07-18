@@ -36,6 +36,8 @@ class WordEditorialConvention:
     excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_names: frozenset[str] = frozenset()
     list_continuation_style_ids: frozenset[str] = frozenset()
+    figure_container_style_ids: frozenset[str] = frozenset()
+    figure_caption_style_ids: frozenset[str] = frozenset()
 
     def paragraph_role(
         self,
@@ -94,6 +96,26 @@ class WordEditorialConvention:
             return False
         return style_id in self.list_continuation_style_ids
 
+    def is_figure_container_style(
+        self,
+        style_id: str | None,
+        style_is_custom: bool | None,
+    ) -> bool:
+        """Reconnaître les styles intégrés admis pour un paragraphe image autonome."""
+        if style_is_custom is True:
+            return False
+        return style_id is None or style_id in self.figure_container_style_ids
+
+    def is_figure_caption_style(
+        self,
+        style_id: str | None,
+        style_is_custom: bool | None,
+    ) -> bool:
+        """Reconnaître le style intégré Caption sans repli par nom visible."""
+        if style_is_custom is True:
+            return False
+        return style_id in self.figure_caption_style_ids
+
     def character_marks(self, style_id: str | None) -> tuple[TextMark, ...] | None:
         """Retourner les marques associees a un style de caractere reconnu."""
         if style_id is None:
@@ -129,6 +151,8 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
     consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
     list_continuation_style_ids=frozenset({"ListParagraph"}),
+    figure_container_style_ids=frozenset({"Normal", "FootnoteText", "EndnoteText"}),
+    figure_caption_style_ids=frozenset({"Caption"}),
 )
 
 

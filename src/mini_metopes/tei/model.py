@@ -13,6 +13,25 @@ TeiDiagnosticOrigin = Literal["inspection", "editorial", "metadata", "serializat
 
 
 @dataclass(frozen=True)
+class TeiAsset:
+    """Ressource binaire produite à côté de la TEI."""
+
+    relative_path: str
+    content_type: str
+    sha256: str
+    data: bytes
+
+
+@dataclass(frozen=True)
+class TeiWriteResult:
+    """Bilan d'écriture atomique du XML et des médias."""
+
+    media_written: int = 0
+    media_reused: int = 0
+    media_directory: str | None = None
+
+
+@dataclass(frozen=True)
 class TeiConversionDiagnostic:
     """Diagnostic de conversion, independant des erreurs Relax NG."""
 
@@ -35,6 +54,7 @@ class TeiConversionResult:
     xml_bytes: bytes | None
     diagnostics: tuple[TeiConversionDiagnostic, ...]
     validation_issues: tuple[ValidationIssue, ...]
+    assets: tuple[TeiAsset, ...] = ()
 
     @property
     def is_successful(self) -> bool:

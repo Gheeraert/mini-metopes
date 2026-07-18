@@ -9,6 +9,8 @@ from .model import (
     DrawingReference,
     EditorialBlock,
     EditorialBuildResult,
+    EditorialFigure,
+    EditorialGraphic,
     EditorialInline,
     EditorialList,
     EditorialListItem,
@@ -79,6 +81,8 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
         }
     if isinstance(block, EditorialList):
         return _list_to_data(block)
+    if isinstance(block, EditorialFigure):
+        return _figure_to_data(block)
     if isinstance(block, Paragraph):
         return {
             "kind": block.kind,
@@ -145,6 +149,33 @@ def _list_item_to_data(item: EditorialListItem) -> dict[str, object]:
         "source_paragraph_index": item.source_paragraph_index,
         "source_style_id": item.source_style_id,
         "continuation_paragraphs": [_block_to_data(paragraph) for paragraph in item.continuation_paragraphs],
+    }
+
+
+def _figure_to_data(figure: EditorialFigure) -> dict[str, object]:
+    return {
+        "kind": figure.kind,
+        "graphic": _graphic_to_data(figure.graphic),
+        "caption": _block_to_data(figure.caption) if figure.caption is not None else None,
+        "source_paragraph_index": figure.source_paragraph_index,
+        "source_style_id": figure.source_style_id,
+    }
+
+
+def _graphic_to_data(graphic: EditorialGraphic) -> dict[str, object]:
+    return {
+        "kind": graphic.kind,
+        "source_part": graphic.source_part,
+        "source_relationship_id": graphic.source_relationship_id,
+        "source_media_path": graphic.source_media_path,
+        "media_url": graphic.media_url,
+        "content_type": graphic.content_type,
+        "sha256": graphic.sha256,
+        "description": graphic.description,
+        "width_emu": graphic.width_emu,
+        "height_emu": graphic.height_emu,
+        "source_name": graphic.source_name,
+        "source_title": graphic.source_title,
     }
 
 
