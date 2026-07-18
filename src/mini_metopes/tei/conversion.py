@@ -16,6 +16,7 @@ from mini_metopes.editorial import (
     EditorialDiagnostic,
     EditorialDocument,
     EditorialGraphic,
+    EditorialTable,
     WordEditorialConvention,
     build_editorial_document,
     NoteReference,
@@ -32,7 +33,8 @@ MAX_TOTAL_MEDIA_BYTES = 256 * 1024 * 1024
 _BLOCKING_INSPECTION_CODES = frozenset(
     {
         "textboxes_not_inspected",
-        "table_not_modeled",
+        "table_in_note_not_serializable",
+        "table_in_textbox_not_serializable",
         "missing_numbering_part",
         "unreadable_part",
         "malformed_xml_part",
@@ -70,6 +72,14 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "list_level_jump_not_serializable",
         "empty_list_item_not_serializable",
         "missing_figure_description",
+        "orphan_figure_title_not_serializable",
+        "orphan_figure_credits_not_serializable",
+        "empty_figure_title_not_serializable",
+        "empty_figure_credits_not_serializable",
+        "numbered_figure_title_not_serializable",
+        "numbered_figure_credits_not_serializable",
+        "image_in_figure_title_not_serializable",
+        "image_in_figure_credits_not_serializable",
         "hyperlinked_image_not_serializable",
         "duplicate_image_relationship_not_serializable",
         "invalid_drawing_property_not_serializable",
@@ -77,6 +87,17 @@ _BLOCKING_EDITORIAL_CODES = frozenset(
         "cropped_image_not_serializable",
         "transformed_image_not_serializable",
         "multiple_image_sources_not_serializable",
+        "empty_table_not_serializable",
+        "empty_table_row_not_serializable",
+        "merged_table_cells_not_serializable",
+        "irregular_table_not_serializable",
+        "nested_table_not_serializable",
+        "invalid_table_header_not_serializable",
+        "unsupported_table_cell_style",
+        "multiple_paragraphs_in_table_cell_not_serializable",
+        "image_in_table_cell_not_serializable",
+        "numbered_table_cell_not_serializable",
+        "unsupported_table_cell_content",
         "mixed_text_and_image_not_serializable",
         "multiple_images_in_paragraph_not_serializable",
         "numbered_figure_not_serializable",
@@ -496,9 +517,18 @@ def _block_note_references(blocks: tuple[object, ...]) -> tuple[tuple[str, str],
 
 def _object_note_references(item: object) -> tuple[tuple[str, str], ...]:
     if isinstance(item, EditorialFigure):
-        if item.caption is None:
-            return ()
-        return _inline_note_references(item.caption.content)
+        result: list[tuple[str, str]] = []
+        for paragraph in (item.title, item.caption, item.credits):
+            if paragraph is not None:
+                result.extend(_inline_note_references(paragraph.content))
+        return tuple(result)
+    if isinstance(item, EditorialTable):
+        return tuple(
+            reference
+            for row in item.rows
+            for cell in row.cells
+            for reference in _inline_note_references(cell.content)
+        )
     if isinstance(item, EditorialList):
         result: list[tuple[str, str]] = []
         for list_item in item.items:

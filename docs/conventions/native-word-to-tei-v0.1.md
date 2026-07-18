@@ -50,3 +50,11 @@ Une figure Word autonome valide produit `figure/graphic`, `figDesc` depuis
 `p rend="caption"`. Les medias PNG/JPEG utilises sont extraits dans
 `media/<sha256>.png` ou `media/<sha256>.jpg` a cote du XML. Les medias non
 references par la TEI ne sont pas exportes.
+
+## Passe 11
+
+Les details controles de figure deviennent `head`, `p rend="caption"` et
+`p rend="credits"` dans `figure`. Les tables Word simples deviennent `table`,
+`row` et `cell`; `tblHeader` sur la premiere ligne devient `role="label"` sur
+la ligne et ses cellules. Les dimensions, bordures, titres et credits de table
+ne sont pas serialises dans cette V1.

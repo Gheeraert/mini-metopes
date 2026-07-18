@@ -128,3 +128,11 @@ dessin DrawingML `wp:inline` autonome dans un paragraphe sans style, `Normal`,
 integre exact `Caption`. Aucun repli par nom localise n'est applique. Les styles
 personnalises, images flottantes, VML, images liees, transformees ou placees
 dans des listes restent refuses.
+
+## Details de figures et tables simples
+
+Les styles personnalises controles `TEIfiguretitle`, `TEIfigurecaption`,
+`TEIfigurecredits` et `TEIcell` exigent simultanement leur identifiant, leur
+nom `TEI_…` exact et `w:customStyle="1"`. Les tables du corps sont admises
+seulement lorsqu'elles sont rectangulaires, sans fusion ni imbrication; les
+tables de notes et de zones de texte restent refusees.

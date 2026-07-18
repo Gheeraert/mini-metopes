@@ -38,6 +38,10 @@ class WordEditorialConvention:
     list_continuation_style_ids: frozenset[str] = frozenset()
     figure_container_style_ids: frozenset[str] = frozenset()
     figure_caption_style_ids: frozenset[str] = frozenset()
+    figure_title_style: tuple[str, str] | None = None
+    controlled_figure_caption_style: tuple[str, str] | None = None
+    figure_credits_style: tuple[str, str] | None = None
+    table_cell_style: tuple[str, str] | None = None
 
     def paragraph_role(
         self,
@@ -116,6 +120,51 @@ class WordEditorialConvention:
             return False
         return style_id in self.figure_caption_style_ids
 
+    def is_controlled_figure_caption_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None
+    ) -> bool:
+        return style_is_custom is True and self._is_controlled_style(
+            style_id, style_name, self.controlled_figure_caption_style
+        )
+
+    def is_figure_title_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None
+    ) -> bool:
+        return style_is_custom is True and self._is_controlled_style(
+            style_id, style_name, self.figure_title_style
+        )
+
+    def is_figure_credits_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None
+    ) -> bool:
+        return style_is_custom is True and self._is_controlled_style(
+            style_id, style_name, self.figure_credits_style
+        )
+
+    def is_table_cell_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None
+    ) -> bool:
+        if style_id is None:
+            return True
+        if style_id == "Normal" and style_is_custom is not True:
+            return True
+        return style_is_custom is True and self._is_controlled_style(
+            style_id, style_name, self.table_cell_style
+        )
+
+    def is_controlled_table_cell_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None
+    ) -> bool:
+        return style_is_custom is True and self._is_controlled_style(
+            style_id, style_name, self.table_cell_style
+        )
+
+    @staticmethod
+    def _is_controlled_style(
+        style_id: str | None, style_name: str | None, controlled: tuple[str, str] | None
+    ) -> bool:
+        return controlled is not None and (style_id, style_name) == controlled
+
     def character_marks(self, style_id: str | None) -> tuple[TextMark, ...] | None:
         """Retourner les marques associees a un style de caractere reconnu."""
         if style_id is None:
@@ -153,6 +202,10 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     list_continuation_style_ids=frozenset({"ListParagraph"}),
     figure_container_style_ids=frozenset({"Normal", "FootnoteText", "EndnoteText"}),
     figure_caption_style_ids=frozenset({"Caption"}),
+    figure_title_style=("TEIfiguretitle", "TEI_figure_title"),
+    controlled_figure_caption_style=("TEIfigurecaption", "TEI_figure_caption"),
+    figure_credits_style=("TEIfigurecredits", "TEI_figure_credits"),
+    table_cell_style=("TEIcell", "TEI_cell"),
 )
 
 

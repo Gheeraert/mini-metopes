@@ -83,6 +83,12 @@
       "reutilisation du meme PNG et media GIF inutilise non exporte",
       "figure dans une note de bas de page et figure dans une note de fin"
     ],
+    "native-figure-details-and-tables.docx": [
+      "fixture positive synthetique de la passe 11",
+      "figures avec titre, legende controlee ou Caption, et credits controles",
+      "table 3 x 3 avec tblHeader, cellule vide et contenu inline",
+      "table 2 x 2 sans en-tete et ordre alterne avec paragraphes et figures"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

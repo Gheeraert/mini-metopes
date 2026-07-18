@@ -21,6 +21,9 @@ from .model import (
     RunContentInfo,
     RunInfo,
     StyleInfo,
+    TableCellInfo,
+    TableInfo,
+    TableRowInfo,
 )
 
 __all__ = [
@@ -43,5 +46,8 @@ __all__ = [
     "RunContentInfo",
     "RunInfo",
     "StyleInfo",
+    "TableCellInfo",
+    "TableInfo",
+    "TableRowInfo",
     "inspect_docx_file",
 ]

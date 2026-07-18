@@ -14,6 +14,7 @@ from .editorial import (
     EditorialBuildResult,
     EditorialFigure,
     EditorialList,
+    EditorialTable,
     Paragraph,
     ProseQuote,
     VerseQuote,
@@ -264,6 +265,19 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     unsupported_media = sum(
         media.content_type not in {"image/png", "image/jpeg"} for media in inspection.media
     )
+    body_tables = [block for block in inspection.body_blocks if getattr(block, "kind", None) == "table"]
+    complex_tables = sum(
+        not table.rows
+        or any(not row.cells for row in table.rows)
+        or any(
+            cell.has_grid_span or cell.has_vertical_merge or cell.has_horizontal_merge or cell.has_nested_table
+            for row in table.rows for cell in row.cells
+        )
+        or any(len(row.cells) != len(table.rows[0].cells) for row in table.rows)
+        or (table.declared_column_count is not None and table.rows and table.declared_column_count != len(table.rows[0].cells))
+        or any(row.is_header for row in table.rows[1:])
+        for table in body_tables
+    )
 
     print(f"DOCX — {inspection.source.name}")
     print(f"Paragraphes : {len(inspection.paragraphs)}")
@@ -289,6 +303,10 @@ def _print_inspection_summary(inspection: DocxInspection) -> None:
     print(f"Médias JPEG : {jpeg_media}")
     print(f"Médias non pris en charge : {unsupported_media}")
     print(f"Médias : {len(inspection.media)}")
+    print(f"Tableaux du corps : {len(body_tables)}")
+    print(f"Lignes de tableaux : {sum(len(table.rows) for table in body_tables)}")
+    print(f"Cellules de tableaux : {sum(len(row.cells) for table in body_tables for row in table.rows)}")
+    print(f"Tableaux complexes refuses : {complex_tables}")
     for issue in inspection.issues:
         print(f"{issue.severity.upper()} [{issue.code}] : {issue.message}")
 
@@ -310,6 +328,7 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     verse_quotes = [block for block in document.blocks if isinstance(block, VerseQuote)]
     body_root_lists = [block for block in document.blocks if isinstance(block, EditorialList)]
     body_figures = [block for block in document.blocks if isinstance(block, EditorialFigure)]
+    body_tables = [block for block in document.blocks if isinstance(block, EditorialTable)]
     note_figures = [
         block
         for note in document.notes
@@ -370,6 +389,12 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Figures avec légende : {sum(figure.caption is not None for figure in figures)}")
     print(f"Figures sans légende : {sum(figure.caption is None for figure in figures)}")
     print(f"Médias uniques référencés : {len(figure_media_urls)}")
+    print(f"Figures avec titre : {sum(figure.title is not None for figure in figures)}")
+    print(f"Figures avec credits : {sum(figure.credits is not None for figure in figures)}")
+    print(f"Tableaux editoriaux : {len(body_tables)}")
+    print(f"Lignes de tableaux : {sum(len(table.rows) for table in body_tables)}")
+    print(f"Cellules de tableaux : {sum(len(row.cells) for table in body_tables for row in table.rows)}")
+    print(f"Tableaux avec ligne d'en-tete : {sum(bool(table.rows and table.rows[0].role == 'label') for table in body_tables)}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")

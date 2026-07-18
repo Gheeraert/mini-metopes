@@ -599,6 +599,15 @@ FIGURE_STYLES = TEI_CONVERSION_STYLES.replace(
     '  <w:style w:type="character" w:styleId="UnknownCharacter">',
 )
 
+DETAIL_TABLE_STYLES = FIGURE_STYLES.replace(
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+    '  <w:style w:type="paragraph" w:styleId="TEIfiguretitle" w:customStyle="1"><w:name w:val="TEI_figure_title"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="TEIfigurecaption" w:customStyle="1"><w:name w:val="TEI_figure_caption"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="TEIfigurecredits" w:customStyle="1"><w:name w:val="TEI_figure_credits"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="TEIcell" w:customStyle="1"><w:name w:val="TEI_cell"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+)
+
 FIGURE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/figure-caption" TargetMode="External"/>
@@ -660,6 +669,40 @@ FIGURE_ENDNOTES = f"""<?xml version="1.0" encoding="UTF-8"?>
   <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
   <w:endnote w:id="2">{figure_paragraph("rIdEndJpeg", "Description accessible en note de fin.", doc_property_id=6, name="Picture End", style="EndnoteText")}</w:endnote>
 </w:endnotes>
+"""
+
+
+DETAIL_TABLE_DOCUMENT = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Figures et tableaux</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Structures V1</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte avant.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIfiguretitle"/></w:pPr><w:r><w:t>Titre de </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>figure</w:t></w:r></w:p>
+    {figure_paragraph("rIdPng", "Description PNG enrichie.", doc_property_id=11, name="Picture detail PNG")}
+    <w:p><w:pPr><w:pStyle w:val="TEIfigurecaption"/></w:pPr><w:r><w:t>Légende </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>contrôlée</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:br/></w:r><w:r><w:t>suite</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIfigurecredits"/></w:pPr><w:r><w:t>Crédits et source.</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Entre les blocs.</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid>
+      <w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc><w:tc><w:p><w:pPr><w:pStyle w:val="TEIcell"/></w:pPr><w:r><w:t>C</w:t></w:r></w:p></w:tc></w:tr>
+      <w:tr><w:tc><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:rPr><w:i/></w:rPr><w:t>2</w:t></w:r></w:p></w:tc><w:tc><w:p/></w:tc></w:tr>
+      <w:tr><w:tc><w:p><w:r><w:t>3</w:t></w:r><w:r><w:endnoteReference w:id="2"/></w:r></w:p></w:tc><w:tc><w:p><w:hyperlink r:id="rIdHyper"><w:r><w:t>4</w:t></w:r></w:hyperlink></w:p></w:tc><w:tc><w:p><w:r><w:t>5</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>bis</w:t></w:r></w:p></w:tc></w:tr>
+    </w:tbl>
+    {figure_paragraph("rIdJpeg", "Description JPEG enrichie.", doc_property_id=12, name="Picture detail JPEG")}
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Légende Word intégrée.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIfiguretitle"/></w:pPr><w:r><w:t>Figure sans légende.</w:t></w:r></w:p>
+    {figure_paragraph("rIdPng", "Description PNG avec crédits.", doc_property_id=13, name="Picture detail credits")}
+    <w:p><w:pPr><w:pStyle w:val="TEIfigurecredits"/></w:pPr><w:r><w:t>Crédits seuls.</w:t></w:r></w:p>
+    <w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>X</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Y</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Texte après.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
 """
 
 
@@ -781,6 +824,21 @@ def figure_parts() -> dict[str, bytes | str]:
         "word/media/figure.png": FIGURE_PNG,
         "word/media/photo.jpeg": FIGURE_JPEG,
         "word/media/unused.gif": UNUSED_GIF,
+    }
+
+
+def detail_table_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": FIGURE_CONTENT_TYPES,
+        "word/document.xml": DETAIL_TABLE_DOCUMENT,
+        "word/styles.xml": DETAIL_TABLE_STYLES,
+        "word/footnotes.xml": FIGURE_FOOTNOTES,
+        "word/endnotes.xml": FIGURE_ENDNOTES,
+        "word/_rels/document.xml.rels": FIGURE_RELATIONSHIPS,
+        "word/_rels/footnotes.xml.rels": FIGURE_FOOTNOTE_RELATIONSHIPS,
+        "word/_rels/endnotes.xml.rels": FIGURE_ENDNOTE_RELATIONSHIPS,
+        "word/media/figure.png": FIGURE_PNG,
+        "word/media/photo.jpeg": FIGURE_JPEG,
     }
 
 
@@ -920,6 +978,29 @@ def write_figure_metadata() -> None:
     )
 
 
+def write_detail_table_metadata() -> None:
+    """Ecrire les metadonnees de la fixture combinee finale."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, MetadataSource,
+        compute_file_sha256, metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-figure-details-and-tables.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="fr",
+        title="Figures et tableaux",
+        subtitle="Structures V1",
+        contributors=(Contributor(contributor_id="person-1", role="author", given_name="Claire", family_name="Exemple"),),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-figure-details-and-tables.metadata.json").write_text(
+        metadata_to_json(metadata), encoding="utf-8"
+    )
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -938,6 +1019,8 @@ def main() -> None:
     write_consecutive_metadata()
     write_package(FIXTURES / "native-figures.docx", figure_parts())
     write_figure_metadata()
+    write_package(FIXTURES / "native-figure-details-and-tables.docx", detail_table_parts())
+    write_detail_table_metadata()
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

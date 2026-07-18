@@ -16,6 +16,9 @@ from .model import (
     EditorialListItem,
     EditorialLink,
     EditorialNote,
+    EditorialTable,
+    EditorialTableCell,
+    EditorialTableRow,
     Heading,
     LineBreak,
     NoteReference,
@@ -83,6 +86,8 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
         return _list_to_data(block)
     if isinstance(block, EditorialFigure):
         return _figure_to_data(block)
+    if isinstance(block, EditorialTable):
+        return _table_to_data(block)
     if isinstance(block, Paragraph):
         return {
             "kind": block.kind,
@@ -156,9 +161,40 @@ def _figure_to_data(figure: EditorialFigure) -> dict[str, object]:
     return {
         "kind": figure.kind,
         "graphic": _graphic_to_data(figure.graphic),
+        "title": _block_to_data(figure.title) if figure.title is not None else None,
         "caption": _block_to_data(figure.caption) if figure.caption is not None else None,
+        "credits": _block_to_data(figure.credits) if figure.credits is not None else None,
         "source_paragraph_index": figure.source_paragraph_index,
         "source_style_id": figure.source_style_id,
+    }
+
+
+def _table_to_data(table: EditorialTable) -> dict[str, object]:
+    return {
+        "kind": table.kind,
+        "column_count": table.column_count,
+        "source_block_index": table.source_block_index,
+        "source_style_id": table.source_style_id,
+        "rows": [_table_row_to_data(row) for row in table.rows],
+    }
+
+
+def _table_row_to_data(row: EditorialTableRow) -> dict[str, object]:
+    return {
+        "kind": row.kind,
+        "role": row.role,
+        "source_row_index": row.source_row_index,
+        "cells": [_table_cell_to_data(cell) for cell in row.cells],
+    }
+
+
+def _table_cell_to_data(cell: EditorialTableCell) -> dict[str, object]:
+    return {
+        "kind": cell.kind,
+        "role": cell.role,
+        "content": [_inline_to_data(item) for item in cell.content],
+        "source_row_index": cell.source_row_index,
+        "source_column_index": cell.source_column_index,
     }
 
 
