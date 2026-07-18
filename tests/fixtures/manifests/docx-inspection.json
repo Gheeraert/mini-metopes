@@ -51,6 +51,14 @@
       "listes dans le corps, une note de bas de page et une note de fin",
       "style ListParagraph et numId=0 supprimant explicitement la numerotation"
     ],
+    "native-lists-tei.docx": [
+      "fixture positive synthetique pour les listes TEI imbriquees",
+      "Title et Subtitle initiaux associes a native-lists-tei.metadata.json",
+      "liste decimal avec sous-listes bullet et lowerLetter",
+      "liste racine au niveau OOXML 1, reprise startOverride=5 et numId=0",
+      "liens, enrichissements et appels de notes dans un item",
+      "listes resolues dans une note de bas de page et une note de fin"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

@@ -9,6 +9,7 @@ from typing import Literal
 TextMark = Literal["bold", "italic", "small_caps", "caps", "superscript", "subscript"]
 LinkKind = Literal["external", "internal", "unresolved"]
 DiagnosticSeverity = Literal["info", "warning", "error"]
+EditorialListKind = Literal["ordered", "bulleted"]
 
 
 @dataclass(frozen=True)
@@ -148,7 +149,34 @@ class VerseQuote:
     kind: Literal["verse_quote"] = "verse_quote"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote
+@dataclass(frozen=True)
+class EditorialListItem:
+    """Item de liste Word, avec ses sous-listes immediates dans l'ordre."""
+
+    content: tuple[EditorialInline, ...]
+    child_lists: tuple["EditorialList", ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["list_item"] = "list_item"
+
+
+@dataclass(frozen=True)
+class EditorialList:
+    """Liste editoriale resolue depuis une instance directe de numerotation Word."""
+
+    list_kind: EditorialListKind
+    num_format: str
+    start: int | None
+    source_numbering_id: str
+    source_level: int
+    level_text: str | None
+    suffix: str | None
+    restart_after_level: int | None
+    items: tuple[EditorialListItem, ...]
+    kind: Literal["list"] = "list"
+
+
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList
 
 
 @dataclass(frozen=True)

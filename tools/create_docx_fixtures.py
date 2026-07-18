@@ -8,11 +8,14 @@ reproductibles.
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "docx"
+METADATA_FIXTURES = ROOT / "tests" / "fixtures" / "metadata"
+sys.path.insert(0, str(ROOT / "src"))
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -366,6 +369,9 @@ LIST_NUMBERING = """<?xml version="1.0" encoding="UTF-8"?>
   </w:abstractNum>
   <w:num w:numId="42"><w:abstractNumId w:val="10"/></w:num>
   <w:num w:numId="43"><w:abstractNumId w:val="10"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride></w:num>
+  <w:num w:numId="44"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="45"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="46"><w:abstractNumId w:val="10"/></w:num>
 </w:numbering>
 """
 
@@ -392,6 +398,48 @@ LIST_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 """
 LIST_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2"><w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Liste en note de fin.</w:t></w:r></w:p></w:endnote></w:endnotes>
+"""
+
+LIST_TEI_STYLES = TEI_CONVERSION_STYLES.replace(
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+    '  <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="Liste locale"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+)
+
+LIST_TEI_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Listes synthétiques</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Conversion TEI imbriquée</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Avant les listes.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Premier item </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>gras</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteReference w:id="2"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Sous-puce.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="2"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Sous-sous-item.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Seconde sous-puce.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Second item.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Interruption ordinaire.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="44"/></w:numPr></w:pPr><w:r><w:t>Puces racine locale.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Reprise à cinq.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="43"/></w:numPr></w:pPr><w:r><w:t>Item ListParagraph.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Numérotation supprimée.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+LIST_TEI_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Liste de note un.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Liste de note deux.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+LIST_TEI_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="2"><w:p><w:pPr><w:pStyle w:val="EndnoteText"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="46"/></w:numPr></w:pPr><w:r><w:t>Puces de note de fin.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
 """
 
 
@@ -465,6 +513,52 @@ def list_parts() -> dict[str, bytes | str]:
     }
 
 
+def list_tei_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": LIST_TEI_DOCUMENT,
+        "word/styles.xml": LIST_TEI_STYLES,
+        "word/numbering.xml": LIST_NUMBERING,
+        "word/footnotes.xml": LIST_TEI_FOOTNOTES,
+        "word/endnotes.xml": LIST_TEI_ENDNOTES,
+        "word/_rels/document.xml.rels": EDITORIAL_RELATIONSHIPS,
+    }
+
+
+def write_list_tei_metadata() -> None:
+    """Ecrire la fixture associee avec le serialiseur officiel de metadonnees."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION,
+        Contributor,
+        DocumentMetadata,
+        MetadataSource,
+        compute_file_sha256,
+        metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-lists-tei.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="fr",
+        title="Listes synthétiques",
+        subtitle="Conversion TEI imbriquée",
+        contributors=(
+            Contributor(
+                contributor_id="person-1",
+                role="author",
+                given_name="Ariane",
+                family_name="Exemple",
+            ),
+        ),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-lists-tei.metadata.json").write_text(
+        metadata_to_json(metadata), encoding="utf-8"
+    )
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -475,6 +569,8 @@ def main() -> None:
     write_package(FIXTURES / "native-quotations.docx", quotation_parts())
     write_package(FIXTURES / "native-tei-conversion.docx", tei_conversion_parts())
     write_package(FIXTURES / "native-lists.docx", list_parts())
+    write_package(FIXTURES / "native-lists-tei.docx", list_tei_parts())
+    write_list_tei_metadata()
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

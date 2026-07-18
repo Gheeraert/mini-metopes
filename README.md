@@ -62,7 +62,7 @@ Les styles `Title` et `Subtitle` du preambule initial servent uniquement de
 suggestions et de controle de coherence avec le JSON; ils ne deviennent pas du
 contenu TEI. La conversion propage les diagnostics de l'inspection et du modele editorial.
 Elle refuse les styles `Title` et `Subtitle` hors preambule, les styles inconnus,
-les listes Word actives, tableaux, zones de texte, dessins, liens internes et
+les listes Word ambiguës ou non résolues, tableaux, zones de texte, dessins, liens internes et
 metadonnees riches afin d'eviter une TEI trompeuse. Les commentaires,
 en-tetes et pieds de page sont signales comme avertissements lorsqu'ils sont
 observes.
@@ -78,8 +78,11 @@ sont refuses par diagnostics structures, sans traceback utilisateur. Dans le
 produisent `ror_not_serialized` tant que le profil Commons Publishing embarque
 ne fournit pas de representation satisfaisante dans cette structure.
 
-Les listes Word sont désormais inspectées et résolues (instances, niveaux,
-surcharges, valeurs par défaut WordprocessingML et listes dans les notes), mais
-leur conversion TEI sera introduite dans la passe suivante. `numId="0"` est
-traité comme une suppression explicite de numérotation, pas comme une liste
-active.
+Les listes Word natives résolues sont désormais converties en listes TEI
+imbriquées. Les puces illustrées, listes sans marqueur, numérotations par style
+et structures ambiguës restent refusées. `numId` identifie l'instance Word et
+`ilvl` son niveau : toute réouverture discontinue du même `numId`, même à un
+autre niveau, et tout `lvlRestart` explicite restent bloquants tant que
+Mini-Métopes ne calcule pas les compteurs effectifs Word. `numId="0"` est traité
+comme une suppression explicite de numérotation, pas comme une liste active. Le
+résumé `model-docx` compte les listes récursivement, y compris dans les notes.

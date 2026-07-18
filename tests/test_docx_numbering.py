@@ -106,7 +106,7 @@ def test_native_lists_resolve_definitions_overrides_and_notes() -> None:
     definition = inspection.numbering_definitions.abstract_definitions[0]
     assert definition.abstract_numbering_id == "10"
     assert [level.num_format for level in definition.levels] == ["decimal", "bullet", "lowerLetter"]
-    assert [instance.numbering_id for instance in inspection.numbering_definitions.instances] == ["42", "43"]
+    assert [instance.numbering_id for instance in inspection.numbering_definitions.instances] == ["42", "43", "44", "45", "46"]
     assert inspection.numbering_definitions.instances[1].level_overrides[0].start_override == 5
 
     assert inspection.paragraphs[1].numbering is not None
@@ -136,10 +136,7 @@ def test_lists_remain_conservatively_blocking_for_tei_conversion() -> None:
     assert metadata is not None
     result = convert_docx_to_tei(FIXTURES / "docx" / "native-lists.docx", metadata=metadata)
     assert result.xml_bytes is None
-    diagnostics = [item for item in result.diagnostics if item.code == "numbered_paragraph_not_serializable"]
-    assert diagnostics
-    assert any("kind=ordered" in item.message for item in diagnostics)
-    assert any("kind=bulleted" in item.message for item in diagnostics)
+    assert any(item.code == "list_level_jump_not_serializable" for item in result.diagnostics)
 
 
 def test_numbering_defaults_are_applied_only_to_effective_resolution() -> None:
