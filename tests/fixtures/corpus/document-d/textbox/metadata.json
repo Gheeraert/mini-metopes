@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "source.docx",
+    "sha256": "cae12618fcfa0116b9347810427c2d0f92be4e0774e8cff97906bab1b4e0cc91"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Cas invalide textbox",
+    "subtitle": null,
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Corpus",
+      "family_name": "Test",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

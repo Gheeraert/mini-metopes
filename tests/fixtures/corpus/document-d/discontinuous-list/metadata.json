@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "source.docx",
+    "sha256": "6a9552433424ef309e9d259adfae6e183926dfe55f631005e2b08e0f4ca56396"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Cas invalide discontinuous-list",
+    "subtitle": null,
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Corpus",
+      "family_name": "Test",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

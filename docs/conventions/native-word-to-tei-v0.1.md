@@ -1,5 +1,9 @@
 # Convention Word native vers TEI v0.1
 
+> Remplacé par `native-word-to-tei-v0.2.md`, qui constitue la table normative
+> versionnée du contrat de conversion. Ce document est conservé pour
+> l'historique.
+
 Mini-Metopes convertit actuellement les styles Word natifs suivants :
 
 - `Heading1` a `Heading6` (souvent affiches « Titre 1 » a « Titre 6 ») deviennent des sections TEI ;

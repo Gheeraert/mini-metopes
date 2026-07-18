@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="main">Petit traité minimal</title>
+        <author>
+          <persName>
+            <forename>Blaise</forename>
+            <surname>Deportroyal</surname>
+          </persName>
+        </author>
+      </titleStmt>
+      <publicationStmt>
+        <p>Document généré par Mini-Métopes.</p>
+      </publicationStmt>
+      <sourceDesc>
+        <p>Conversion du fichier DOCX source.docx.</p>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="fr">fr</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Première section</head>
+        <p>Un paragraphe normal avec de l'<hi rend="italic">italique</hi> et du <hi rend="bold">gras</hi>.<note place="foot"><p>Note de bas de page minimale.</p></note></p>
+        <div>
+          <head>Première sous-section</head>
+          <p>Un second paragraphe normal.</p>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>
+

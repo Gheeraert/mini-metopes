@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+import unicodedata
+from dataclasses import dataclass, replace
+from typing import Iterable, Literal, Protocol
 
 from .model import ParagraphRendition, TextMark
+
+
+class StyleDeclaration(Protocol):
+    """Sous-ensemble de ``StyleInfo`` requis par la resolution multilingue."""
+
+    style_id: str
+    name: str | None
+    style_type: str | None
+    is_custom: bool | None
 
 
 ParagraphRoleKind = Literal[
@@ -279,3 +289,147 @@ def _normalize_style_name(name: str | None) -> str | None:
     if name is None:
         return None
     return " ".join(name.casefold().split())
+
+
+def _fold_style_name(name: str | None) -> str | None:
+    """Normaliser un nom affiche : casse, espaces, accents.
+
+    Word francais conserve en general le nom OOXML canonique anglais dans
+    ``w:name`` mais d'autres producteurs (LibreOffice, exports tiers)
+    ecrivent le nom localise ; les deux formes sont donc admises.
+    """
+    normalized = _normalize_style_name(name)
+    if normalized is None:
+        return None
+    decomposed = unicodedata.normalize("NFKD", normalized)
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+def _name_table(*names_by_canonical: tuple[str, tuple[str, ...]]) -> dict[str, str]:
+    table: dict[str, str] = {}
+    for canonical, names in names_by_canonical:
+        for name in names:
+            folded = _fold_style_name(name)
+            assert folded is not None and folded not in table, name
+            table[folded] = canonical
+    return table
+
+
+# Noms OOXML canoniques (invariants anglais de la specification, ce que Word
+# francais ecrit dans ``w:name``) et noms affiches localises (francais,
+# anglais) susceptibles d'apparaitre chez d'autres producteurs.
+NATIVE_PARAGRAPH_STYLE_NAMES: dict[str, str] = _name_table(
+    ("Heading1", ("heading 1", "titre 1")),
+    ("Heading2", ("heading 2", "titre 2")),
+    ("Heading3", ("heading 3", "titre 3")),
+    ("Heading4", ("heading 4", "titre 4")),
+    ("Heading5", ("heading 5", "titre 5")),
+    ("Heading6", ("heading 6", "titre 6")),
+    ("Normal", ("normal",)),
+    ("BodyText", ("body text", "corps de texte")),
+    ("Quote", ("quote", "citation")),
+    ("IntenseQuote", ("intense quote", "citation intense")),
+    ("ListParagraph", ("list paragraph", "paragraphe de liste")),
+    ("FootnoteText", ("footnote text", "note de bas de page")),
+    ("EndnoteText", ("endnote text", "note de fin")),
+    ("Title", ("title", "titre")),
+    ("Subtitle", ("subtitle", "sous-titre")),
+    ("Caption", ("caption", "légende")),
+)
+
+NATIVE_CHARACTER_STYLE_NAMES: dict[str, str] = _name_table(
+    ("Emphasis", ("emphasis", "accentuation")),
+    ("Strong", ("strong", "élevé")),
+    ("Hyperlink", ("hyperlink", "lien hypertexte")),
+    ("FollowedHyperlink", ("followedhyperlink", "followed hyperlink", "lien hypertexte suivi visité")),
+    ("FootnoteReference", ("footnote reference", "appel note de bas de p.")),
+    ("EndnoteReference", ("endnote reference", "appel de note de fin")),
+)
+
+_CANONICAL_NATIVE_STYLE_IDS: frozenset[str] = frozenset(
+    set(NATIVE_PARAGRAPH_STYLE_NAMES.values()) | set(NATIVE_CHARACTER_STYLE_NAMES.values())
+)
+
+
+def native_style_alias_map(styles: Iterable[StyleDeclaration]) -> dict[str, str]:
+    """Associer les identifiants localises aux identifiants natifs canoniques.
+
+    Resolution centrale et deterministe :
+
+    - seul un style non personnalise (``w:customStyle`` absent ou faux) peut
+      etre reconnu comme style natif ;
+    - un identifiant deja canonique n'est jamais re-signifie par son nom ;
+    - la correspondance se fait uniquement sur le nom affiche normalise
+      (casse, espaces, accents) present dans la table de la convention ;
+    - ``basedOn`` ne transmet volontairement aucune identite : la plupart des
+      styles, y compris personnalises, derivent de ``Normal`` et l'adoption de
+      l'identite du parent aplatirait silencieusement la structure.
+
+    Les styles personnalises inconnus restent donc sans alias et continuent de
+    produire des diagnostics explicites.
+    """
+    aliases: dict[str, str] = {}
+    for style in styles:
+        if style.is_custom is True:
+            continue
+        if style.style_id in _CANONICAL_NATIVE_STYLE_IDS:
+            continue
+        folded = _fold_style_name(style.name)
+        if folded is None:
+            continue
+        if style.style_type == "character":
+            canonical = NATIVE_CHARACTER_STYLE_NAMES.get(folded)
+        else:
+            canonical = NATIVE_PARAGRAPH_STYLE_NAMES.get(folded)
+        if canonical is not None:
+            aliases[style.style_id] = canonical
+    return aliases
+
+
+def resolve_convention_for_styles(
+    convention: WordEditorialConvention,
+    styles: Iterable[StyleDeclaration],
+) -> WordEditorialConvention:
+    """Etendre la convention aux identifiants localises du document.
+
+    La convention retournee reconnait, pour chaque ensemble d'identifiants
+    natifs, les identifiants declares dans ``styles.xml`` dont le nom resout
+    vers le meme style natif. Les styles controles ``TEI_*`` de la convention
+    ne sont pas concernes : ils restent des correspondances exactes.
+    """
+    aliases = native_style_alias_map(styles)
+    if not aliases:
+        return convention
+    ids_for: dict[str, tuple[str, ...]] = {}
+    for declared, canonical in aliases.items():
+        ids_for[canonical] = ids_for.get(canonical, ()) + (declared,)
+
+    def _expand(ids: frozenset[str]) -> frozenset[str]:
+        expanded = set(ids)
+        for canonical in ids:
+            expanded.update(ids_for.get(canonical, ()))
+        return frozenset(expanded)
+
+    heading_style_ids = tuple(convention.heading_style_ids) + tuple(
+        (declared, level)
+        for canonical, level in convention.heading_style_ids
+        for declared in ids_for.get(canonical, ())
+    )
+    character_style_marks = tuple(convention.character_style_marks) + tuple(
+        (declared, marks)
+        for canonical, marks in convention.character_style_marks
+        for declared in ids_for.get(canonical, ())
+    )
+    return replace(
+        convention,
+        heading_style_ids=heading_style_ids,
+        character_style_marks=character_style_marks,
+        paragraph_style_ids=_expand(convention.paragraph_style_ids),
+        deferred_paragraph_style_ids=_expand(convention.deferred_paragraph_style_ids),
+        prose_quote_style_ids=_expand(convention.prose_quote_style_ids),
+        verse_quote_style_ids=_expand(convention.verse_quote_style_ids),
+        consecutive_paragraph_style_ids=_expand(convention.consecutive_paragraph_style_ids),
+        list_continuation_style_ids=_expand(convention.list_continuation_style_ids),
+        figure_container_style_ids=_expand(convention.figure_container_style_ids),
+        figure_caption_style_ids=_expand(convention.figure_caption_style_ids),
+    )

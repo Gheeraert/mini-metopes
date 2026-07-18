@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="main">Cas invalide heading-level-jump</title>
+        <author>
+          <persName>
+            <forename>Corpus</forename>
+            <surname>Test</surname>
+          </persName>
+        </author>
+      </titleStmt>
+      <publicationStmt>
+        <p>Document généré par Mini-Métopes.</p>
+      </publicationStmt>
+      <sourceDesc>
+        <p>Conversion du fichier DOCX source.docx.</p>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="fr">fr</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Section</head>
+        <p>Paragraphe.</p>
+        <div>
+          <div>
+            <div>
+              <head>Saut direct au niveau 4</head>
+              <p>Paragraphe final.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>
+

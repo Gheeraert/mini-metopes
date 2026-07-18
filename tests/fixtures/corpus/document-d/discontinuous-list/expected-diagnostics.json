@@ -1,0 +1,14 @@
+[
+  {
+    "code": "interrupted_list_continuation_not_serializable",
+    "message": "reouverture discontinue d'une meme instance de liste : numId=50, ilvl=0, interruptions=1",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "editorial",
+    "run_index": null,
+    "severity": "error",
+    "source_paragraph_index": 2,
+    "source_part": null,
+    "style_id": "ListParagraph"
+  }
+]

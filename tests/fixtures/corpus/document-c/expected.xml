@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="main">Stances pour une conversion</title>
+        <author>
+          <persName>
+            <forename>Blaise</forename>
+            <surname>Deportroyal</surname>
+          </persName>
+        </author>
+      </titleStmt>
+      <publicationStmt>
+        <p>Document généré par Mini-Métopes.</p>
+      </publicationStmt>
+      <sourceDesc>
+        <p>Conversion du fichier DOCX source.docx.</p>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="fr">fr</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Le poème</head>
+        <p>Le narrateur introduit le poème en <hi rend="italic">prose</hi>.<note place="foot"><p>Note sur la prose introductive.</p></note></p>
+        <quote>
+          <lg>
+            <l>Premier vers de la première strophe</l>
+            <l>Deuxième vers de la première strophe</l>
+          </lg>
+          <lg>
+            <l>Premier vers de la seconde strophe, en <hi rend="italic">italique</hi></l>
+            <l>Deuxième vers de la seconde strophe<note place="foot"><p>Note sur la seconde strophe.</p></note></l>
+          </lg>
+        </quote>
+        <p>Le narrateur conclut en prose.</p>
+      </div>
+    </body>
+  </text>
+</TEI>
+

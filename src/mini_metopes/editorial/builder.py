@@ -17,7 +17,12 @@ from mini_metopes.docx import (
     inspect_docx_file,
 )
 
-from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, WordEditorialConvention
+from .convention import (
+    NATIVE_WORD_CONVENTION,
+    ParagraphRole,
+    WordEditorialConvention,
+    resolve_convention_for_styles,
+)
 from .model import (
     BibliographicReference,
     BibliographicReferenceInline,
@@ -132,6 +137,7 @@ def build_editorial_document(
     excluded_body_paragraph_indexes: frozenset[int] = frozenset(),
 ) -> EditorialBuildResult:
     """Construire un modele editorial immuable sans produire de TEI."""
+    convention = resolve_convention_for_styles(convention, inspection.styles)
     diagnostics: list[EditorialDiagnostic] = []
     body_relationship_index = _relationship_index(inspection.relationships)
     footnote_relationship_index = _relationship_index(inspection.footnote_relationships)
@@ -1230,6 +1236,18 @@ def _paragraph_role(paragraph: ParagraphInfo, convention: WordEditorialConventio
     )
 
 
+def _has_serializable_numbering_core(numbering: object) -> bool:
+    """Predicat unique des numerotations Word representables en liste TEI."""
+    from mini_metopes.docx import ParagraphNumberingInfo
+
+    return (
+        isinstance(numbering, ParagraphNumberingInfo)
+        and numbering.list_kind in {"ordered", "bulleted"}
+        and numbering.level is not None
+        and numbering.num_format is not None
+    )
+
+
 def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) -> bool:
     """Verifier les preconditions editoriales de la passe 8B."""
     numbering = paragraph.numbering
@@ -1238,9 +1256,7 @@ def _is_serializable_list_paragraph(paragraph: ParagraphInfo, role_kind: str) ->
         and numbering is not None
         and numbering.origin == "direct"
         and numbering.status == "resolved"
-        and numbering.list_kind in {"ordered", "bulleted"}
-        and numbering.level is not None
-        and numbering.num_format is not None
+        and _has_serializable_numbering_core(numbering)
         and numbering.picture_bullet_id is None
         and numbering.is_legal is not True
         and numbering.restart_after_level is None
@@ -1700,8 +1716,7 @@ def _numbering_signature(numbering: object) -> tuple[str, int, str, str, int | N
     from mini_metopes.docx import ParagraphNumberingInfo
 
     assert isinstance(numbering, ParagraphNumberingInfo)
-    assert numbering.level is not None and numbering.list_kind in {"ordered", "bulleted"}
-    assert numbering.num_format is not None
+    assert _has_serializable_numbering_core(numbering)
     return (
         numbering.numbering_id,
         numbering.level,
@@ -1721,8 +1736,7 @@ def _new_list_builder(
     from mini_metopes.docx import ParagraphNumberingInfo
 
     assert isinstance(numbering, ParagraphNumberingInfo)
-    assert numbering.level is not None and numbering.list_kind in {"ordered", "bulleted"}
-    assert numbering.num_format is not None
+    assert _has_serializable_numbering_core(numbering)
     return _ListBuilder(
         list_kind=numbering.list_kind,
         num_format=numbering.num_format,

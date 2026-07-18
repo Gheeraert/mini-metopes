@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mini_metopes.docx import DocxInspection
+from mini_metopes.editorial.convention import native_style_alias_map
 
 from .model import MetadataIssue, MetadataSuggestions
 
@@ -14,8 +15,11 @@ def extract_metadata_suggestions(inspection: DocxInspection) -> MetadataSuggesti
     consumed: list[int] = []
     issues: list[MetadataIssue] = []
     preamble = True
+    aliases = native_style_alias_map(inspection.styles)
     for paragraph in inspection.paragraphs:
         style = paragraph.style_id
+        if style is not None:
+            style = aliases.get(style, style)
         if preamble and style in {"Title", "Subtitle"}:
             text = paragraph.text.strip()
             if not text:

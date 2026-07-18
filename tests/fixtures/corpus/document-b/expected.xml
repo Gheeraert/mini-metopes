@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="main">An Ordinary Academic Article</title>
+        <title type="sub">Sections, quotations and lists</title>
+        <author>
+          <persName>
+            <forename>Jane</forename>
+            <surname>Author</surname>
+          </persName>
+        </author>
+      </titleStmt>
+      <publicationStmt>
+        <p>Document généré par Mini-Métopes.</p>
+      </publicationStmt>
+      <sourceDesc>
+        <p>Conversion du fichier DOCX source.docx.</p>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="en">en</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Introduction</head>
+        <p>Opening paragraph with a reference<note place="foot"><p>First footnote of the article.</p></note> and a link to <ref target="https://example.org/reference">an external resource</ref>.</p>
+        <p rend="consecutive">A consecutive paragraph continuing the previous one.</p>
+        <div>
+          <head>State of the Art</head>
+          <quote>
+            <p>A prose quotation attributed to an earlier author.</p>
+          </quote>
+          <p>The ordered enumeration follows.</p>
+          <list type="decimal" n="1">
+            <item>First ordered item<list type="lowerLetter" n="1"><item>Nested ordered item</item></list></item>
+            <item>Second ordered item</item>
+          </list>
+          <p>The unordered enumeration follows.</p>
+          <list type="bulleted">
+            <item>First bulleted item</item>
+            <item>Second bulleted item</item>
+          </list>
+          <div>
+            <head>Method</head>
+            <p>Closing paragraph with a second note<note place="foot"><p>Second footnote of the article.</p></note>.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>
+

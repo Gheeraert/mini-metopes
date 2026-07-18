@@ -1,0 +1,38 @@
+[
+  {
+    "code": "textboxes_not_inspected",
+    "message": "des zones de texte Word sont presentes ; leur contenu n'est pas encore integre a la sequence principale",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "inspection",
+    "run_index": null,
+    "severity": "error",
+    "source_paragraph_index": null,
+    "source_part": "word/document.xml",
+    "style_id": null
+  },
+  {
+    "code": "invalid_drawing_property_not_serializable",
+    "message": "proprietes DrawingML invalides : placement (relation=absente)",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "editorial",
+    "run_index": null,
+    "severity": "error",
+    "source_paragraph_index": 1,
+    "source_part": null,
+    "style_id": null
+  },
+  {
+    "code": "drawing_not_editorially_interpreted",
+    "message": "dessin conserve sans interpretation editoriale",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "editorial",
+    "run_index": 0,
+    "severity": "info",
+    "source_paragraph_index": 1,
+    "source_part": null,
+    "style_id": null
+  }
+]

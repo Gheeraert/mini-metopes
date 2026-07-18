@@ -1,0 +1,14 @@
+[
+  {
+    "code": "unsupported_paragraph_style",
+    "message": "style de paragraphe non reconnu : TEIquote",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "editorial",
+    "run_index": null,
+    "severity": "error",
+    "source_paragraph_index": 2,
+    "source_part": null,
+    "style_id": "TEIquote"
+  }
+]

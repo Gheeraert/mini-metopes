@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "source.docx",
+    "sha256": "a263e8a44e05346bf514ca732b0df40e994d32dd0262817057cb005b47f9426e"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "en",
+    "title": "An Ordinary Academic Article",
+    "subtitle": "Sections, quotations and lists",
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Jane",
+      "family_name": "Author",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "source.docx",
+    "sha256": "85653685d77eef042ba78ac1b42f6a0d60d85080e12af510812ee0148d5b962f"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "Stances pour une conversion",
+    "subtitle": null,
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Blaise",
+      "family_name": "Deportroyal",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "code": "heading_level_jump",
+    "message": "saut de niveau de titre : 1 vers 4",
+    "metadata_path": null,
+    "note_id": null,
+    "origin": "editorial",
+    "run_index": null,
+    "severity": "info",
+    "source_paragraph_index": 2,
+    "source_part": null,
+    "style_id": "Heading4"
+  }
+]
