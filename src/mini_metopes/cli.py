@@ -11,6 +11,8 @@ from typing import Iterator, Sequence
 
 from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
 from .editorial import (
+    BibliographicReference,
+    BibliographicReferenceInline,
     EditorialBuildResult,
     EditorialFigure,
     EditorialList,
@@ -355,6 +357,17 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     note_continuations = sum(len(item.continuation_paragraphs) for item in note_items)
     multiparagraph_items = sum(1 for item in all_list_items if item.continuation_paragraphs)
     figures = [*body_figures, *note_figures]
+    standalone_bibliography_references = [block for block in document.blocks if isinstance(block, BibliographicReference)]
+    inline_bibliographic_references = sum(
+        1
+        for block in (*document.blocks, *(item for note in document.notes for item in note.blocks))
+        for inline in _object_inlines(block)
+        if isinstance(inline, BibliographicReferenceInline)
+    )
+    citations_with_source = sum(
+        isinstance(block, (ProseQuote, VerseQuote)) and block.source is not None
+        for block in (*document.blocks, *(item for note in document.notes for item in note.blocks))
+    )
     figure_media_urls = {figure.graphic.media_url for figure in figures}
     levels: dict[int, int] = {}
     for heading in headings:
@@ -395,6 +408,11 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Lignes de tableaux : {sum(len(table.rows) for table in body_tables)}")
     print(f"Cellules de tableaux : {sum(len(row.cells) for table in body_tables for row in table.rows)}")
     print(f"Tableaux avec ligne d'en-tete : {sum(bool(table.rows and table.rows[0].role == 'label') for table in body_tables)}")
+    print(f"References bibliographiques autonomes : {len(standalone_bibliography_references)}")
+    print(f"References bibliographiques inline : {inline_bibliographic_references}")
+    print(f"Citations avec source : {citations_with_source}")
+    print(f"Bibliographies : {int(document.bibliography is not None)}")
+    print(f"Entrees bibliographiques : {len(document.bibliography.entries) if document.bibliography else 0}")
     if levels:
         print("Titres par niveau : " + ", ".join(f"{level} ({count})" for level, count in sorted(levels.items())))
     print(f"Notes de bas de page : {sum(note.note_kind == 'footnote' for note in document.notes)}")
@@ -417,3 +435,46 @@ def _iter_list_items(editorial_list: EditorialList) -> Iterator[object]:
         yield item
         for child in item.child_lists:
             yield from _iter_list_items(child)
+
+
+def _object_inlines(block: object) -> Iterator[object]:
+    content = getattr(block, "content", None)
+    if isinstance(content, tuple):
+        yield from _inline_objects(content)
+    for paragraph in getattr(block, "paragraphs", ()):
+        yield from _inline_objects(paragraph.content)
+    for stanza in getattr(block, "stanzas", ()):
+        for line in stanza.lines:
+            yield from _inline_objects(line.content)
+    source = getattr(block, "source", None)
+    if source is not None:
+        yield from _object_inlines(source)
+    for item in getattr(block, "items", ()):
+        yield from _object_inlines(item)
+    for paragraph in getattr(block, "continuation_paragraphs", ()):
+        yield from _object_inlines(paragraph)
+    for child in getattr(block, "child_lists", ()):
+        yield from _object_inlines(child)
+    for paragraph_name in ("title", "caption", "credits"):
+        paragraph = getattr(block, paragraph_name, None)
+        if paragraph is not None:
+            yield from _object_inlines(paragraph)
+    for row in getattr(block, "rows", ()):
+        for cell in row.cells:
+            yield from _object_inlines(cell)
+    bibliography = getattr(block, "bibliography", None)
+    if bibliography is not None:
+        yield from _object_inlines(bibliography)
+    title = getattr(block, "title", None)
+    if isinstance(title, tuple):
+        yield from _inline_objects(title)
+    for entry in getattr(block, "entries", ()):
+        yield from _object_inlines(entry)
+
+
+def _inline_objects(items: tuple[object, ...]) -> Iterator[object]:
+    for item in items:
+        yield item
+        nested = getattr(item, "content", None)
+        if isinstance(nested, tuple):
+            yield from _inline_objects(nested)

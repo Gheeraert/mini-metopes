@@ -114,3 +114,10 @@ deviennent des tableaux TEI lorsqu'ils sont rectangulaires, sans fusion ni
 imbrication, et que chaque cellule contient au plus un paragraphe simple. Les
 tableaux dans les notes, zones de texte ou listes, ainsi que les cellules
 complexes, restent refuses afin de ne pas perdre leur structure.
+
+Les references bibliographiques controlees `TEIbiblreference` sont conservees
+en TEI `bibl` : elles peuvent etre autonomes, devenir la source immediate d'une
+citation, ou former une bibliographie finale ouverte par `TEIbiblstart`.
+Le style de caractere `TEIbiblreference-inline` produit un `bibl` inline. La
+bibliographie est unique, terminale et devient `text/back/listBibl`; Mini-Metopes
+ne deduit pas de `biblStruct`.

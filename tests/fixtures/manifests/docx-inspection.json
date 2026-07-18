@@ -89,6 +89,11 @@
       "table 3 x 3 avec tblHeader, cellule vide et contenu inline",
       "table 2 x 2 sans en-tete et ordre alterne avec paragraphes et figures"
     ],
+    "native-bibliographic-references.docx": [
+      "styles controles TEIbiblstart, TEIbiblreference et TEIbiblreference-inline",
+      "reference inline, sources immediates de citations prose et vers, et reference autonome",
+      "bibliographie finale unique avec titre et trois entrees"
+    ],
     "optional-parts-absent.docx": ["document principal sans parties optionnelles"],
     "not-a-zip.docx": ["fichier DOCX apparent mais non ZIP"],
     "without-document.docx": ["ZIP sans word/document.xml"],

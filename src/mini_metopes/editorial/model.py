@@ -78,8 +78,16 @@ class DrawingReference:
     kind: Literal["drawing_reference"] = "drawing_reference"
 
 
+@dataclass(frozen=True)
+class BibliographicReferenceInline:
+    """Reference bibliographique inline, distincte d'une simple marque."""
+
+    content: tuple["EditorialInline", ...]
+    kind: Literal["bibliographic_reference_inline"] = "bibliographic_reference_inline"
+
+
 EditorialInline = (
-    TextSpan | Tab | LineBreak | PageBreak | ColumnBreak | NoteReference | DrawingReference
+    TextSpan | Tab | LineBreak | PageBreak | ColumnBreak | NoteReference | DrawingReference | BibliographicReferenceInline
 )
 
 
@@ -120,6 +128,7 @@ class ProseQuote:
     """Suite contigue de paragraphes Word utilisant le style ``Quote``."""
 
     paragraphs: tuple[ProseQuoteParagraph, ...]
+    source: "BibliographicReference | None" = None
     kind: Literal["prose_quote"] = "prose_quote"
 
 
@@ -148,6 +157,7 @@ class VerseQuote:
     """Suite contigue de strophes Word utilisant le style ``IntenseQuote``."""
 
     stanzas: tuple[VerseStanza, ...]
+    source: "BibliographicReference | None" = None
     kind: Literal["verse_quote"] = "verse_quote"
 
 
@@ -242,7 +252,28 @@ class EditorialTable:
     kind: Literal["table"] = "table"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure | EditorialTable
+@dataclass(frozen=True)
+class BibliographicReference:
+    """Reference riche conservee telle quelle dans un element TEI ``bibl``."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["bibliographic_reference"] = "bibliographic_reference"
+
+
+@dataclass(frozen=True)
+class EditorialBibliography:
+    """Bibliographie finale unique, extraite du flux principal du document."""
+
+    title: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    entries: tuple[BibliographicReference, ...]
+    kind: Literal["bibliography"] = "bibliography"
+
+
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
 
 
 @dataclass(frozen=True)
@@ -262,6 +293,7 @@ class EditorialDocument:
     source_name: str
     blocks: tuple[EditorialBlock, ...]
     notes: tuple[EditorialNote, ...]
+    bibliography: EditorialBibliography | None = None
     kind: Literal["document"] = "document"
 
 

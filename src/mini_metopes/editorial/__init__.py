@@ -3,11 +3,14 @@
 from .builder import build_editorial_document, build_editorial_document_from_file
 from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, ParagraphRoleKind, WordEditorialConvention
 from .model import (
+    BibliographicReference,
+    BibliographicReferenceInline,
     ColumnBreak,
     DiagnosticSeverity,
     DrawingReference,
     EditorialBlock,
     EditorialBuildResult,
+    EditorialBibliography,
     EditorialDiagnostic,
     EditorialDocument,
     EditorialFigure,
@@ -40,10 +43,13 @@ from .serialization import editorial_build_result_to_data, editorial_build_resul
 
 __all__ = [
     "ColumnBreak",
+    "BibliographicReference",
+    "BibliographicReferenceInline",
     "DiagnosticSeverity",
     "DrawingReference",
     "EditorialBlock",
     "EditorialBuildResult",
+    "EditorialBibliography",
     "EditorialDiagnostic",
     "EditorialDocument",
     "EditorialFigure",

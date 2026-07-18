@@ -58,3 +58,12 @@ Les details controles de figure deviennent `head`, `p rend="caption"` et
 `row` et `cell`; `tblHeader` sur la premiere ligne devient `role="label"` sur
 la ligne et ses cellules. Les dimensions, bordures, titres et credits de table
 ne sont pas serialises dans cette V1.
+
+## References bibliographiques
+
+Les styles controles `TEIbiblreference` et `TEIbiblreference-inline` produisent
+respectivement `bibl` de bloc et inline. Une reference placee immediatement apres
+une citation devient sa source dans `cit`. `TEIbiblstart` ouvre la bibliographie
+finale unique, serialisee dans `text/back/div[@type='bibliography']/listBibl`.
+Les notices restent du contenu riche : aucune analyse en `biblStruct` n'est
+effectuee.
