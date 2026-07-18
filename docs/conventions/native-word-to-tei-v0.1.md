@@ -4,6 +4,7 @@ Mini-Metopes convertit actuellement les styles Word natifs suivants :
 
 - `Heading1` a `Heading6` (souvent affiches « Titre 1 » a « Titre 6 ») deviennent des sections TEI ;
 - `Normal` devient un paragraphe ;
+- `BodyText`, affiche comme `Corps de texte` ou `Body Text`, devient un paragraphe de suite `<p rend="consecutive">` ;
 - `Quote` devient une citation en prose ;
 - `IntenseQuote` devient une citation poetique ; un paragraphe est une strophe et `Maj+Entree` separe les vers ;
 - gras, italique, petites capitales, capitales, exposant et indice deviennent des enrichissements TEI ;
@@ -13,6 +14,11 @@ Mini-Metopes convertit actuellement les styles Word natifs suivants :
 Les noms visibles Word peuvent etre localises : Mini-Metopes s'appuie sur les
 identifiants OOXML. Un nouveau paragraphe dans une citation poetique commence
 une strophe ; un paragraphe normal termine une citation consecutive.
+
+Le paragraphe de suite est une semantique editoriale, pas une deduction
+geometrique : un paragraphe `Normal` avec un retrait direct nul ne devient pas
+`rend="consecutive"`. Les variantes `BodyText2`, `BodyText3` et les styles
+personnalises homonymes restent refusees.
 
 Les styles natifs `FootnoteText` et `EndnoteText` sont acceptes comme
 paragraphes ordinaires a l'interieur des notes. Les styles automatiques

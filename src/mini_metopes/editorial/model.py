@@ -10,6 +10,7 @@ TextMark = Literal["bold", "italic", "small_caps", "caps", "superscript", "subsc
 LinkKind = Literal["external", "internal", "unresolved"]
 DiagnosticSeverity = Literal["info", "warning", "error"]
 EditorialListKind = Literal["ordered", "bulleted"]
+ParagraphRendition = Literal["consecutive"]
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,7 @@ class Paragraph:
     content: tuple[EditorialInline, ...]
     source_paragraph_index: int
     source_style_id: str | None
+    rendition: ParagraphRendition | None = None
     kind: Literal["paragraph"] = "paragraph"
 
 

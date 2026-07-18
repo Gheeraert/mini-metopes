@@ -12,9 +12,16 @@ programme reconnait leur identifiant OOXML stable (`Heading1` a `Heading6`),
 pas leur libelle visible.
 
 Le style **Normal**, ou l'absence de style de paragraphe, produit un paragraphe
-ordinaire. Un autre style conserve toujours son texte. S'il ne porte pas de
-niveau de plan exploitable, Mini-Metopes le signale pour permettre une decision
-editoriale ulterieure.
+ordinaire. Le style Word integre **Corps de texte** (`BodyText`) produit un
+paragraphe de suite, conserve dans le modele par
+`rendition="consecutive"`. Mini-Metopes accepte aussi les noms integres exacts
+`Corps de texte` et `Body Text` lorsqu'ils ne sont pas declares comme styles
+personnalises. Les variantes `Corps de texte 2`, `Corps de texte 3`, `Retrait
+corps de texte` et les homonymes personnalises ne sont pas reconnus.
+
+Un autre style conserve toujours son texte. S'il ne porte pas de niveau de plan
+exploitable, Mini-Metopes le signale pour permettre une decision editoriale
+ulterieure.
 
 Un niveau de plan OOXML explicite de 0 a 5 peut aussi devenir un titre lorsque
 le style n'est pas l'un des six titres natifs. Cette regle de repli est moins
@@ -61,6 +68,10 @@ Les retours manuels, sauts de page, sauts de colonne et tabulations restent des
 objets distincts. Une tabulation n'est pas remplacee par des espaces. Les
 dessins et images sont conserves comme references, sans etre encore interpretes
 comme des figures editoriales.
+
+La convention `BodyText` ne lit pas les retraits directs `w:ind` : un
+paragraphe `Normal` sans alinea par mise en forme directe reste un paragraphe
+normal dans cette passe.
 
 Les styles de caracteres Word natifs **Hyperlink** et **FollowedHyperlink**
 sont reconnus comme styles visuels neutres. Ils ne produisent pas de marque

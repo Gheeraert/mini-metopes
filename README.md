@@ -58,6 +58,14 @@ charge en TEI Commons Publishing validee. La convention reconnait `Quote` pour
 les citations en prose et `IntenseQuote` pour les citations poetiques
 (strophes = paragraphes, vers = retours manuels).
 
+Le style Word integre `BodyText`, affiche en francais comme **Corps de texte**,
+devient un paragraphe de suite : le modele porte
+`rendition="consecutive"` et la TEI produit `<p rend="consecutive">`. Cette
+semantique repose sur le style integre, pas sur les retraits directs `w:ind`.
+Les variantes `Corps de texte 2`, `Corps de texte 3` et les styles
+personnalises homonymes restent refusees tant qu'aucune convention explicite
+n'a ete decidee.
+
 Les styles `Title` et `Subtitle` du preambule initial servent uniquement de
 suggestions et de controle de coherence avec le JSON; ils ne deviennent pas du
 contenu TEI. La conversion propage les diagnostics de l'inspection et du modele editorial.

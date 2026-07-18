@@ -169,6 +169,7 @@ class ParagraphInfo:
     text: str
     style_id: str | None
     style_name: str | None
+    style_is_custom: bool | None
     outline_level: int | None
     numbering_id: str | None
     numbering_level: int | None

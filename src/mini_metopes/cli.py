@@ -13,6 +13,7 @@ from .docx import DocxInspection, DocxInspectionError, inspect_docx_file
 from .editorial import (
     EditorialBuildResult,
     EditorialList,
+    Paragraph,
     ProseQuote,
     VerseQuote,
     build_editorial_document_from_file,
@@ -267,6 +268,15 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     document = result.document
     headings = [block for block in document.blocks if block.kind == "heading"]
     paragraphs = [block for block in document.blocks if block.kind == "paragraph"]
+    consecutive_body_paragraphs = [
+        block for block in document.blocks if isinstance(block, Paragraph) and block.rendition == "consecutive"
+    ]
+    consecutive_note_paragraphs = [
+        block
+        for note in document.notes
+        for block in note.blocks
+        if isinstance(block, Paragraph) and block.rendition == "consecutive"
+    ]
     prose_quotes = [block for block in document.blocks if isinstance(block, ProseQuote)]
     verse_quotes = [block for block in document.blocks if isinstance(block, VerseQuote)]
     body_root_lists = [block for block in document.blocks if isinstance(block, EditorialList)]
@@ -294,6 +304,9 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Blocs : {len(document.blocks)}")
     print(f"Titres : {len(headings)}")
     print(f"Paragraphes : {len(paragraphs)}")
+    print(f"Paragraphes de suite du corps : {len(consecutive_body_paragraphs)}")
+    print(f"Paragraphes de suite dans les notes : {len(consecutive_note_paragraphs)}")
+    print(f"Paragraphes de suite totaux : {len(consecutive_body_paragraphs) + len(consecutive_note_paragraphs)}")
     print(f"Citations en prose : {len(prose_quotes)}")
     print(f"Paragraphes de citation : {sum(len(quote.paragraphs) for quote in prose_quotes)}")
     print(f"Citations poetiques : {len(verse_quotes)}")

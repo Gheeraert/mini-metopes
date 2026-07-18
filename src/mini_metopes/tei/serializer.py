@@ -260,7 +260,15 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
         if not block.content:
             state.error("empty_paragraph_not_serializable", "paragraphe vide non serialisable", source_paragraph_index=block.source_paragraph_index)
             return
-        element = etree.SubElement(parent, _tag("p"))
+        if block.rendition not in {None, "consecutive"}:
+            state.error(
+                "unsupported_paragraph_rendition",
+                f"rendition de paragraphe non prise en charge : {block.rendition}",
+                source_paragraph_index=block.source_paragraph_index,
+            )
+            return
+        attributes = {"rend": "consecutive"} if block.rendition == "consecutive" else {}
+        element = etree.SubElement(parent, _tag("p"), **attributes)
         _append_inline(element, block.content, state)
         return
     if isinstance(block, ProseQuote):
