@@ -248,7 +248,7 @@ def test_tables_and_textboxes_in_notes_are_reported(tmp_path: Path) -> None:
     inspection = inspect_docx_file(path)
 
     assert any(
-        issue.code == "table_not_modeled" and issue.part == "word/footnotes.xml"
+        issue.code == "table_in_note_not_serializable" and issue.part == "word/footnotes.xml"
         for issue in inspection.issues
     )
     assert any(

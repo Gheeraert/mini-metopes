@@ -28,6 +28,9 @@ from .model import (
     RunContentInfo,
     RunInfo,
     StyleInfo,
+    TableCellInfo,
+    TableInfo,
+    TableRowInfo,
 )
 from .namespaces import CONTENT_TYPES, NS, PACKAGE_RELATIONSHIPS, r_tag, w_tag
 
@@ -164,7 +167,9 @@ def inspect_docx_file(
         styles = _read_styles(styles_root)
         styles_by_id = {style.style_id: style for style in styles}
         numbering_definitions = _read_numbering_definitions(numbering_root, issues)
-        paragraphs = _read_paragraphs(document, styles_by_id, numbering_definitions, issues, DOCUMENT_PART)
+        paragraphs, body_blocks = _read_body_blocks(
+            document, styles_by_id, numbering_definitions, issues, DOCUMENT_PART
+        )
         footnotes = _read_notes(
             footnotes_root, "footnote", styles_by_id, numbering_definitions, issues, FOOTNOTES_PART
         )
@@ -220,6 +225,7 @@ def inspect_docx_file(
         media=media,
         issues=tuple(issues),
         numbering_definitions=numbering_definitions,
+        body_blocks=body_blocks,
     )
 
 
@@ -325,17 +331,42 @@ def _read_styles(root: etree._Element | None) -> tuple[StyleInfo, ...]:
     return tuple(styles)
 
 
-def _read_paragraphs(
+def _read_body_blocks(
     root: etree._Element,
     styles_by_id: dict[str, StyleInfo],
     numbering_definitions: NumberingDefinitionsInfo,
     issues: list[InspectionIssue],
     part: str,
-) -> tuple[ParagraphInfo, ...]:
+) -> tuple[tuple[ParagraphInfo, ...], tuple[ParagraphInfo | TableInfo, ...]]:
     body = root.find(".//w:body", namespaces=NS)
     if body is None:
-        return ()
-    return _read_paragraphs_from_container(body, styles_by_id, numbering_definitions, issues, part)
+        return (), ()
+    paragraphs: list[ParagraphInfo] = []
+    blocks: list[ParagraphInfo | TableInfo] = []
+    paragraph_index = 0
+    block_index = 0
+    for child in body:
+        if child.tag == w_tag("p"):
+            paragraph = _read_paragraph(
+                child, paragraph_index, styles_by_id, numbering_definitions, issues, part, None
+            )
+            paragraphs.append(paragraph)
+            blocks.append(paragraph)
+            paragraph_index += 1
+            block_index += 1
+        elif child.tag == w_tag("tbl"):
+            blocks.append(
+                _read_table(
+                    child,
+                    source_block_index=block_index,
+                    styles_by_id=styles_by_id,
+                    numbering_definitions=numbering_definitions,
+                    issues=issues,
+                    part=part,
+                )
+            )
+            block_index += 1
+    return tuple(paragraphs), tuple(blocks)
 
 
 def _read_paragraphs_from_container(
@@ -351,6 +382,59 @@ def _read_paragraphs_from_container(
             element, index, styles_by_id, numbering_definitions, issues, part, note_id
         )
         for index, element in enumerate(_paragraph_elements(container))
+    )
+
+
+def _read_table(
+    element: etree._Element,
+    *,
+    source_block_index: int,
+    styles_by_id: dict[str, StyleInfo],
+    numbering_definitions: NumberingDefinitionsInfo,
+    issues: list[InspectionIssue],
+    part: str,
+) -> TableInfo:
+    """Observer une table de corps sans aplatir ses cellules dans le flux."""
+    rows: list[TableRowInfo] = []
+    for row_index, row in enumerate(element.findall("./w:tr", namespaces=NS)):
+        cells: list[TableCellInfo] = []
+        for column_index, cell in enumerate(row.findall("./w:tc", namespaces=NS)):
+            paragraphs = tuple(
+                _read_paragraph(
+                    paragraph,
+                    row_index * 10_000 + column_index * 100 + paragraph_index,
+                    styles_by_id,
+                    numbering_definitions,
+                    issues,
+                    part,
+                    None,
+                )
+                for paragraph_index, paragraph in enumerate(cell.findall("./w:p", namespaces=NS))
+            )
+            properties = cell.find("./w:tcPr", namespaces=NS)
+            cells.append(
+                TableCellInfo(
+                    paragraphs=paragraphs,
+                    has_grid_span=properties is not None and properties.find("./w:gridSpan", namespaces=NS) is not None,
+                    has_vertical_merge=properties is not None and properties.find("./w:vMerge", namespaces=NS) is not None,
+                    has_horizontal_merge=properties is not None and properties.find("./w:hMerge", namespaces=NS) is not None,
+                    has_nested_table=cell.find(".//w:tbl", namespaces=NS) is not None,
+                )
+            )
+        rows.append(
+            TableRowInfo(
+                cells=tuple(cells),
+                is_header=row.find("./w:trPr/w:tblHeader", namespaces=NS) is not None,
+            )
+        )
+    grid = element.find("./w:tblGrid", namespaces=NS)
+    return TableInfo(
+        rows=tuple(rows),
+        source_block_index=source_block_index,
+        style_id=_child_value(element, "./w:tblPr/w:tblStyle"),
+        declared_column_count=(
+            len(grid.findall("./w:gridCol", namespaces=NS)) if grid is not None else None
+        ),
     )
 
 
@@ -1416,12 +1500,21 @@ def _part_observation_issues(root: etree._Element, part: str) -> list[Inspection
                 part=part,
             )
         )
-    if root.xpath(".//w:tbl", namespaces=NS):
+    if part in {FOOTNOTES_PART, ENDNOTES_PART} and root.xpath(".//w:tbl", namespaces=NS):
         issues.append(
             InspectionIssue(
-                code="table_not_modeled",
+                code="table_in_note_not_serializable",
                 message="des tableaux sont présents ; leur structure n'est pas encore modélisée",
-                severity="info",
+                severity="warning",
+                part=part,
+            )
+        )
+    if root.xpath(".//w:txbxContent//w:tbl", namespaces=NS):
+        issues.append(
+            InspectionIssue(
+                code="table_in_textbox_not_serializable",
+                message="des tableaux sont presents dans une zone de texte",
+                severity="warning",
                 part=part,
             )
         )

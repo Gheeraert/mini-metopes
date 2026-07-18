@@ -22,6 +22,9 @@ from mini_metopes.editorial import (
     EditorialListItem,
     EditorialLink,
     EditorialNote,
+    EditorialTable,
+    EditorialTableCell,
+    EditorialTableRow,
     Heading,
     LineBreak,
     NoteReference,
@@ -415,6 +418,9 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
     if isinstance(block, EditorialFigure):
         _append_figure(parent, block, state)
         return
+    if isinstance(block, EditorialTable):
+        _append_editorial_table(parent, block, state)
+        return
     raise TypeError(f"bloc editorial inconnu : {type(block)!r}")
 
 
@@ -424,6 +430,15 @@ def _append_figure(parent: etree._Element, figure: EditorialFigure, state: _Seri
         state.diagnostics.append(diagnostic)
         return
     element = etree.SubElement(parent, _tag("figure"))
+    if figure.title is not None:
+        if figure.title.rendition != "figure-title":
+            state.error("unsupported_paragraph_rendition", "rendition de titre de figure non prise en charge", source_paragraph_index=figure.title.source_paragraph_index)
+            return
+        if not figure.title.content:
+            state.error("empty_figure_title_not_serializable", "titre de figure vide non serialisable", source_paragraph_index=figure.title.source_paragraph_index)
+            return
+        head = etree.SubElement(element, _tag("head"))
+        _append_inline(head, figure.title.content, state)
     etree.SubElement(element, _tag("graphic"), url=figure.graphic.media_url)
     etree.SubElement(element, _tag("figDesc")).text = figure.graphic.description
     if figure.caption is not None:
@@ -442,7 +457,50 @@ def _append_figure(parent: etree._Element, figure: EditorialFigure, state: _Seri
             state=state,
             empty_code="empty_figure_caption_not_serializable",
             empty_message="legende de figure vide non serialisable",
+            allowed_renditions=frozenset({"caption"}),
         )
+    if figure.credits is not None:
+        _append_paragraph_element(
+            element, figure.credits.content, rendition=figure.credits.rendition,
+            source_paragraph_index=figure.credits.source_paragraph_index, state=state,
+            empty_code="empty_figure_credits_not_serializable",
+            empty_message="credits de figure vides non serialisables",
+            allowed_renditions=frozenset({"credits"}),
+        )
+
+
+def _append_editorial_table(parent: etree._Element, table: EditorialTable, state: _SerializationState) -> None:
+    if not table.rows:
+        state.error("empty_table_not_serializable", "table editoriale vide non serialisable")
+        return
+    if table.column_count <= 0:
+        state.error("invalid_table_column_count", "nombre de colonnes de table invalide")
+        return
+    element = etree.SubElement(parent, _tag("table"), rows=str(len(table.rows)), cols=str(table.column_count))
+    for row_index, row in enumerate(table.rows):
+        if len(row.cells) != table.column_count:
+            state.error("irregular_table_not_serializable", "lignes de table editoriale de tailles differentes")
+            return
+        if row.role not in {None, "label"}:
+            state.error("unsupported_table_role", "role de ligne de table inconnu")
+            return
+        if row.role == "label" and row_index != 0:
+            state.error("invalid_table_header_not_serializable", "ligne d'en-tete editoriale hors premiere ligne")
+            return
+        row_element = etree.SubElement(element, _tag("row"), **({"role": "label"} if row.role == "label" else {}))
+        for column_index, cell in enumerate(row.cells):
+            if cell.role not in {None, "label"} or (row.role == "label" and cell.role != "label"):
+                state.error("unsupported_table_role", "role de cellule de table inconnu")
+                return
+            if cell.source_column_index < 0 or cell.source_row_index < 0:
+                state.error("invalid_table_source_index", "index source de cellule invalide")
+                return
+            cell_element = etree.SubElement(row_element, _tag("cell"), **({"role": "label"} if cell.role == "label" else {}))
+            for inline in cell.content:
+                if isinstance(inline, DrawingReference):
+                    state.error("image_in_table_cell_not_serializable", "dessin dans une cellule de table")
+                    return
+            _append_inline(cell_element, cell.content, state)
 
 
 def _validate_graphic(graphic: EditorialGraphic) -> TeiConversionDiagnostic | None:
@@ -546,18 +604,19 @@ def _append_paragraph_element(
     state: _SerializationState,
     empty_code: str,
     empty_message: str,
+    allowed_renditions: frozenset[object] = frozenset({None, "consecutive"}),
 ) -> None:
     if not content:
         state.error(empty_code, empty_message, source_paragraph_index=source_paragraph_index)
         return
-    if rendition not in {None, "consecutive", "caption"}:
+    if rendition not in allowed_renditions:
         state.error(
             "unsupported_paragraph_rendition",
             f"rendition de paragraphe non prise en charge : {rendition}",
             source_paragraph_index=source_paragraph_index,
         )
         return
-    attributes = {"rend": rendition} if rendition in {"consecutive", "caption"} else {}
+    attributes = {"rend": rendition} if rendition in {"consecutive", "caption", "credits"} else {}
     element = etree.SubElement(parent, _tag("p"), **attributes)
     _append_inline(element, content, state)
 

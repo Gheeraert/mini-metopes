@@ -209,6 +209,39 @@ class ParagraphInfo:
 
 
 @dataclass(frozen=True)
+class TableCellInfo:
+    """Cellule Word observée sans interpréter sa présentation visuelle."""
+
+    paragraphs: tuple[ParagraphInfo, ...]
+    has_grid_span: bool
+    has_vertical_merge: bool
+    has_horizontal_merge: bool
+    has_nested_table: bool
+
+
+@dataclass(frozen=True)
+class TableRowInfo:
+    """Ligne Word et signal natif éventuel d'en-tête."""
+
+    cells: tuple[TableCellInfo, ...]
+    is_header: bool
+
+
+@dataclass(frozen=True)
+class TableInfo:
+    """Table Word de premier niveau dans le flux du corps."""
+
+    rows: tuple[TableRowInfo, ...]
+    source_block_index: int
+    style_id: str | None
+    declared_column_count: int | None
+    kind: Literal["table"] = "table"
+
+
+DocxBodyBlock = ParagraphInfo | TableInfo
+
+
+@dataclass(frozen=True)
 class NoteInfo:
     """Note de bas de page ou de fin avec ses paragraphes observes."""
 
@@ -257,6 +290,7 @@ class DocxInspection:
     media: tuple[MediaInfo, ...]
     issues: tuple[InspectionIssue, ...]
     numbering_definitions: NumberingDefinitionsInfo = NumberingDefinitionsInfo()
+    body_blocks: tuple[DocxBodyBlock, ...] = ()
 
 
 class DocxInspectionError(ValueError):

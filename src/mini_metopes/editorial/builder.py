@@ -13,6 +13,7 @@ from mini_metopes.docx import (
     ParagraphInfo,
     RelationshipInfo,
     RunInfo,
+    TableInfo,
     inspect_docx_file,
 )
 
@@ -31,6 +32,9 @@ from .model import (
     EditorialListItem,
     EditorialLink,
     EditorialNote,
+    EditorialTable,
+    EditorialTableCell,
+    EditorialTableRow,
     DiagnosticSeverity,
     Heading,
     LineBreak,
@@ -173,11 +177,21 @@ def build_editorial_document(
         notes.append(editorial_note)
         notes_by_key.setdefault(key, editorial_note)
 
-    body_paragraphs = tuple(
-        paragraph for paragraph in inspection.paragraphs if paragraph.index not in excluded_body_paragraph_indexes
+    observed_body_paragraphs = tuple(
+        block for block in inspection.body_blocks if isinstance(block, ParagraphInfo)
+    )
+    source_body_blocks: tuple[ParagraphInfo | TableInfo, ...] = (
+        inspection.body_blocks
+        if inspection.body_blocks and observed_body_paragraphs == inspection.paragraphs
+        else inspection.paragraphs
+    )
+    body_blocks = tuple(
+        block
+        for block in source_body_blocks
+        if not isinstance(block, ParagraphInfo) or block.index not in excluded_body_paragraph_indexes
     )
     blocks, body_references = _build_blocks(
-        body_paragraphs,
+        body_blocks,
         convention=convention,
         relationships=body_relationship_index.unique,
         figure_relationships=body_relationship_index,
@@ -211,7 +225,7 @@ def build_editorial_document_from_file(
 
 
 def _build_blocks(
-    paragraphs: tuple[ParagraphInfo, ...],
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...],
     *,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
@@ -230,7 +244,65 @@ def _build_blocks(
     paragraph_position = 0
     while paragraph_position < len(paragraphs):
         paragraph = paragraphs[paragraph_position]
+        if isinstance(paragraph, TableInfo):
+            if closed_numbering_ids:
+                for numbering_id in closed_numbering_ids:
+                    interrupted_numbering_ids[numbering_id] = interrupted_numbering_ids.get(numbering_id, 0) + 1
+                closed_numbering_ids = set()
+            table, table_references = _build_editorial_table(
+                paragraph,
+                convention=convention,
+                relationships=relationships,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+            if table is not None:
+                blocks.append(table)
+            referenced_notes.update(table_references)
+            paragraph_position += 1
+            continue
         role = _paragraph_role(paragraph, convention)
+
+        if convention.is_figure_title_style(
+            paragraph.style_id, paragraph.style_name, paragraph.style_is_custom
+        ):
+            title, title_references = _build_figure_text_paragraph(
+                paragraph,
+                rendition="figure-title",
+                role_name="title",
+                convention=convention,
+                relationships=relationships,
+                diagnostics=diagnostics,
+                note_id=note_id,
+            )
+            referenced_notes.update(title_references)
+            next_paragraph = (
+                paragraphs[paragraph_position + 1]
+                if paragraph_position + 1 < len(paragraphs)
+                else None
+            )
+            if isinstance(next_paragraph, ParagraphInfo) and next_paragraph.drawing_count:
+                figure = _build_figure_if_supported(
+                    paragraphs,
+                    paragraph_position + 1,
+                    title=title,
+                    convention=convention,
+                    relationships=relationships,
+                    figure_relationships=figure_relationships,
+                    media_by_path=media_by_path,
+                    source_part=source_part,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                if figure is not None:
+                    blocks.append(figure.figure)
+                    referenced_notes.update(figure.references)
+                    paragraph_position = figure.next_position
+                    continue
+            diagnostics.append(_figure_text_diagnostic(
+                "orphan_figure_title_not_serializable", "titre de figure sans image immediate suivante",
+                paragraph, note_id,
+            ))
 
         if paragraph.drawing_count:
             figure = _build_figure_if_supported(
@@ -250,7 +322,10 @@ def _build_blocks(
                 paragraph_position = figure.next_position
                 continue
 
-        if convention.is_figure_caption_style(paragraph.style_id, paragraph.style_is_custom):
+        if (
+            convention.is_figure_caption_style(paragraph.style_id, paragraph.style_is_custom)
+            or convention.is_controlled_figure_caption_style(paragraph.style_id, paragraph.style_name, paragraph.style_is_custom)
+        ):
             diagnostics.append(
                 EditorialDiagnostic(
                     code="orphan_figure_caption_not_serializable",
@@ -261,6 +336,11 @@ def _build_blocks(
                     note_id=note_id,
                 )
             )
+        if convention.is_figure_credits_style(paragraph.style_id, paragraph.style_name, paragraph.style_is_custom):
+            diagnostics.append(_figure_text_diagnostic(
+                "orphan_figure_credits_not_serializable", "credits de figure sans figure immediate precedente",
+                paragraph, note_id,
+            ))
 
         if _is_serializable_list_paragraph(paragraph, role.kind):
             list_blocks, next_position, list_references, sequence_numbering_ids = _build_list_sequence(
@@ -360,6 +440,8 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
                 if _paragraph_role(next_paragraph, convention).kind != "prose_quote":
                     break
                 next_content, next_references = _build_inline_content(
@@ -397,6 +479,8 @@ def _build_blocks(
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
                 if _paragraph_role(next_paragraph, convention).kind != "verse_quote":
                     break
                 next_content, next_references = _build_inline_content(
@@ -432,6 +516,97 @@ def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
     return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
 
 
+def _build_editorial_table(
+    table: TableInfo,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> tuple[EditorialTable | None, set[tuple[str, str]]]:
+    """Construire uniquement une table Word rectangulaire sans fusion."""
+    references: set[tuple[str, str]] = set()
+    if not table.rows:
+        diagnostics.append(EditorialDiagnostic("empty_table_not_serializable", "error", "table Word vide"))
+        return None, references
+    if any(not row.cells for row in table.rows):
+        diagnostics.append(EditorialDiagnostic("empty_table_row_not_serializable", "error", "ligne de table Word vide"))
+        return None, references
+    if any(
+        cell.has_grid_span or cell.has_vertical_merge or cell.has_horizontal_merge
+        for row in table.rows for cell in row.cells
+    ):
+        diagnostics.append(EditorialDiagnostic("merged_table_cells_not_serializable", "error", "cellules fusionnees dans une table Word"))
+        return None, references
+    if any(cell.has_nested_table for row in table.rows for cell in row.cells):
+        diagnostics.append(EditorialDiagnostic("nested_table_not_serializable", "error", "table imbriquee dans une cellule Word"))
+        return None, references
+    column_count = len(table.rows[0].cells)
+    if any(len(row.cells) != column_count for row in table.rows) or (
+        table.declared_column_count is not None and table.declared_column_count != column_count
+    ):
+        diagnostics.append(EditorialDiagnostic("irregular_table_not_serializable", "error", "table Word non rectangulaire"))
+        return None, references
+    if any(row.is_header for row in table.rows[1:]):
+        diagnostics.append(EditorialDiagnostic("invalid_table_header_not_serializable", "error", "ligne d'en-tete Word hors premiere ligne"))
+        return None, references
+    rows: list[EditorialTableRow] = []
+    for row_index, row in enumerate(table.rows):
+        cells: list[EditorialTableCell] = []
+        for column_index, cell in enumerate(row.cells):
+            nonempty = [paragraph for paragraph in cell.paragraphs if paragraph.text or paragraph.runs]
+            if len(nonempty) > 1:
+                diagnostics.append(EditorialDiagnostic(
+                    "multiple_paragraphs_in_table_cell_not_serializable", "error",
+                    "plusieurs paragraphes non vides dans une cellule Word",
+                ))
+                continue
+            content: tuple[EditorialInline, ...] = ()
+            if nonempty:
+                paragraph = nonempty[0]
+                role = _paragraph_role(paragraph, convention)
+                cell_style_supported = convention.is_table_cell_style(
+                    paragraph.style_id, paragraph.style_name, paragraph.style_is_custom
+                )
+                controlled_table_cell_style = convention.is_controlled_table_cell_style(
+                    paragraph.style_id, paragraph.style_name, paragraph.style_is_custom
+                )
+                if not cell_style_supported:
+                    diagnostics.append(_figure_text_diagnostic(
+                        "unsupported_table_cell_style", "style de cellule Word non pris en charge", paragraph, note_id
+                    ))
+                if paragraph.drawing_count:
+                    diagnostics.append(_figure_text_diagnostic(
+                        "image_in_table_cell_not_serializable", "image dans une cellule de table", paragraph, note_id
+                    ))
+                if _has_active_numbering(paragraph):
+                    diagnostics.append(_figure_text_diagnostic(
+                        "numbered_table_cell_not_serializable", "liste dans une cellule de table", paragraph, note_id
+                    ))
+                if role.kind != "paragraph" and not controlled_table_cell_style:
+                    diagnostics.append(_figure_text_diagnostic(
+                        "unsupported_table_cell_content", "contenu de cellule Word non pris en charge", paragraph, note_id
+                    ))
+                content, cell_references = _build_inline_content(
+                    paragraph, convention=convention, relationships=relationships,
+                    diagnostics=diagnostics, note_id=note_id,
+                )
+                references.update(cell_references)
+            cells.append(EditorialTableCell(
+                content=content,
+                role="label" if row.is_header else None,
+                source_row_index=row_index,
+                source_column_index=column_index,
+            ))
+        rows.append(EditorialTableRow(
+            cells=tuple(cells), role="label" if row.is_header else None, source_row_index=row_index
+        ))
+    return EditorialTable(
+        rows=tuple(rows), column_count=column_count,
+        source_block_index=table.source_block_index, source_style_id=table.style_id,
+    ), references
+
+
 def _relationship_index(relationships: tuple[RelationshipInfo, ...]) -> _RelationshipIndex:
     unique: dict[str, RelationshipInfo] = {}
     duplicates: set[str] = set()
@@ -444,9 +619,10 @@ def _relationship_index(relationships: tuple[RelationshipInfo, ...]) -> _Relatio
 
 
 def _build_figure_if_supported(
-    paragraphs: tuple[ParagraphInfo, ...],
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...],
     position: int,
     *,
+    title: Paragraph | None = None,
     convention: WordEditorialConvention,
     relationships: dict[str, RelationshipInfo],
     figure_relationships: _RelationshipIndex,
@@ -456,6 +632,8 @@ def _build_figure_if_supported(
     note_id: str | None,
 ) -> _BuiltFigure | None:
     paragraph = paragraphs[position]
+    if not isinstance(paragraph, ParagraphInfo):
+        return None
     graphic = _graphic_from_paragraph(
         paragraph,
         convention=convention,
@@ -469,69 +647,93 @@ def _build_figure_if_supported(
     if graphic is None:
         return None
     caption: Paragraph | None = None
+    credits: Paragraph | None = None
     references: set[tuple[str, str]] = set()
     next_position = position + 1
     if next_position < len(paragraphs):
         candidate = paragraphs[next_position]
-        if convention.is_figure_caption_style(candidate.style_id, candidate.style_is_custom):
-            caption_content, caption_references = _build_inline_content(
-                candidate,
-                convention=convention,
-                relationships=relationships,
-                diagnostics=diagnostics,
-                note_id=note_id,
+        if isinstance(candidate, ParagraphInfo) and (
+            convention.is_figure_caption_style(candidate.style_id, candidate.style_is_custom)
+            or convention.is_controlled_figure_caption_style(candidate.style_id, candidate.style_name, candidate.style_is_custom)
+        ):
+            caption, caption_references = _build_figure_text_paragraph(
+                candidate, rendition="caption", role_name="caption", convention=convention,
+                relationships=relationships, diagnostics=diagnostics, note_id=note_id,
             )
             references.update(caption_references)
-            if _has_active_numbering(candidate):
-                diagnostics.append(
-                    EditorialDiagnostic(
-                        code="numbered_figure_caption_not_serializable",
-                        severity="error",
-                        message="legende de figure numerotee",
-                        paragraph_index=candidate.index,
-                        style_id=candidate.style_id,
-                        note_id=note_id,
-                    )
-                )
-            if candidate.drawing_count:
-                diagnostics.append(
-                    EditorialDiagnostic(
-                        code="image_in_figure_caption_not_serializable",
-                        severity="error",
-                        message="image presente dans une legende de figure",
-                        paragraph_index=candidate.index,
-                        style_id=candidate.style_id,
-                        note_id=note_id,
-                    )
-                )
-            if not caption_content:
-                diagnostics.append(
-                    EditorialDiagnostic(
-                        code="empty_figure_caption_not_serializable",
-                        severity="error",
-                        message="legende de figure vide",
-                        paragraph_index=candidate.index,
-                        style_id=candidate.style_id,
-                        note_id=note_id,
-                    )
-                )
-            caption = Paragraph(
-                content=caption_content,
-                source_paragraph_index=candidate.index,
-                source_style_id=candidate.style_id,
-                rendition="caption",
+            next_position += 1
+    if next_position < len(paragraphs):
+        candidate = paragraphs[next_position]
+        if isinstance(candidate, ParagraphInfo) and convention.is_figure_credits_style(
+            candidate.style_id, candidate.style_name, candidate.style_is_custom
+        ):
+            credits, credit_references = _build_figure_text_paragraph(
+                candidate, rendition="credits", role_name="credits", convention=convention,
+                relationships=relationships, diagnostics=diagnostics, note_id=note_id,
             )
+            references.update(credit_references)
             next_position += 1
     return _BuiltFigure(
         figure=EditorialFigure(
             graphic=graphic,
-            caption=caption,
             source_paragraph_index=paragraph.index,
             source_style_id=paragraph.style_id,
+            title=title,
+            caption=caption,
+            credits=credits,
         ),
         next_position=next_position,
         references=references,
     )
+
+
+def _figure_text_diagnostic(
+    code: str, message: str, paragraph: ParagraphInfo, note_id: str | None
+) -> EditorialDiagnostic:
+    return EditorialDiagnostic(
+        code=code,
+        severity="error",
+        message=message,
+        paragraph_index=paragraph.index,
+        style_id=paragraph.style_id,
+        note_id=note_id,
+    )
+
+
+def _build_figure_text_paragraph(
+    paragraph: ParagraphInfo,
+    *,
+    rendition: str,
+    role_name: str,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> tuple[Paragraph | None, set[tuple[str, str]]]:
+    content, references = _build_inline_content(
+        paragraph, convention=convention, relationships=relationships,
+        diagnostics=diagnostics, note_id=note_id,
+    )
+    prefix = "figure_caption" if role_name == "caption" else f"figure_{role_name}"
+    if _has_active_numbering(paragraph):
+        diagnostics.append(_figure_text_diagnostic(
+            f"numbered_{prefix}_not_serializable", f"{role_name} de figure numerote", paragraph, note_id
+        ))
+    if paragraph.drawing_count:
+        diagnostics.append(_figure_text_diagnostic(
+            f"image_in_{prefix}_not_serializable", f"image presente dans un {role_name} de figure", paragraph, note_id
+        ))
+    if not content:
+        diagnostics.append(_figure_text_diagnostic(
+            f"empty_{prefix}_not_serializable", f"{role_name} de figure vide", paragraph, note_id
+        ))
+        return None, references
+    return Paragraph(
+        content=content,
+        source_paragraph_index=paragraph.index,
+        source_style_id=paragraph.style_id,
+        rendition=rendition,  # type: ignore[arg-type]
+    ), references
 
 
 def _graphic_from_paragraph(
@@ -801,9 +1003,11 @@ def _numbering_id(paragraph: ParagraphInfo) -> str | None:
     return numbering.numbering_id
 
 
-def _numbering_ids_for_paragraphs(paragraphs: tuple[ParagraphInfo, ...]) -> set[str]:
+def _numbering_ids_for_paragraphs(paragraphs: tuple[ParagraphInfo | TableInfo, ...]) -> set[str]:
     numbering_ids: set[str] = set()
     for paragraph in paragraphs:
+        if not isinstance(paragraph, ParagraphInfo):
+            continue
         numbering_id = _numbering_id(paragraph)
         if numbering_id is not None:
             numbering_ids.add(numbering_id)
@@ -863,7 +1067,7 @@ def _add_interrupted_list_continuation_diagnostic(
 
 
 def _build_list_sequence(
-    paragraphs: tuple[ParagraphInfo, ...],
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...],
     start_position: int,
     *,
     convention: WordEditorialConvention,
@@ -880,6 +1084,7 @@ def _build_list_sequence(
     constructeurs prives mutables le temps d'etablir les relations parent/enfant.
     """
     first = paragraphs[start_position]
+    assert isinstance(first, ParagraphInfo)
     assert first.numbering is not None and first.numbering.level is not None
     root_level = first.numbering.level
     roots: list[_ListBuilder] = []
@@ -892,6 +1097,8 @@ def _build_list_sequence(
 
     while position < len(paragraphs):
         paragraph = paragraphs[position]
+        if not isinstance(paragraph, ParagraphInfo):
+            break
         role = _paragraph_role(paragraph, convention)
         if not _is_serializable_list_paragraph(paragraph, role.kind):
             if previous_level is not None and _is_list_continuation_candidate(paragraph, role, convention):
@@ -1091,7 +1298,7 @@ def _is_rejected_list_continuation_style(
 
 
 def _handle_list_continuations(
-    paragraphs: tuple[ParagraphInfo, ...],
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...],
     start_position: int,
     *,
     previous_builder: _ListBuilder,
@@ -1109,6 +1316,8 @@ def _handle_list_continuations(
     candidates: list[ParagraphInfo] = []
     while position < len(paragraphs):
         paragraph = paragraphs[position]
+        if not isinstance(paragraph, ParagraphInfo):
+            break
         role = _paragraph_role(paragraph, convention)
         if not _is_list_continuation_candidate(paragraph, role, convention):
             break
@@ -1116,7 +1325,7 @@ def _handle_list_continuations(
         position += 1
 
     next_paragraph = paragraphs[position] if position < len(paragraphs) else None
-    next_role = _paragraph_role(next_paragraph, convention) if next_paragraph is not None else None
+    next_role = _paragraph_role(next_paragraph, convention) if isinstance(next_paragraph, ParagraphInfo) else None
     if (
         next_paragraph is None
         or next_role is None
@@ -1127,7 +1336,7 @@ def _handle_list_continuations(
             count=len(candidates),
             previous_numbering_id=previous_numbering_id,
             previous_level=previous_level,
-            next_paragraph=next_paragraph,
+            next_paragraph=next_paragraph if isinstance(next_paragraph, ParagraphInfo) else None,
             reason="fin de sequence",
             diagnostics=diagnostics,
             note_id=note_id,

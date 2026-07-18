@@ -73,3 +73,12 @@ La limite totale de medias s'applique seulement aux medias utilises par la TEI,
 apres deduplication. Avant ecriture, tous les assets sont prevalider ; un asset
 invalide ou un conflit empeche toute ecriture de media et preserve le XML
 existant.
+
+## Details de figure 11
+
+Une figure peut etre precedee du style controle exact et personnalise
+`TEIfiguretitle` / `TEI_figure_title`, puis suivie de `Caption` ou du style
+controle `TEIfigurecaption` / `TEI_figure_caption`, et enfin du style controle
+`TEIfigurecredits` / `TEI_figure_credits`. Les styles homonymes ou voisins ne
+sont pas reconnus. Le titre devient `head`; la legende et les credits deviennent
+respectivement `p rend="caption"` et `p rend="credits"`.

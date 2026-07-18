@@ -306,7 +306,7 @@ def test_non_blocking_inspection_diagnostics_are_preserved_on_success() -> None:
 
 def test_blocking_inspection_diagnostics_prevent_serialization() -> None:
     inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
-    for code in ("textboxes_not_inspected", "table_not_modeled"):
+    for code in ("textboxes_not_inspected", "table_in_note_not_serializable"):
         changed = replace(
             inspection,
             issues=(InspectionIssue(code, f"{code} present", "info", "word/document.xml"),),

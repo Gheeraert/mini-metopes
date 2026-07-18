@@ -10,7 +10,7 @@ TextMark = Literal["bold", "italic", "small_caps", "caps", "superscript", "subsc
 LinkKind = Literal["external", "internal", "unresolved"]
 DiagnosticSeverity = Literal["info", "warning", "error"]
 EditorialListKind = Literal["ordered", "bulleted"]
-ParagraphRendition = Literal["consecutive", "caption"]
+ParagraphRendition = Literal["consecutive", "caption", "figure-title", "credits"]
 
 
 @dataclass(frozen=True)
@@ -205,10 +205,44 @@ class EditorialFigure:
     caption: Paragraph | None
     source_paragraph_index: int
     source_style_id: str | None
+    title: Paragraph | None = None
+    credits: Paragraph | None = None
     kind: Literal["figure"] = "figure"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure
+@dataclass(frozen=True)
+class EditorialTableCell:
+    """Cellule editoriale d'un tableau rectangulaire simple."""
+
+    content: tuple[EditorialInline, ...]
+    role: Literal["label"] | None
+    source_row_index: int
+    source_column_index: int
+    kind: Literal["table_cell"] = "table_cell"
+
+
+@dataclass(frozen=True)
+class EditorialTableRow:
+    """Ligne editoriale, éventuellement identifiée comme en-tête."""
+
+    cells: tuple[EditorialTableCell, ...]
+    role: Literal["label"] | None
+    source_row_index: int
+    kind: Literal["table_row"] = "table_row"
+
+
+@dataclass(frozen=True)
+class EditorialTable:
+    """Tableau Word simple sans fusion ni mise en forme visuelle."""
+
+    rows: tuple[EditorialTableRow, ...]
+    column_count: int
+    source_block_index: int
+    source_style_id: str | None
+    kind: Literal["table"] = "table"
+
+
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure | EditorialTable
 
 
 @dataclass(frozen=True)

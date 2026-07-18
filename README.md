@@ -106,3 +106,11 @@ et eventuellement une legende `Caption` rendue par `<p rend="caption">`. Les
 fichiers medias utilises sont extraits dans un repertoire `media/` a cote du
 XML avec un nom fonde sur leur SHA-256. Les images flottantes, VML, liees,
 transformees, melangees a du texte ou placees dans des listes restent refusees.
+
+Les figures simples peuvent maintenant recevoir un titre, une legende et des
+credits lorsque les styles controles `TEIfiguretitle`, `TEIfigurecaption` et
+`TEIfigurecredits` sont declares exactement. Les tableaux Word de premier niveau
+deviennent des tableaux TEI lorsqu'ils sont rectangulaires, sans fusion ni
+imbrication, et que chaque cellule contient au plus un paragraphe simple. Les
+tableaux dans les notes, zones de texte ou listes, ainsi que les cellules
+complexes, restent refuses afin de ne pas perdre leur structure.
