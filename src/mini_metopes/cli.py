@@ -293,14 +293,12 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
         for editorial_list in _iter_editorial_lists(note.blocks)
     ]
     editorial_lists = [*body_lists, *note_lists]
-    body_continuations = sum(len(item.continuation_paragraphs) for editorial_list in body_lists for item in _iter_list_items(editorial_list))
-    note_continuations = sum(len(item.continuation_paragraphs) for editorial_list in note_lists for item in _iter_list_items(editorial_list))
-    multiparagraph_items = sum(
-        1
-        for editorial_list in editorial_lists
-        for item in _iter_list_items(editorial_list)
-        if item.continuation_paragraphs
-    )
+    body_items = [item for root in body_root_lists for item in _iter_list_items(root)]
+    note_items = [item for root in note_root_lists for item in _iter_list_items(root)]
+    all_list_items = [*body_items, *note_items]
+    body_continuations = sum(len(item.continuation_paragraphs) for item in body_items)
+    note_continuations = sum(len(item.continuation_paragraphs) for item in note_items)
+    multiparagraph_items = sum(1 for item in all_list_items if item.continuation_paragraphs)
     levels: dict[int, int] = {}
     for heading in headings:
         levels[heading.level] = levels.get(heading.level, 0) + 1
@@ -323,7 +321,7 @@ def _print_editorial_summary(result: EditorialBuildResult) -> None:
     print(f"Listes du corps : {len(body_lists)}")
     print(f"Listes des notes : {len(note_lists)}")
     print(f"Listes totales : {len(editorial_lists)}")
-    print(f"Items de listes : {sum(1 for editorial_list in [*body_root_lists, *note_root_lists] for _ in _iter_list_items(editorial_list))}")
+    print(f"Items de listes : {len(all_list_items)}")
     print(f"Paragraphes de continuation de liste du corps : {body_continuations}")
     print(f"Paragraphes de continuation de liste dans les notes : {note_continuations}")
     print(f"Paragraphes de continuation de liste totaux : {body_continuations + note_continuations}")

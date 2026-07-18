@@ -244,10 +244,53 @@ def test_model_docx_reports_recursive_continuation_counts(capsys) -> None:
     assert main(["model-docx", str(DOCX)]) == 0
     captured = capsys.readouterr()
 
-    assert "Paragraphes de continuation de liste du corps : 5" in captured.out
+    assert "Paragraphes de continuation de liste du corps : 4" in captured.out
     assert "Paragraphes de continuation de liste dans les notes : 2" in captured.out
-    assert "Paragraphes de continuation de liste totaux : 7" in captured.out
-    assert "Items de liste multiparagraphe : 6" in captured.out
+    assert "Paragraphes de continuation de liste totaux : 6" in captured.out
+    assert "Items de liste multiparagraphe : 5" in captured.out
+
+
+def test_model_docx_counts_nested_body_continuations_once(capsys) -> None:
+    path = _runtime_sequence(
+        "list-continuation-cli-nested-body.docx",
+        paragraph("Racine", num_id="42", ilvl="0")
+        + paragraph("Enfant", num_id="42", ilvl="1")
+        + paragraph("Suite enfant", style="ListParagraph")
+        + paragraph("Enfant suivant", num_id="42", ilvl="1")
+        + paragraph("Retour racine", num_id="42", ilvl="0"),
+    )
+
+    assert main(["model-docx", str(path)]) == 0
+    captured = capsys.readouterr()
+
+    assert "Paragraphes de continuation de liste du corps : 1" in captured.out
+    assert "Paragraphes de continuation de liste dans les notes : 0" in captured.out
+    assert "Paragraphes de continuation de liste totaux : 1" in captured.out
+    assert "Items de liste multiparagraphe : 1" in captured.out
+
+
+def test_model_docx_counts_nested_note_continuations_once(capsys) -> None:
+    path = runtime_docx("list-continuation-cli-nested-note.docx")
+    footnotes = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="1">
+    {paragraph("Racine note", num_id="42", ilvl="0")}
+    {paragraph("Enfant note", num_id="42", ilvl="1")}
+    {paragraph("Suite note", style="ListParagraph")}
+    {paragraph("Enfant note suivant", num_id="42", ilvl="1")}
+    {paragraph("Retour note", num_id="42", ilvl="0")}
+  </w:footnote>
+</w:footnotes>
+"""
+    write_docx(path, paragraph("Corps"), styles=STYLES, numbering=NUMBERING, footnotes=footnotes)
+
+    assert main(["model-docx", str(path)]) == 0
+    captured = capsys.readouterr()
+
+    assert "Paragraphes de continuation de liste du corps : 0" in captured.out
+    assert "Paragraphes de continuation de liste dans les notes : 1" in captured.out
+    assert "Paragraphes de continuation de liste totaux : 1" in captured.out
+    assert "Items de liste multiparagraphe : 1" in captured.out
 
 
 def test_listparagraph_outside_list_context_stays_an_ordinary_paragraph() -> None:
