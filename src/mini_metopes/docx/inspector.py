@@ -450,7 +450,7 @@ def _read_paragraph(
     style_id = _child_value(element, "./w:pPr/w:pStyle")
     direct_outline = _integer_child_value(element, "./w:pPr/w:outlineLvl")
     style = styles_by_id.get(style_id) if style_id else None
-    runs = tuple(_read_run(run) for run in _paragraph_runs(element))
+    runs = tuple(_read_run(run, styles_by_id) for run in _paragraph_runs(element))
     hyperlinks = _paragraph_descendants(element, w_tag("hyperlink"))
     bookmark_starts = _paragraph_descendants(element, w_tag("bookmarkStart"))
     direct_numbering_properties = element.find("./w:pPr/w:numPr", namespaces=NS)
@@ -503,6 +503,7 @@ def _read_paragraph(
         ),
         runs=runs,
         numbering=numbering,
+        style_type=style.style_type if style else None,
     )
 
 
@@ -542,7 +543,7 @@ def _nearest_run_parent(element: etree._Element) -> etree._Element | None:
     return None
 
 
-def _read_run(element: etree._Element) -> RunInfo:
+def _read_run(element: etree._Element, styles_by_id: dict[str, StyleInfo]) -> RunInfo:
     contents = _read_run_contents(element)
     text, footnote_ids, endnote_ids, break_types, drawing_relationship_ids = _run_convenience_values(
         contents
@@ -550,9 +551,11 @@ def _read_run(element: etree._Element) -> RunInfo:
     hyperlink_relationship_id, hyperlink_anchor = _run_hyperlink_context(element)
     properties = element.find("w:rPr", namespaces=NS)
     vertical_alignment = _child_value(properties, "vertAlign") if properties is not None else None
+    style_id = _child_value(properties, "rStyle") if properties is not None else None
+    style = styles_by_id.get(style_id) if style_id else None
     return RunInfo(
         text=text,
-        style_id=_child_value(properties, "rStyle") if properties is not None else None,
+        style_id=style_id,
         bold=_property_bool(properties, "b"),
         italic=_property_bool(properties, "i"),
         small_caps=_property_bool(properties, "smallCaps"),
@@ -569,6 +572,9 @@ def _read_run(element: etree._Element) -> RunInfo:
         contents=contents,
         hyperlink_relationship_id=hyperlink_relationship_id,
         hyperlink_anchor=hyperlink_anchor,
+        style_name=style.name if style else None,
+        style_is_custom=style.is_custom if style else None,
+        style_type=style.style_type if style else None,
     )
 
 

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "filename": "native-bibliographic-references.docx",
+    "sha256": "0d698b40bc0f8e1ef4c1c8f321f80626428147d3d286fe48ff968fd125166c38"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": "References bibliographiques",
+    "subtitle": "Bibliographie finale",
+    "abstract": null,
+    "keywords": []
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Claire",
+      "family_name": "Exemple",
+      "literal_name": null,
+      "orcid": null,
+      "affiliations": []
+    }
+  ],
+  "affiliations": []
+}

@@ -19,10 +19,13 @@ from mini_metopes.docx import (
 
 from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, WordEditorialConvention
 from .model import (
+    BibliographicReference,
+    BibliographicReferenceInline,
     ColumnBreak,
     DrawingReference,
     EditorialBlock,
     EditorialBuildResult,
+    EditorialBibliography,
     EditorialDiagnostic,
     EditorialDocument,
     EditorialFigure,
@@ -190,6 +193,12 @@ def build_editorial_document(
         for block in source_body_blocks
         if not isinstance(block, ParagraphInfo) or block.index not in excluded_body_paragraph_indexes
     )
+    body_blocks, bibliography, bibliography_references = _extract_final_bibliography(
+        body_blocks,
+        convention=convention,
+        relationships=body_relationship_index.unique,
+        diagnostics=diagnostics,
+    )
     blocks, body_references = _build_blocks(
         body_blocks,
         convention=convention,
@@ -202,6 +211,7 @@ def build_editorial_document(
         detect_heading_jumps=True,
     )
     referenced_notes.update(body_references)
+    referenced_notes.update(bibliography_references)
     _diagnose_note_targets(notes_by_key, referenced_notes, diagnostics)
 
     return EditorialBuildResult(
@@ -209,6 +219,7 @@ def build_editorial_document(
             source_name=inspection.source.name,
             blocks=blocks,
             notes=tuple(notes),
+            bibliography=bibliography,
         ),
         diagnostics=tuple(diagnostics),
     )
@@ -222,6 +233,82 @@ def build_editorial_document_from_file(
     """Inspecter un DOCX puis construire son modele editorial sans imprimer."""
     inspection = inspect_docx_file(path)
     return build_editorial_document(inspection, convention=convention)
+
+
+def _extract_final_bibliography(
+    blocks: tuple[ParagraphInfo | TableInfo, ...],
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+) -> tuple[tuple[ParagraphInfo | TableInfo, ...], EditorialBibliography | None, set[tuple[str, str]]]:
+    """Extraire l'unique bibliographie terminale du seul flux principal."""
+    starts = [
+        index for index, block in enumerate(blocks)
+        if isinstance(block, ParagraphInfo) and convention.is_bibliography_start_style(
+            block.style_id, block.style_name, block.style_is_custom, block.style_type
+        )
+    ]
+    if not starts:
+        return blocks, None, set()
+    if len(starts) > 1:
+        for index in starts[1:]:
+            block = blocks[index]
+            assert isinstance(block, ParagraphInfo)
+            diagnostics.append(_bibliographic_diagnostic(
+                "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
+            ))
+    start_index = starts[0]
+    start = blocks[start_index]
+    assert isinstance(start, ParagraphInfo)
+    title, references = _build_inline_content(
+        start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+    )
+    if not title:
+        diagnostics.append(_bibliographic_diagnostic(
+            "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
+        ))
+    entries: list[BibliographicReference] = []
+    position = start_index + 1
+    while position < len(blocks):
+        block = blocks[position]
+        if isinstance(block, ParagraphInfo) and convention.is_bibliographic_reference_style(
+            block.style_id, block.style_name, block.style_is_custom, block.style_type
+        ):
+            reference, entry_references = _build_bibliographic_reference(
+                block, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+            )
+            references.update(entry_references)
+            if reference is not None:
+                entries.append(reference)
+            position += 1
+            continue
+        if isinstance(block, ParagraphInfo) and not block.text.strip() and not block.runs:
+            diagnostics.append(_bibliographic_diagnostic(
+                "empty_bibliography_separator_ignored", "separateur vide dans la bibliographie ignore", block, None, severity="info"
+            ))
+            position += 1
+            continue
+        if isinstance(block, ParagraphInfo) and convention.is_bibliography_start_style(
+            block.style_id, block.style_name, block.style_is_custom, block.style_type
+        ):
+            diagnostics.append(_bibliographic_diagnostic(
+                "multiple_bibliographies_not_serializable", "second debut de bibliographie", block, None
+            ))
+        else:
+            diagnostics.append(EditorialDiagnostic(
+                code="nonterminal_bibliography_not_serializable", severity="error",
+                message="bloc non admis apres le debut de la bibliographie", paragraph_index=(block.index if isinstance(block, ParagraphInfo) else None),
+                style_id=(block.style_id if isinstance(block, ParagraphInfo) else None),
+            ))
+        position += 1
+    if not entries:
+        diagnostics.append(_bibliographic_diagnostic(
+            "bibliography_without_entries_not_serializable", "bibliographie sans entree", start, None
+        ))
+    return blocks[:start_index], EditorialBibliography(
+        title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries)
+    ), references
 
 
 def _build_blocks(
@@ -262,6 +349,25 @@ def _build_blocks(
             paragraph_position += 1
             continue
         role = _paragraph_role(paragraph, convention)
+
+        if note_id is not None and convention.is_bibliography_start_style(
+            paragraph.style_id, paragraph.style_name, paragraph.style_is_custom, paragraph.style_type
+        ):
+            diagnostics.append(_bibliographic_diagnostic(
+                "bibliography_in_note_not_serializable", "debut de bibliographie dans une note", paragraph, note_id
+            ))
+
+        if convention.is_bibliographic_reference_style(
+            paragraph.style_id, paragraph.style_name, paragraph.style_is_custom, paragraph.style_type
+        ):
+            reference, references = _build_bibliographic_reference(
+                paragraph, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=note_id
+            )
+            referenced_notes.update(references)
+            if reference is not None:
+                blocks.append(reference)
+            paragraph_position += 1
+            continue
 
         if convention.is_figure_title_style(
             paragraph.style_id, paragraph.style_name, paragraph.style_is_custom
@@ -471,7 +577,13 @@ def _build_blocks(
                         )
                     )
                 paragraph_position += 1
-            blocks.append(ProseQuote(paragraphs=tuple(quote_paragraphs)))
+            source, source_references, next_position = _citation_source_if_immediate(
+                paragraphs, paragraph_position, convention=convention, relationships=relationships,
+                diagnostics=diagnostics, note_id=note_id
+            )
+            referenced_notes.update(source_references)
+            blocks.append(ProseQuote(paragraphs=tuple(quote_paragraphs), source=source))
+            paragraph_position = next_position
             continue
 
         if role.kind == "verse_quote":
@@ -493,7 +605,13 @@ def _build_blocks(
                 referenced_notes.update(next_references)
                 stanzas.append(_build_verse_stanza(next_paragraph, next_content, note_id, diagnostics))
                 paragraph_position += 1
-            blocks.append(VerseQuote(stanzas=tuple(stanzas)))
+            source, source_references, next_position = _citation_source_if_immediate(
+                paragraphs, paragraph_position, convention=convention, relationships=relationships,
+                diagnostics=diagnostics, note_id=note_id
+            )
+            referenced_notes.update(source_references)
+            blocks.append(VerseQuote(stanzas=tuple(stanzas), source=source))
+            paragraph_position = next_position
             continue
 
         _diagnose_paragraph_style(paragraph, convention, diagnostics, note_id)
@@ -507,6 +625,73 @@ def _build_blocks(
         )
         paragraph_position += 1
     return tuple(blocks), referenced_notes
+
+
+def _citation_source_if_immediate(
+    blocks: tuple[ParagraphInfo | TableInfo, ...],
+    position: int,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> tuple[BibliographicReference | None, set[tuple[str, str]], int]:
+    """Absorber une unique source controlee, seulement si elle est adjacente."""
+    if position >= len(blocks) or not isinstance(blocks[position], ParagraphInfo):
+        return None, set(), position
+    candidate = blocks[position]
+    if not convention.is_bibliographic_reference_style(
+        candidate.style_id, candidate.style_name, candidate.style_is_custom, candidate.style_type
+    ):
+        return None, set(), position
+    source, references = _build_bibliographic_reference(
+        candidate, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=note_id
+    )
+    next_position = position + 1
+    if next_position < len(blocks):
+        following = blocks[next_position]
+        if isinstance(following, ParagraphInfo) and convention.is_bibliographic_reference_style(
+            following.style_id, following.style_name, following.style_is_custom, following.style_type
+        ):
+            diagnostics.append(_bibliographic_diagnostic(
+                "multiple_bibliographic_sources_not_serializable", "plusieurs sources bibliographiques apres une citation", following, note_id
+            ))
+    return source, references, next_position
+
+
+def _build_bibliographic_reference(
+    paragraph: ParagraphInfo,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    note_id: str | None,
+) -> tuple[BibliographicReference | None, set[tuple[str, str]]]:
+    content, references = _build_inline_content(
+        paragraph, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=note_id
+    )
+    if not content:
+        diagnostics.append(_bibliographic_diagnostic(
+            "empty_bibliographic_reference_not_serializable", "reference bibliographique vide", paragraph, note_id
+        ))
+        return None, references
+    if _has_active_numbering(paragraph):
+        diagnostics.append(_bibliographic_diagnostic(
+            "numbered_bibliographic_reference_not_serializable", "reference bibliographique numerotee", paragraph, note_id
+        ))
+        return None, references
+    if paragraph.drawing_count:
+        diagnostics.append(_bibliographic_diagnostic(
+            "image_in_bibliographic_reference_not_serializable", "image dans une reference bibliographique", paragraph, note_id
+        ))
+        return None, references
+    return BibliographicReference(content, paragraph.index, paragraph.style_id), references
+
+
+def _bibliographic_diagnostic(
+    code: str, message: str, paragraph: ParagraphInfo, note_id: str | None, *, severity: DiagnosticSeverity = "error"
+) -> EditorialDiagnostic:
+    return EditorialDiagnostic(code, severity, message, paragraph.index, style_id=paragraph.style_id, note_id=note_id)
 
 
 def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
@@ -1709,12 +1894,13 @@ def _build_inline_content(
     for run_index, run in enumerate(paragraph.runs):
         marks = _marks_for_run(run, convention, paragraph, run_index, note_id, diagnostics)
         link = _link_for_run(run, relationships, paragraph, run_index, note_id, diagnostics)
+        run_content: list[EditorialInline] = []
         for item in run.contents:
             if item.kind == "text":
                 if item.text:
-                    _append_inline(content, TextSpan(text=item.text, marks=marks, link=link))
+                    _append_inline(run_content, TextSpan(text=item.text, marks=marks, link=link))
             elif item.kind == "tab":
-                content.append(Tab())
+                run_content.append(Tab())
                 diagnostics.append(
                     _diagnostic(
                         "tab_in_editorial_content",
@@ -1726,15 +1912,15 @@ def _build_inline_content(
                     )
                 )
             elif item.kind == "break":
-                _append_break(content, item.break_type, paragraph, run_index, note_id, diagnostics)
+                _append_break(run_content, item.break_type, paragraph, run_index, note_id, diagnostics)
             elif item.kind == "footnote_reference" and item.reference_id is not None:
-                content.append(NoteReference(note_id=item.reference_id, note_kind="footnote"))
+                run_content.append(NoteReference(note_id=item.reference_id, note_kind="footnote"))
                 references.add(("footnote", item.reference_id))
             elif item.kind == "endnote_reference" and item.reference_id is not None:
-                content.append(NoteReference(note_id=item.reference_id, note_kind="endnote"))
+                run_content.append(NoteReference(note_id=item.reference_id, note_kind="endnote"))
                 references.add(("endnote", item.reference_id))
             elif item.kind == "drawing":
-                content.append(DrawingReference(relationship_ids=item.relationship_ids))
+                run_content.append(DrawingReference(relationship_ids=item.relationship_ids))
                 diagnostics.append(
                     _diagnostic(
                         "drawing_not_editorially_interpreted",
@@ -1745,6 +1931,27 @@ def _build_inline_content(
                         note_id,
                     )
                 )
+        if convention.is_bibliographic_reference_inline_style(
+            run.style_id, run.style_name, run.style_is_custom, run.style_type
+        ):
+            if not run_content:
+                diagnostics.append(_diagnostic(
+                    "empty_bibliographic_reference_inline_not_serializable", "reference bibliographique inline vide",
+                    paragraph, run_index, note_id, style_id=run.style_id
+                ))
+            elif any(isinstance(item, DrawingReference) for item in run_content):
+                diagnostics.append(_diagnostic(
+                    "drawing_in_bibliographic_reference_inline_not_serializable", "dessin dans une reference bibliographique inline",
+                    paragraph, run_index, note_id, style_id=run.style_id
+                ))
+            elif content and isinstance(content[-1], BibliographicReferenceInline):
+                previous = content[-1]
+                content[-1] = BibliographicReferenceInline(previous.content + tuple(run_content))
+            else:
+                content.append(BibliographicReferenceInline(tuple(run_content)))
+        else:
+            for inline in run_content:
+                _append_inline(content, inline)
     return tuple(content), references
 
 
@@ -1756,7 +1963,12 @@ def _marks_for_run(
     note_id: str | None,
     diagnostics: list[EditorialDiagnostic],
 ) -> tuple[TextMark, ...]:
-    inherited = convention.character_marks(run.style_id)
+    if convention.is_bibliographic_reference_inline_style(
+        run.style_id, run.style_name, run.style_is_custom, run.style_type
+    ):
+        inherited = ()
+    else:
+        inherited = convention.character_marks(run.style_id)
     if inherited is None:
         diagnostics.append(
             _diagnostic(

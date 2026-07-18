@@ -608,6 +608,36 @@ DETAIL_TABLE_STYLES = FIGURE_STYLES.replace(
     '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
 )
 
+BIBLIOGRAPHY_STYLES = DETAIL_TABLE_STYLES.replace(
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+    '  <w:style w:type="paragraph" w:customStyle="1" w:styleId="TEIbiblstart"><w:name w:val="TEI_bibl_start"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:customStyle="1" w:styleId="TEIbiblreference"><w:name w:val="TEI_bibl_reference"/></w:style>\n'
+    '  <w:style w:type="character" w:customStyle="1" w:styleId="TEIbiblreference-inline"><w:name w:val="TEI_bibl_reference-inline"/></w:style>\n'
+    '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
+)
+
+BIBLIOGRAPHY_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>References bibliographiques</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Bibliographie finale</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Voir </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>Dupont, 2024</w:t></w:r><w:r><w:t>.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Premiere citation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Seconde citation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Source prose.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers un</w:t><w:br/><w:t>Vers deux</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Source vers.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Transition.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Reference autonome.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblstart"/></w:pPr><w:r><w:t>Bibliographie</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Entree 1.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>Entree 2.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Entree 3.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
 FIGURE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/figure-caption" TargetMode="External"/>
@@ -842,6 +872,14 @@ def detail_table_parts() -> dict[str, bytes | str]:
     }
 
 
+def bibliography_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": BIBLIOGRAPHY_DOCUMENT,
+        "word/styles.xml": BIBLIOGRAPHY_STYLES,
+    }
+
+
 def write_list_tei_metadata() -> None:
     """Ecrire la fixture associee avec le serialiseur officiel de metadonnees."""
     from mini_metopes.metadata import (
@@ -1001,6 +1039,18 @@ def write_detail_table_metadata() -> None:
     )
 
 
+def write_bibliography_metadata() -> None:
+    from mini_metopes.metadata import METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, MetadataSource, compute_file_sha256, metadata_to_json
+    docx_path = FIXTURES / "native-bibliographic-references.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION, source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter", language="fr", title="References bibliographiques", subtitle="Bibliographie finale",
+        contributors=(Contributor(contributor_id="person-1", role="author", given_name="Claire", family_name="Exemple"),),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-bibliographic-references.metadata.json").write_text(metadata_to_json(metadata), encoding="utf-8")
+
+
 def main() -> None:
     basic = standard_parts(BASIC_DOCUMENT)
     basic["word/media/image1.png"] = b"synthetic-png-not-for-display"
@@ -1021,6 +1071,8 @@ def main() -> None:
     write_figure_metadata()
     write_package(FIXTURES / "native-figure-details-and-tables.docx", detail_table_parts())
     write_detail_table_metadata()
+    write_package(FIXTURES / "native-bibliographic-references.docx", bibliography_parts())
+    write_bibliography_metadata()
     write_package(
         FIXTURES / "optional-parts-absent.docx",
         {

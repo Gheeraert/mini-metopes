@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 
 from .model import (
+    BibliographicReference,
+    BibliographicReferenceInline,
+    EditorialBibliography,
     ColumnBreak,
     DrawingReference,
     EditorialBlock,
@@ -42,6 +45,7 @@ def editorial_build_result_to_data(result: EditorialBuildResult) -> dict[str, ob
             "source_name": result.document.source_name,
             "blocks": [_block_to_data(block) for block in result.document.blocks],
             "notes": [_note_to_data(note) for note in result.document.notes],
+            "bibliography": _bibliography_to_data(result.document.bibliography),
         },
         "diagnostics": [
             {
@@ -76,11 +80,13 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
         return {
             "kind": block.kind,
             "paragraphs": [_prose_quote_paragraph_to_data(paragraph) for paragraph in block.paragraphs],
+            "source": _bibliographic_reference_to_data(block.source) if block.source is not None else None,
         }
     if isinstance(block, VerseQuote):
         return {
             "kind": block.kind,
             "stanzas": [_verse_stanza_to_data(stanza) for stanza in block.stanzas],
+            "source": _bibliographic_reference_to_data(block.source) if block.source is not None else None,
         }
     if isinstance(block, EditorialList):
         return _list_to_data(block)
@@ -88,6 +94,8 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
         return _figure_to_data(block)
     if isinstance(block, EditorialTable):
         return _table_to_data(block)
+    if isinstance(block, BibliographicReference):
+        return _bibliographic_reference_to_data(block)
     if isinstance(block, Paragraph):
         return {
             "kind": block.kind,
@@ -215,6 +223,27 @@ def _graphic_to_data(graphic: EditorialGraphic) -> dict[str, object]:
     }
 
 
+def _bibliographic_reference_to_data(reference: BibliographicReference) -> dict[str, object]:
+    return {
+        "kind": reference.kind,
+        "content": [_inline_to_data(item) for item in reference.content],
+        "source_paragraph_index": reference.source_paragraph_index,
+        "source_style_id": reference.source_style_id,
+    }
+
+
+def _bibliography_to_data(bibliography: EditorialBibliography | None) -> dict[str, object] | None:
+    if bibliography is None:
+        return None
+    return {
+        "kind": bibliography.kind,
+        "title": [_inline_to_data(item) for item in bibliography.title],
+        "source_paragraph_index": bibliography.source_paragraph_index,
+        "source_style_id": bibliography.source_style_id,
+        "entries": [_bibliographic_reference_to_data(entry) for entry in bibliography.entries],
+    }
+
+
 def _note_to_data(note: EditorialNote) -> dict[str, object]:
     return {
         "kind": note.kind,
@@ -244,6 +273,8 @@ def _inline_to_data(item: EditorialInline) -> dict[str, object]:
         return {"kind": item.kind, "note_id": item.note_id, "note_kind": item.note_kind}
     if isinstance(item, DrawingReference):
         return {"kind": item.kind, "relationship_ids": list(item.relationship_ids)}
+    if isinstance(item, BibliographicReferenceInline):
+        return {"kind": item.kind, "content": [_inline_to_data(child) for child in item.content]}
     raise TypeError(f"contenu editorial inconnu : {type(item)!r}")
 
 

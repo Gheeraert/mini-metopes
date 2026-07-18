@@ -136,3 +136,10 @@ Les styles personnalises controles `TEIfiguretitle`, `TEIfigurecaption`,
 nom `TEI_…` exact et `w:customStyle="1"`. Les tables du corps sont admises
 seulement lorsqu'elles sont rectangulaires, sans fusion ni imbrication; les
 tables de notes et de zones de texte restent refusees.
+
+## References bibliographiques
+
+Les styles Metopes `TEIbiblstart`, `TEIbiblreference` et
+`TEIbiblreference-inline` sont reconnus uniquement si identifiant, nom, type
+OOXML et `customStyle="1"` correspondent exactement. Le debut de bibliographie
+est reserve au corps principal; il ouvre une bibliographie finale terminale.

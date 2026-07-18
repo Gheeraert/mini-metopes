@@ -42,6 +42,9 @@ class WordEditorialConvention:
     controlled_figure_caption_style: tuple[str, str] | None = None
     figure_credits_style: tuple[str, str] | None = None
     table_cell_style: tuple[str, str] | None = None
+    bibliography_start_style: tuple[str, str] | None = None
+    bibliographic_reference_style: tuple[str, str] | None = None
+    bibliographic_reference_inline_style: tuple[str, str] | None = None
 
     def paragraph_role(
         self,
@@ -159,6 +162,21 @@ class WordEditorialConvention:
             style_id, style_name, self.table_cell_style
         )
 
+    def is_bibliography_start_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> bool:
+        return style_is_custom is True and style_type == "paragraph" and self._is_controlled_style(style_id, style_name, self.bibliography_start_style)
+
+    def is_bibliographic_reference_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> bool:
+        return style_is_custom is True and style_type == "paragraph" and self._is_controlled_style(style_id, style_name, self.bibliographic_reference_style)
+
+    def is_bibliographic_reference_inline_style(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> bool:
+        return style_is_custom is True and style_type == "character" and self._is_controlled_style(style_id, style_name, self.bibliographic_reference_inline_style)
+
     @staticmethod
     def _is_controlled_style(
         style_id: str | None, style_name: str | None, controlled: tuple[str, str] | None
@@ -206,6 +224,9 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     controlled_figure_caption_style=("TEIfigurecaption", "TEI_figure_caption"),
     figure_credits_style=("TEIfigurecredits", "TEI_figure_credits"),
     table_cell_style=("TEIcell", "TEI_cell"),
+    bibliography_start_style=("TEIbiblstart", "TEI_bibl_start"),
+    bibliographic_reference_style=("TEIbiblreference", "TEI_bibl_reference"),
+    bibliographic_reference_inline_style=("TEIbiblreference-inline", "TEI_bibl_reference-inline"),
 )
 
 
