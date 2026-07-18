@@ -1,0 +1,58 @@
+{
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "document.docx",
+    "sha256": "abababababababababababababababababababababababababababababababab"
+  },
+  "document": {
+    "type": "article",
+    "language": "fr-FR",
+    "title": "Οἰδίπους Τύραννος : lectures croisées",
+    "subtitle": null
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Ariane",
+      "family_name": "Héllène",
+      "affiliations": []
+    }
+  ],
+  "affiliations": [],
+  "abstracts": [
+    {
+      "type": "summary",
+      "language": "fr",
+      "text": "Résumé français avec caractères accentués : œuvre, éléments."
+    },
+    {
+      "type": "abstract",
+      "language": "en",
+      "text": "English abstract."
+    },
+    {
+      "type": "abstract",
+      "language": "grc",
+      "text": "Περὶ τῆς τραγῳδίας."
+    }
+  ],
+  "keywords": [
+    {
+      "language": "fr",
+      "scheme": "keywords",
+      "items": [
+        "tragédie",
+        "Œdipe"
+      ]
+    },
+    {
+      "language": "grc",
+      "scheme": "keywords",
+      "items": [
+        "τραγῳδία",
+        "Οἰδίπους"
+      ]
+    }
+  ]
+}

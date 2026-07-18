@@ -1,0 +1,35 @@
+{
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "document.docx",
+    "sha256": "abababababababababababababababababababababababababababababababab"
+  },
+  "document": {
+    "type": "chapter",
+    "language": "fr",
+    "title": " ",
+    "subtitle": null
+  },
+  "contributors": [],
+  "affiliations": [
+    {
+      "id": "affiliation-1",
+      "name": " "
+    }
+  ],
+  "abstracts": [
+    {
+      "type": "summary",
+      "language": "fr",
+      "text": "  "
+    }
+  ],
+  "keywords": [
+    {
+      "language": "fr",
+      "items": [
+        ""
+      ]
+    }
+  ]
+}

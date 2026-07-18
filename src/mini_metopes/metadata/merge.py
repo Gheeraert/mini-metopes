@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .discovery import compute_file_sha256
 from .model import DocumentMetadata, MetadataIssue, MetadataSuggestions
@@ -11,10 +11,11 @@ from .model import DocumentMetadata, MetadataIssue, MetadataSuggestions
 def metadata_consistency_issues(metadata: DocumentMetadata, docx_path: Path, suggestions: MetadataSuggestions) -> tuple[MetadataIssue, ...]:
     """Comparer sans jamais modifier le JSON, qui demeure la source d'autorite."""
     issues: list[MetadataIssue] = []
-    if metadata.source.filename != docx_path.name:
-        issues.append(MetadataIssue("metadata_source_filename_changed", "warning", "nom du DOCX different du JSON", "source.filename"))
+    recorded_name = PurePosixPath(metadata.source.path.replace("\\", "/")).name
+    if recorded_name != docx_path.name:
+        issues.append(MetadataIssue("metadata_source_filename_changed", "warning", "nom du DOCX different du JSON", "source_document.path"))
     if metadata.source.sha256 != compute_file_sha256(docx_path):
-        issues.append(MetadataIssue("metadata_source_changed", "warning", "empreinte du DOCX modifiee", "source.sha256"))
+        issues.append(MetadataIssue("metadata_source_changed", "warning", "empreinte du DOCX modifiee", "source_document.sha256"))
     if suggestions.title is not None and suggestions.title != metadata.title:
         issues.append(MetadataIssue("metadata_title_differs_from_docx", "warning", "le titre JSON differe du Title Word", "document.title"))
     if suggestions.subtitle != metadata.subtitle and suggestions.subtitle is not None:

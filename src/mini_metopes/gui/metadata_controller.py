@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from mini_metopes.docx import inspect_docx_file
 from mini_metopes.metadata import (
@@ -11,15 +12,20 @@ from mini_metopes.metadata import (
     Affiliation,
     Contributor,
     DocumentMetadata,
+    InstitutionalProfile,
     MetadataIssue,
     MetadataSuggestions,
     MetadataValidationResult,
-    MetadataSource,
+    SourceDocument,
+    apply_institutional_profile,
     compute_file_sha256,
     default_metadata_path,
     extract_metadata_suggestions,
+    load_institutional_profile,
     load_metadata_file,
     metadata_consistency_issues,
+    resolve_source_document_path,
+    source_document_reference,
     validate_metadata,
     write_metadata_file,
 )
@@ -43,14 +49,15 @@ def create_initial_metadata_state(docx_path: Path, metadata_path: Path | None = 
     """Creer le pre-remplissage depuis le DOCX lorsqu'aucun JSON n'existe."""
     inspection = inspect_docx_file(docx_path)
     suggestions = extract_metadata_suggestions(inspection)
+    path = metadata_path or default_metadata_path(docx_path)
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(docx_path.name, compute_file_sha256(docx_path)),
+        source=SourceDocument(source_document_reference(docx_path, path), compute_file_sha256(docx_path)),
         document_type="chapter", language="fr", title=suggestions.title or "", subtitle=suggestions.subtitle,
     )
     return MetadataEditorState(
         docx_path,
-        metadata_path or default_metadata_path(docx_path),
+        path,
         metadata,
         suggestions,
         _deduplicate_issues(suggestions.diagnostics),
@@ -88,14 +95,66 @@ def load_metadata_editor_state(docx_path: Path, metadata_path: Path | None = Non
     )
 
 
+def locate_source_document(metadata_path: Path) -> tuple[Path | None, tuple[MetadataIssue, ...]]:
+    """Resoudre le DOCX designe par un JSON ; None s'il est introuvable.
+
+    Le chemin relatif du JSON est resolu par rapport a son emplacement.
+    L'appelant (GUI) peut proposer une relocalisation quand le resultat est
+    ``None`` ; aucune recherche heuristique n'est faite.
+    """
+    loaded = load_metadata_file(metadata_path)
+    if loaded.metadata is None:
+        return None, loaded.issues
+    candidate = resolve_source_document_path(loaded.metadata.source.path, metadata_path)
+    if candidate.is_file():
+        return candidate, ()
+    return None, (
+        MetadataIssue(
+            "source_document_not_found",
+            "warning",
+            f"DOCX introuvable : {candidate}",
+            "source_document.path",
+        ),
+    )
+
+
+def relocate_source_document(state: MetadataEditorState, docx_path: Path) -> MetadataEditorState:
+    """Pointer l'etat vers un DOCX relocalise sans toucher au JSON sur disque."""
+    inspection = inspect_docx_file(docx_path)
+    suggestions = extract_metadata_suggestions(inspection)
+    metadata = replace(
+        state.metadata,
+        source=SourceDocument(
+            source_document_reference(docx_path, state.metadata_path),
+            compute_file_sha256(docx_path),
+        ),
+    )
+    return replace(state, docx_path=docx_path, metadata=metadata, suggestions=suggestions, dirty=True)
+
+
+def apply_profile_to_state(state: MetadataEditorState, profile_path: Path) -> MetadataEditorState:
+    """Completer l'etat avec un profil institutionnel, sans ecraser le document."""
+    profile, issues = load_institutional_profile(profile_path)
+    if profile is None:
+        return replace(state, issues=_deduplicate_issues(state.issues + issues))
+    merged = apply_institutional_profile(state.metadata, profile)
+    return replace(state, metadata=merged, dirty=merged != state.metadata or state.dirty)
+
+
 def validate_metadata_editor_state(state: MetadataEditorState) -> MetadataValidationResult:
     """Valider les valeurs du formulaire sans ecrire de JSON."""
     return validate_metadata(state.metadata)
 
 
 def save_metadata_editor_state(state: MetadataEditorState) -> MetadataEditorState:
-    """Mettre a jour volontairement l'empreinte puis ecrire le JSON atomiquement."""
-    metadata = replace(state.metadata, source=MetadataSource(state.docx_path.name, compute_file_sha256(state.docx_path)))
+    """Mettre a jour volontairement le lien source puis ecrire atomiquement."""
+    metadata = replace(
+        state.metadata,
+        source=SourceDocument(
+            source_document_reference(state.docx_path, state.metadata_path),
+            compute_file_sha256(state.docx_path),
+        ),
+    )
     validation = validate_metadata(metadata)
     if not validation.valid:
         return replace(state, metadata=metadata, issues=validation.issues)
@@ -109,6 +168,22 @@ def save_metadata_editor_state(state: MetadataEditorState) -> MetadataEditorStat
         loaded_from_invalid_json=False,
         saved_metadata=metadata,
     )
+
+
+def update_metadata(state: MetadataEditorState, **changes: Any) -> MetadataEditorState:
+    """Appliquer des remplacements immuables au modele et marquer l'etat."""
+    metadata = replace(state.metadata, **changes)
+    return replace(state, metadata=metadata, dirty=is_metadata_dirty(state.saved_metadata, metadata))
+
+
+def move_item(items: tuple, index: int, delta: int) -> tuple:
+    """Deplacer un element d'une liste ordonnee, sans sortir des bornes."""
+    target = index + delta
+    if not (0 <= index < len(items)) or not (0 <= target < len(items)):
+        return items
+    values = list(items)
+    values[index], values[target] = values[target], values[index]
+    return tuple(values)
 
 
 def next_identifier(prefix: str, identifiers: tuple[str, ...]) -> str:
@@ -127,7 +202,7 @@ def add_contributor(state: MetadataEditorState, contributor: Contributor) -> Met
         duplicate_message="identifiant de contributeur deja utilise",
         invalid_message="identifiant de contributeur invalide",
     )
-    return replace(state, metadata=replace(state.metadata, contributors=state.metadata.contributors + (contributor,)), dirty=True)
+    return update_metadata(state, contributors=state.metadata.contributors + (contributor,))
 
 
 def update_contributor(state: MetadataEditorState, original_id: str, contributor: Contributor) -> MetadataEditorState:
@@ -135,18 +210,14 @@ def update_contributor(state: MetadataEditorState, original_id: str, contributor
         item.contributor_id == contributor.contributor_id for item in state.metadata.contributors
     ):
         raise ValueError("identifiant de contributeur deja utilise")
-    return replace(
+    return update_metadata(
         state,
-        metadata=replace(
-            state.metadata,
-            contributors=tuple(contributor if item.contributor_id == original_id else item for item in state.metadata.contributors),
-        ),
-        dirty=True,
+        contributors=tuple(contributor if item.contributor_id == original_id else item for item in state.metadata.contributors),
     )
 
 
 def remove_contributor(state: MetadataEditorState, contributor_id: str) -> MetadataEditorState:
-    return replace(state, metadata=replace(state.metadata, contributors=tuple(item for item in state.metadata.contributors if item.contributor_id != contributor_id)), dirty=True)
+    return update_metadata(state, contributors=tuple(item for item in state.metadata.contributors if item.contributor_id != contributor_id))
 
 
 def add_affiliation(state: MetadataEditorState, affiliation: Affiliation) -> MetadataEditorState:
@@ -156,7 +227,7 @@ def add_affiliation(state: MetadataEditorState, affiliation: Affiliation) -> Met
         duplicate_message="identifiant d'affiliation deja utilise",
         invalid_message="identifiant d'affiliation invalide",
     )
-    return replace(state, metadata=replace(state.metadata, affiliations=state.metadata.affiliations + (affiliation,)), dirty=True)
+    return update_metadata(state, affiliations=state.metadata.affiliations + (affiliation,))
 
 
 def update_affiliation(state: MetadataEditorState, original_id: str, affiliation: Affiliation) -> MetadataEditorState:
@@ -175,14 +246,10 @@ def update_affiliation(state: MetadataEditorState, original_id: str, affiliation
             )
             for contributor in contributors
         )
-    return replace(
+    return update_metadata(
         state,
-        metadata=replace(
-            state.metadata,
-            contributors=contributors,
-            affiliations=tuple(affiliation if item.affiliation_id == original_id else item for item in state.metadata.affiliations),
-        ),
-        dirty=True,
+        contributors=contributors,
+        affiliations=tuple(affiliation if item.affiliation_id == original_id else item for item in state.metadata.affiliations),
     )
 
 
@@ -190,7 +257,7 @@ def remove_affiliation(state: MetadataEditorState, affiliation_id: str) -> Metad
     """Refuser une suppression qui laisserait une reference pendante."""
     if any(affiliation_id in item.affiliation_ids for item in state.metadata.contributors):
         raise ValueError("affiliation encore utilisee par un contributeur")
-    return replace(state, metadata=replace(state.metadata, affiliations=tuple(item for item in state.metadata.affiliations if item.affiliation_id != affiliation_id)), dirty=True)
+    return update_metadata(state, affiliations=tuple(item for item in state.metadata.affiliations if item.affiliation_id != affiliation_id))
 
 
 def is_metadata_dirty(saved: DocumentMetadata | None, current: DocumentMetadata) -> bool:

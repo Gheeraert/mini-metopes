@@ -2,19 +2,37 @@ from dataclasses import replace
 
 import pytest
 
-from mini_metopes.metadata import Affiliation, Contributor, DocumentMetadata, METADATA_SCHEMA_VERSION, MetadataSource, validate_metadata
+from mini_metopes.metadata import (
+    Abstract,
+    Affiliation,
+    Collection,
+    Contributor,
+    DocumentMetadata,
+    Identifier,
+    KeywordGroup,
+    License,
+    METADATA_SCHEMA_VERSION,
+    Pagination,
+    Publication,
+    Rights,
+    SourceDocument,
+    normalize_doi,
+    normalize_isbn,
+    normalize_issn,
+    validate_metadata,
+)
 
 
 @pytest.fixture()
 def metadata() -> DocumentMetadata:
-    return DocumentMetadata(METADATA_SCHEMA_VERSION, MetadataSource("x.docx", "a" * 64), "chapter", "fr", "Titre", contributors=(Contributor("person-1", "author", given_name="A", family_name="B", affiliation_ids=("affiliation-1",)),), affiliations=(Affiliation("affiliation-1", "Universite"),))
+    return DocumentMetadata(METADATA_SCHEMA_VERSION, SourceDocument("x.docx", "a" * 64), "chapter", "fr", "Titre", contributors=(Contributor("person-1", "author", given_name="A", family_name="B", affiliation_ids=("affiliation-1",)),), affiliations=(Affiliation("affiliation-1", "Universite"),))
 
 
 @pytest.mark.parametrize("changed,code", [
     (lambda item: replace(item, title=" "), "missing_title"),
     (lambda item: replace(item, language="français"), "invalid_language"),
     (lambda item: replace(item, document_type="invalid"), "invalid_document_type"),
-    (lambda item: replace(item, source=MetadataSource("x.docx", "short")), "invalid_source_sha256"),
+    (lambda item: replace(item, source=SourceDocument("x.docx", "short")), "invalid_source_sha256"),
     (lambda item: replace(item, schema_version="9"), "unsupported_schema_version"),
 ])
 def test_validation_codes(metadata, changed, code: str) -> None:
@@ -55,3 +73,51 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
     codes = [issue.code for issue in validate_metadata(changed).issues]
 
     assert ("invalid_ror" not in codes) is valid
+
+
+@pytest.mark.parametrize("changed,code", [
+    (lambda item: replace(item, identifiers=(Identifier("doi", "pas-un-doi"),)), "invalid_doi"),
+    (lambda item: replace(item, identifiers=(Identifier("isbn-13", "979-10-240-0000-0", "print"),)), "invalid_isbn"),
+    (lambda item: replace(item, identifiers=(Identifier("isbn-13", "979-10-240-1755-6"),)), "missing_identifier_format"),
+    (lambda item: replace(item, identifiers=(Identifier("issn", "1234-5678"),)), "invalid_issn"),
+    (lambda item: replace(item, identifiers=(Identifier("ark", "x"),)), "invalid_identifier_type"),
+    (lambda item: replace(item, identifiers=(Identifier("doi", "10.4000/x.1", "papier"),)), "invalid_identifier_format"),
+    (lambda item: replace(item, publication=Publication(publication_date="2026-13")), "invalid_publication_date"),
+    (lambda item: replace(item, publication=Publication(publication_date="hier")), "invalid_publication_date"),
+    (lambda item: replace(item, rights=Rights(license=License("CC", "creativecommons.org"))), "invalid_license_url"),
+    (lambda item: replace(item, rights=Rights(license=License(url="https://x.org/l"))), "missing_license_name"),
+    (lambda item: replace(item, abstracts=(Abstract("summary", "fr", "  "),)), "empty_abstract"),
+    (lambda item: replace(item, abstracts=(Abstract("preface", "fr", "x"),)), "invalid_abstract_type"),
+    (lambda item: replace(item, abstracts=(Abstract("summary", "français", "x"),)), "invalid_language"),
+    (lambda item: replace(item, keywords=(KeywordGroup("fr", ()),)), "empty_keyword_group"),
+    (lambda item: replace(item, keywords=(KeywordGroup("fr", ("", "x")),)), "invalid_keyword"),
+    (lambda item: replace(item, collection=Collection(" ")), "invalid_collection_title"),
+    (lambda item: replace(item, collection=Collection("C", issn="0000-0021")), "invalid_issn"),
+    (lambda item: replace(item, pagination=Pagination(page_from=10, page_to=5)), "invalid_pagination"),
+    (lambda item: replace(item, pagination=Pagination(page_from=10)), "incomplete_pagination"),
+    (lambda item: replace(item, pagination=Pagination(page_from=1, page_to=2, extent=10)), "conflicting_pagination"),
+    (lambda item: replace(item, pagination=Pagination()), "incomplete_pagination"),
+    (lambda item: replace(item, contributors=(replace(item.contributors[0], email="pas-un-mail"),)), "invalid_email"),
+    (lambda item: replace(item, contributors=(replace(item.contributors[0], role="other"),)), "missing_contributor_role_label"),
+])
+def test_v2_validation_codes(metadata, changed, code: str) -> None:
+    assert code in [issue.code for issue in validate_metadata(changed(metadata)).issues]
+
+
+def test_similar_keywords_warn_without_deduplication(metadata) -> None:
+    grouped = replace(metadata, keywords=(KeywordGroup("fr", ("Tragédie", "tragedie", "genre")),))
+    result = validate_metadata(grouped)
+    assert result.valid
+    assert "similar_keywords" in [issue.code for issue in result.issues]
+
+
+def test_normalizations_are_explicit_and_local() -> None:
+    assert normalize_doi("https://doi.org/10.4000/books.purh.1") == "10.4000/books.purh.1"
+    assert normalize_doi("doi:10.4000/x.1") == "10.4000/x.1"
+    assert normalize_doi("11.4000/x") is None
+    assert normalize_isbn("979-10-240-1755-6") == "9791024017556"
+    assert normalize_isbn("2-87775-994-9") is None
+    assert normalize_isbn("0-19-852663-6") == "0198526636"
+    assert normalize_issn("0000-0019") == "0000-0019"
+    assert normalize_issn("00000019") == "0000-0019"
+    assert normalize_issn("0000-0018") is None

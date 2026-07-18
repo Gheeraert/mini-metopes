@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "code": "publisher_address_not_serialized",
+    "message": "lieu et adresse de l'editeur non serialisables dans publicationStmt (profil sans pubPlace/address)",
+    "metadata_path": "publication.publisher",
+    "note_id": null,
+    "origin": "metadata",
+    "run_index": null,
+    "severity": "info",
+    "source_paragraph_index": null,
+    "source_part": null,
+    "style_id": null
+  },
+  {
+    "code": "editorial_responsibility_not_serialized",
+    "message": "responsable d'edition non serialisable : le profil embarque n'admet ni editionStmt ni respStmt",
+    "metadata_path": "editorial_responsibility",
+    "note_id": null,
+    "origin": "metadata",
+    "run_index": null,
+    "severity": "info",
+    "source_paragraph_index": null,
+    "source_part": null,
+    "style_id": null
+  }
+]

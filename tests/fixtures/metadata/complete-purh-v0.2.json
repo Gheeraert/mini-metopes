@@ -1,21 +1,21 @@
 {
   "schema_version": "2.0",
   "source_document": {
-    "path": "source.docx",
-    "sha256": "a263e8a44e05346bf514ca732b0df40e994d32dd0262817057cb005b47f9426e"
+    "path": "chapitres/conclusion_racine.docx",
+    "sha256": "abababababababababababababababababababababababababababababababab"
   },
   "document": {
-    "type": "chapter",
-    "language": "en-GB",
-    "title": "An Ordinary Academic Article",
-    "subtitle": "Sections, quotations and lists"
+    "type": "conclusion",
+    "language": "fr-FR",
+    "title": "Vestiges de l'amour",
+    "subtitle": "Ferments de la liberté"
   },
   "contributors": [
     {
       "id": "person-1",
       "role": "author",
-      "given_name": "Jane",
-      "family_name": "Author",
+      "given_name": "Florence",
+      "family_name": "Filippi",
       "orcid": "0000-0002-1825-0097",
       "affiliations": [
         "affiliation-1"
@@ -23,12 +23,10 @@
     },
     {
       "id": "person-2",
-      "role": "scientific_editor",
-      "given_name": "Paul",
-      "family_name": "Directeur",
-      "affiliations": [
-        "affiliation-1"
-      ]
+      "role": "translator",
+      "given_name": "Jean",
+      "family_name": "Traducteur",
+      "affiliations": []
     }
   ],
   "affiliations": [
@@ -55,12 +53,12 @@
       ],
       "url": "https://purh.univ-rouen.fr"
     },
-    "publication_date": "2026"
+    "publication_date": "2026-03"
   },
   "identifiers": [
     {
       "type": "doi",
-      "value": "10.4000/example.12345",
+      "value": "10.4000/books.purh.99999",
       "format": null
     },
     {
@@ -71,12 +69,7 @@
     {
       "type": "isbn-13",
       "value": "978-2-87775-994-6",
-      "format": "pdf"
-    },
-    {
-      "type": "issn",
-      "value": "1291-0961",
-      "format": null
+      "format": "epub"
     }
   ],
   "rights": {
@@ -91,17 +84,12 @@
     {
       "type": "summary",
       "language": "fr",
-      "text": "Résumé français de l'article ordinaire."
-    },
-    {
-      "type": "abstract",
-      "language": "en",
-      "text": "English abstract of the ordinary article."
+      "text": "Résumé français."
     },
     {
       "type": "back-cover",
       "language": "fr",
-      "text": "Texte de quatrième de couverture.\nSecond paragraphe de la quatrième."
+      "text": "Quatrième de couverture."
     }
   ],
   "keywords": [
@@ -109,25 +97,16 @@
       "language": "fr",
       "scheme": "keywords",
       "items": [
-        "Racine",
-        "tragédie",
-        "genre"
-      ]
-    },
-    {
-      "language": "en",
-      "scheme": "keywords",
-      "items": [
-        "Racine",
-        "tragedy",
-        "gender"
+        "Duras",
+        "liberté",
+        "amour"
       ]
     }
   ],
   "collection": {
-    "title": "Collection synthétique",
+    "title": "Cours de littérature",
     "issn": "0000-0019",
-    "volume": "12"
+    "volume": "7"
   },
   "pagination": {
     "from": 125,

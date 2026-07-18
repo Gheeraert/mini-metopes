@@ -10,7 +10,7 @@ from mini_metopes.metadata import (
     Contributor,
     DocumentMetadata,
     METADATA_SCHEMA_VERSION,
-    MetadataSource,
+    SourceDocument,
     compute_file_sha256,
     load_metadata_file,
 )
@@ -37,7 +37,13 @@ def test_metadata_enriches_header_and_consumes_initial_word_suggestions() -> Non
     assert tree.xpath("string(//tei:idno[@type='ORCID'])", namespaces=NS) == "0000-0002-1825-0097"
     assert tree.xpath("count(//tei:idno[@type='ROR'])", namespaces=NS) == 0.0
     assert tree.xpath("string(tei:teiHeader/tei:profileDesc/tei:langUsage/tei:language/@ident)", namespaces=NS) == "fr"
-    assert tree.xpath("count(tei:teiHeader/tei:profileDesc/tei:textClass/tei:keywords/tei:term)", namespaces=NS) == 3.0
+    keywords = tree.xpath("tei:teiHeader/tei:profileDesc/tei:textClass/tei:keywords", namespaces=NS)
+    assert len(keywords) == 1
+    assert keywords[0].get("scheme") == "keywords"
+    assert keywords[0].get("{http://www.w3.org/XML/1998/namespace}lang") == "fr"
+    assert tree.xpath("count(tei:teiHeader/tei:profileDesc/tei:textClass/tei:keywords/tei:list/tei:item)", namespaces=NS) == 3.0
+    assert tree.xpath("count(tei:text/tei:front/tei:div[@type='abstract'])", namespaces=NS) == 1.0
+    assert tree.xpath("string(tei:text/tei:front/tei:div[@type='abstract']/tei:p)", namespaces=NS) == "Resume synthetique pour la fixture."
     assert tree.xpath("count(tei:text/tei:body/tei:p[text()='Une conversion synthetique'])", namespaces=NS) == 0.0
     assert tree.xpath("contains(string(tei:teiHeader/tei:fileDesc/tei:sourceDesc), 'native-tei-conversion.docx')", namespaces=NS)
     assert "ror_not_serialized" in [item.code for item in result.diagnostics]
@@ -72,7 +78,7 @@ def test_json_has_priority_and_non_initial_title_refuses_conversion() -> None:
     docx_with_late_title = ROOT / "docx" / "native-editorial.docx"
     late_metadata = DocumentMetadata(
         METADATA_SCHEMA_VERSION,
-        MetadataSource(docx_with_late_title.name, compute_file_sha256(docx_with_late_title)),
+        SourceDocument(docx_with_late_title.name, compute_file_sha256(docx_with_late_title)),
         "chapter", "fr", "Titre JSON",
     )
     late = convert_docx_to_tei(docx_with_late_title, metadata=late_metadata)
@@ -101,8 +107,6 @@ def test_cli_prints_non_blocking_diagnostics_on_success(tmp_path: Path, capsys) 
     assert main(["convert-docx", str(DOCX), str(output), "--metadata", str(JSON)]) == 0
     captured = capsys.readouterr()
     assert output.exists()
-    assert "abstract_not_serialized" in captured.out
-    assert "document.abstract" in captured.out
     assert "ror_not_serialized" in captured.out
     assert "affiliations[0].ror" in captured.out
 
@@ -119,7 +123,7 @@ def test_cli_reports_missing_docx_before_missing_metadata(tmp_path: Path, capsys
 
 def test_cli_handles_badly_typed_metadata_without_traceback(tmp_path: Path, capsys) -> None:
     invalid = tmp_path / "bad.metadata.json"
-    invalid.write_text('{"schema_version":"1.0","source":{"filename":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
+    invalid.write_text('{"schema_version":"2.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":3,"title":7},"contributors":[],"affiliations":[]}', encoding="utf-8")
     output = tmp_path / "output.xml"
 
     assert main(["validate-metadata", str(invalid)]) == 1

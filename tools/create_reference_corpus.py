@@ -289,7 +289,7 @@ def write_metadata(directory: Path, *, title: str, subtitle: str | None, languag
         METADATA_SCHEMA_VERSION,
         Contributor,
         DocumentMetadata,
-        MetadataSource,
+        SourceDocument,
         compute_file_sha256,
         metadata_to_json,
     )
@@ -297,7 +297,7 @@ def write_metadata(directory: Path, *, title: str, subtitle: str | None, languag
     docx_path = directory / "source.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language=language,
         title=title,
@@ -377,15 +377,87 @@ def build_document_b() -> None:
             "word/_rels/document.xml.rels": RELATIONSHIPS_B,
         },
     )
-    write_metadata(
-        directory,
+    write_rich_purh_metadata(directory)
+    write_expectations(directory, expect_tei=True)
+
+
+def write_rich_purh_metadata(directory: Path) -> None:
+    """Metadonnees completes PURH pour le document B, relues comme reference."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION,
+        Abstract,
+        Affiliation,
+        Collection,
+        Contributor,
+        DocumentMetadata,
+        EditorialResponsibility,
+        Identifier,
+        KeywordGroup,
+        License,
+        Pagination,
+        Publication,
+        Publisher,
+        Rights,
+        SourceDocument,
+        compute_file_sha256,
+        metadata_to_json,
+    )
+
+    docx_path = directory / "source.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="en-GB",
         title="An Ordinary Academic Article",
         subtitle="Sections, quotations and lists",
-        language="en",
-        family_name="Author",
-        given_name="Jane",
+        contributors=(
+            Contributor(
+                contributor_id="person-1", role="author", given_name="Jane", family_name="Author",
+                orcid="0000-0002-1825-0097", affiliation_ids=("affiliation-1",),
+            ),
+            Contributor(
+                contributor_id="person-2", role="scientific_editor", given_name="Paul", family_name="Directeur",
+                affiliation_ids=("affiliation-1",),
+            ),
+        ),
+        affiliations=(
+            Affiliation("affiliation-1", "Université de Rouen Normandie", city="Rouen", country="FR"),
+        ),
+        editorial_responsibility=(EditorialResponsibility("éditrice", "Anaïs Monchy"),),
+        publication=Publication(
+            publisher=Publisher(
+                name="Presses universitaires de Rouen et du Havre",
+                place="Mont-Saint-Aignan",
+                address=("Place Émile-Blondel", "76821 Mont-Saint-Aignan Cedex"),
+                url="https://purh.univ-rouen.fr",
+            ),
+            publication_date="2026",
+        ),
+        identifiers=(
+            Identifier("doi", "10.4000/example.12345"),
+            Identifier("isbn-13", "979-10-240-1755-6", "print"),
+            Identifier("isbn-13", "978-2-87775-994-6", "pdf"),
+            Identifier("issn", "1291-0961"),
+        ),
+        rights=Rights(
+            holder="Presses universitaires de Rouen et du Havre",
+            statement="Tous droits réservés.",
+            license=License("CC BY-NC-ND 4.0", "https://creativecommons.org/licenses/by-nc-nd/4.0/"),
+        ),
+        abstracts=(
+            Abstract("summary", "fr", "Résumé français de l'article ordinaire."),
+            Abstract("abstract", "en", "English abstract of the ordinary article."),
+            Abstract("back-cover", "fr", "Texte de quatrième de couverture.\nSecond paragraphe de la quatrième."),
+        ),
+        keywords=(
+            KeywordGroup("fr", ("Racine", "tragédie", "genre")),
+            KeywordGroup("en", ("Racine", "tragedy", "gender")),
+        ),
+        collection=Collection(title="Collection synthétique", issn="0000-0019", volume="12"),
+        pagination=Pagination(page_from=125, page_to=148),
     )
-    write_expectations(directory, expect_tei=True)
+    (directory / "metadata.json").write_text(metadata_to_json(metadata), encoding="utf-8")
 
 
 def build_document_c() -> None:

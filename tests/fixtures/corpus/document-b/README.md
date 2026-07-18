@@ -16,4 +16,11 @@ Contenu :
 - hyperlien externe → `ref target="…"` ;
 - deux notes de bas de page → `note place="foot"`.
 
-Conversion attendue : succès, aucun diagnostic.
+Depuis la passe métadonnées v2, ce document porte des **métadonnées PURH
+complètes** (éditeur, date, DOI, ISBN par support, ISSN, licence CC, résumés
+français/anglais, quatrième de couverture, mots-clés bilingues, collection,
+pagination, responsable d'édition) sérialisées dans le `teiHeader` et le
+`front`.
+
+Conversion attendue : succès ; deux diagnostics informatifs documentés
+(`publisher_address_not_serialized`, `editorial_responsibility_not_serialized`).

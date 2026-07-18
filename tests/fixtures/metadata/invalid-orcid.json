@@ -1,21 +1,21 @@
 {
   "schema_version": "2.0",
   "source_document": {
-    "path": "source.docx",
-    "sha256": "44161e87cbbb2aab7cb0f3f94c3943ed2ca739c3fdbdda9f4f77e97dab9dc3f5"
+    "path": "document.docx",
+    "sha256": "abababababababababababababababababababababababababababababababab"
   },
   "document": {
     "type": "chapter",
     "language": "fr",
-    "title": "Cas invalide unknown-custom-style",
+    "title": "Titre minimal",
     "subtitle": null
   },
   "contributors": [
     {
       "id": "person-1",
       "role": "author",
-      "given_name": "Corpus",
-      "family_name": "Test",
+      "family_name": "Nom",
+      "orcid": "0000-0000-0000-0000",
       "affiliations": []
     }
   ],

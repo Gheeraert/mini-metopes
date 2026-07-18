@@ -1,16 +1,14 @@
 {
-  "schema_version": "1.0",
-  "source": {
-    "filename": "source.docx",
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "source.docx",
     "sha256": "414cd25dd9d71ff3013ac41ed77d08f435ada9d10355629dae0c3a39325cecf6"
   },
   "document": {
     "type": "chapter",
     "language": "fr",
     "title": "Petit traité minimal",
-    "subtitle": null,
-    "abstract": null,
-    "keywords": []
+    "subtitle": null
   },
   "contributors": [
     {
@@ -18,8 +16,6 @@
       "role": "author",
       "given_name": "Blaise",
       "family_name": "Deportroyal",
-      "literal_name": null,
-      "orcid": null,
       "affiliations": []
     }
   ],

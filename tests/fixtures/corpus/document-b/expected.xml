@@ -5,27 +5,85 @@
       <titleStmt>
         <title type="main">An Ordinary Academic Article</title>
         <title type="sub">Sections, quotations and lists</title>
-        <author>
+        <author role="aut">
           <persName>
             <forename>Jane</forename>
             <surname>Author</surname>
           </persName>
+          <idno type="ORCID">0000-0002-1825-0097</idno>
+          <affiliation>Université de Rouen Normandie, Rouen, FR</affiliation>
         </author>
+        <editor role="edt">
+          <persName>
+            <forename>Paul</forename>
+            <surname>Directeur</surname>
+          </persName>
+          <affiliation>Université de Rouen Normandie, Rouen, FR</affiliation>
+        </editor>
       </titleStmt>
       <publicationStmt>
-        <p>Document généré par Mini-Métopes.</p>
+        <publisher>Presses universitaires de Rouen et du Havre</publisher>
+        <ref target="https://purh.univ-rouen.fr" type="site">https://purh.univ-rouen.fr</ref>
+        <date when="2026" type="publishing">2026</date>
+        <idno type="DOI">10.4000/example.12345</idno>
+        <idno type="pISBN">979-10-240-1755-6</idno>
+        <idno type="eISBN">978-2-87775-994-6</idno>
+        <idno type="pISSN">1291-0961</idno>
+        <availability>
+          <licence target="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</licence>
+          <p>Tous droits réservés.</p>
+          <p>© Presses universitaires de Rouen et du Havre</p>
+        </availability>
       </publicationStmt>
       <sourceDesc>
         <p>Conversion du fichier DOCX source.docx.</p>
       </sourceDesc>
+      <sourceDesc>
+        <bibl>
+          <series>
+            <title>Collection synthétique</title>
+            <biblScope unit="volume">12</biblScope>
+            <idno type="pISSN">0000-0019</idno>
+          </series>
+          <biblScope unit="page">125-148</biblScope>
+        </bibl>
+      </sourceDesc>
     </fileDesc>
     <profileDesc>
       <langUsage>
-        <language ident="en">en</language>
+        <language ident="en-GB">en-GB</language>
       </langUsage>
+      <textClass>
+        <keywords scheme="keywords" xml:lang="fr">
+          <list>
+            <item>Racine</item>
+            <item>tragédie</item>
+            <item>genre</item>
+          </list>
+        </keywords>
+        <keywords scheme="keywords" xml:lang="en">
+          <list>
+            <item>Racine</item>
+            <item>tragedy</item>
+            <item>gender</item>
+          </list>
+        </keywords>
+      </textClass>
     </profileDesc>
   </teiHeader>
   <text>
+    <front>
+      <div type="abstract" xml:lang="fr">
+        <p>Résumé français de l'article ordinaire.</p>
+      </div>
+      <div type="abstract" xml:lang="en">
+        <p>English abstract of the ordinary article.</p>
+      </div>
+      <div type="abstract" n="back-cover" xml:lang="fr">
+        <p>Texte de quatrième de couverture.</p>
+        <p>Second paragraphe de la quatrième.</p>
+      </div>
+    </front>
     <body>
       <div>
         <head>Introduction</head>

@@ -1,16 +1,14 @@
 {
-  "schema_version": "1.0",
-  "source": {
-    "filename": "source.docx",
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "source.docx",
     "sha256": "a50f07645064490b91f993a9ee7881cfc65925615411784a48ec72b695c8ffdb"
   },
   "document": {
     "type": "chapter",
     "language": "fr",
     "title": "Cas invalide heading-level-jump",
-    "subtitle": null,
-    "abstract": null,
-    "keywords": []
+    "subtitle": null
   },
   "contributors": [
     {
@@ -18,8 +16,6 @@
       "role": "author",
       "given_name": "Corpus",
       "family_name": "Test",
-      "literal_name": null,
-      "orcid": null,
       "affiliations": []
     }
   ],

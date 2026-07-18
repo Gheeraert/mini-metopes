@@ -915,7 +915,7 @@ def write_list_tei_metadata() -> None:
         METADATA_SCHEMA_VERSION,
         Contributor,
         DocumentMetadata,
-        MetadataSource,
+        SourceDocument,
         compute_file_sha256,
         metadata_to_json,
     )
@@ -923,7 +923,7 @@ def write_list_tei_metadata() -> None:
     docx_path = FIXTURES / "native-lists-tei.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language="fr",
         title="Listes synthétiques",
@@ -949,7 +949,7 @@ def write_list_continuation_metadata() -> None:
         METADATA_SCHEMA_VERSION,
         Contributor,
         DocumentMetadata,
-        MetadataSource,
+        SourceDocument,
         compute_file_sha256,
         metadata_to_json,
     )
@@ -957,7 +957,7 @@ def write_list_continuation_metadata() -> None:
     docx_path = FIXTURES / "native-list-continuations.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language="fr",
         title="Continuations de listes",
@@ -983,7 +983,7 @@ def write_consecutive_metadata() -> None:
         METADATA_SCHEMA_VERSION,
         Contributor,
         DocumentMetadata,
-        MetadataSource,
+        SourceDocument,
         compute_file_sha256,
         metadata_to_json,
     )
@@ -991,7 +991,7 @@ def write_consecutive_metadata() -> None:
     docx_path = FIXTURES / "native-consecutive-paragraphs.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language="fr",
         title="Paragraphes de suite",
@@ -1017,7 +1017,7 @@ def write_figure_metadata() -> None:
         METADATA_SCHEMA_VERSION,
         Contributor,
         DocumentMetadata,
-        MetadataSource,
+        SourceDocument,
         compute_file_sha256,
         metadata_to_json,
     )
@@ -1025,7 +1025,7 @@ def write_figure_metadata() -> None:
     docx_path = FIXTURES / "native-figures.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language="fr",
         title="Figures simples",
@@ -1048,14 +1048,14 @@ def write_figure_metadata() -> None:
 def write_detail_table_metadata() -> None:
     """Ecrire les metadonnees de la fixture combinee finale."""
     from mini_metopes.metadata import (
-        METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, MetadataSource,
+        METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, SourceDocument,
         compute_file_sha256, metadata_to_json,
     )
 
     docx_path = FIXTURES / "native-figure-details-and-tables.docx"
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
-        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter",
         language="fr",
         title="Figures et tableaux",
@@ -1069,15 +1069,147 @@ def write_detail_table_metadata() -> None:
 
 
 def write_bibliography_metadata() -> None:
-    from mini_metopes.metadata import METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, MetadataSource, compute_file_sha256, metadata_to_json
+    from mini_metopes.metadata import METADATA_SCHEMA_VERSION, Contributor, DocumentMetadata, SourceDocument, compute_file_sha256, metadata_to_json
     docx_path = FIXTURES / "native-bibliographic-references.docx"
     metadata = DocumentMetadata(
-        schema_version=METADATA_SCHEMA_VERSION, source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        schema_version=METADATA_SCHEMA_VERSION, source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
         document_type="chapter", language="fr", title="References bibliographiques", subtitle="Bibliographie finale",
         contributors=(Contributor(contributor_id="person-1", role="author", given_name="Claire", family_name="Exemple"),),
     )
     METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
     (METADATA_FIXTURES / "native-bibliographic-references.metadata.json").write_text(metadata_to_json(metadata), encoding="utf-8")
+
+
+def write_tei_conversion_metadata() -> None:
+    """Ecrire la fixture riche : auteurs, ORCID, resume et mots-cles v2."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION, Abstract, Affiliation, Contributor, DocumentMetadata,
+        KeywordGroup, SourceDocument, compute_file_sha256, metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-tei-conversion.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=SourceDocument(path=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter", language="fr",
+        title="Une conversion synthetique", subtitle="Metadonnees JSON et TEI",
+        contributors=(
+            Contributor(
+                contributor_id="person-1", role="author", given_name="Tony", family_name="Gheeraert",
+                orcid="0000-0002-1825-0097", affiliation_ids=("affiliation-1", "affiliation-2"),
+            ),
+            Contributor(
+                contributor_id="person-2", role="editor", literal_name="Comite editorial synthetique",
+                affiliation_ids=("affiliation-2",),
+            ),
+        ),
+        affiliations=(
+            Affiliation("affiliation-1", "Universite synthetique", unit="Laboratoire de test", city="Rouen", country="FR", ror="https://ror.org/03yrm5c26"),
+            Affiliation("affiliation-2", "Maison des sciences synthetique", city="Paris", country="FR"),
+        ),
+        abstracts=(Abstract("summary", "fr", "Resume synthetique pour la fixture."),),
+        keywords=(KeywordGroup("fr", ("TEI", "Word", "metadonnees")),),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-tei-conversion.metadata.json").write_text(metadata_to_json(metadata), encoding="utf-8")
+
+
+def write_contract_metadata_fixtures() -> None:
+    """Fixtures du contrat JSON v2 : valides via le serialiseur, invalides litterales."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION, Abstract, Affiliation, Collection, Contributor,
+        DocumentMetadata, EditorialResponsibility, Identifier, KeywordGroup, License,
+        Pagination, Publication, Publisher, Rights, SourceDocument, metadata_to_json,
+    )
+
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    sha = "ab" * 32
+    minimal = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=SourceDocument(path="document.docx", sha256=sha),
+        document_type="chapter", language="fr", title="Titre minimal",
+    )
+    (METADATA_FIXTURES / "minimal-v0.1.json").write_text(metadata_to_json(minimal), encoding="utf-8")
+
+    complete = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=SourceDocument(path="chapitres/conclusion_racine.docx", sha256=sha),
+        document_type="conclusion", language="fr-FR",
+        title="Vestiges de l'amour", subtitle="Ferments de la liberté",
+        contributors=(
+            Contributor("person-1", "author", given_name="Florence", family_name="Filippi",
+                        orcid="0000-0002-1825-0097", affiliation_ids=("affiliation-1",)),
+            Contributor("person-2", "translator", given_name="Jean", family_name="Traducteur"),
+        ),
+        affiliations=(
+            Affiliation("affiliation-1", "Université de Rouen Normandie", city="Rouen", country="FR"),
+        ),
+        editorial_responsibility=(EditorialResponsibility("éditrice", "Anaïs Monchy"),),
+        publication=Publication(
+            publisher=Publisher(
+                name="Presses universitaires de Rouen et du Havre",
+                place="Mont-Saint-Aignan",
+                address=("Place Émile-Blondel", "76821 Mont-Saint-Aignan Cedex"),
+                url="https://purh.univ-rouen.fr",
+            ),
+            publication_date="2026-03",
+        ),
+        identifiers=(
+            Identifier("doi", "10.4000/books.purh.99999"),
+            Identifier("isbn-13", "979-10-240-1755-6", "print"),
+            Identifier("isbn-13", "978-2-87775-994-6", "epub"),
+        ),
+        rights=Rights(
+            holder="Presses universitaires de Rouen et du Havre",
+            statement="Tous droits réservés.",
+            license=License("CC BY-NC-ND 4.0", "https://creativecommons.org/licenses/by-nc-nd/4.0/"),
+        ),
+        abstracts=(
+            Abstract("summary", "fr", "Résumé français."),
+            Abstract("back-cover", "fr", "Quatrième de couverture."),
+        ),
+        keywords=(KeywordGroup("fr", ("Duras", "liberté", "amour")),),
+        collection=Collection(title="Cours de littérature", issn="0000-0019", volume="7"),
+        pagination=Pagination(page_from=125, page_to=148),
+    )
+    (METADATA_FIXTURES / "complete-purh-v0.2.json").write_text(metadata_to_json(complete), encoding="utf-8")
+
+    multilingual = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=SourceDocument(path="document.docx", sha256=sha),
+        document_type="article", language="fr-FR",
+        title="Οἰδίπους Τύραννος : lectures croisées",
+        contributors=(Contributor("person-1", "author", given_name="Ariane", family_name="Héllène"),),
+        abstracts=(
+            Abstract("summary", "fr", "Résumé français avec caractères accentués : œuvre, éléments."),
+            Abstract("abstract", "en", "English abstract."),
+            Abstract("abstract", "grc", "Περὶ τῆς τραγῳδίας."),
+        ),
+        keywords=(
+            KeywordGroup("fr", ("tragédie", "Œdipe")),
+            KeywordGroup("grc", ("τραγῳδία", "Οἰδίπους")),
+        ),
+    )
+    (METADATA_FIXTURES / "multilingual-v0.2.json").write_text(metadata_to_json(multilingual), encoding="utf-8")
+
+    def invalid(name: str, mutate: str) -> None:
+        import json as json_module
+
+        payload = json_module.loads(metadata_to_json(minimal))
+        exec(mutate, {"payload": payload})
+        (METADATA_FIXTURES / name).write_text(
+            json_module.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    invalid("invalid-orcid.json",
+            "payload['contributors'] = [{'id': 'person-1', 'role': 'author', 'family_name': 'Nom', 'orcid': '0000-0000-0000-0000', 'affiliations': []}]")
+    invalid("invalid-isbn.json",
+            "payload['identifiers'] = [{'type': 'isbn-13', 'value': '979-10-240-0000-0', 'format': 'print'}]")
+    invalid("invalid-empty-fields.json",
+            "payload['document']['title'] = ' '\n"
+            "payload['abstracts'] = [{'type': 'summary', 'language': 'fr', 'text': '  '}]\n"
+            "payload['keywords'] = [{'language': 'fr', 'items': ['']}]\n"
+            "payload['affiliations'] = [{'id': 'affiliation-1', 'name': ' '}]")
 
 
 def main() -> None:
@@ -1089,6 +1221,8 @@ def main() -> None:
     write_package(FIXTURES / "native-editorial.docx", editorial_parts())
     write_package(FIXTURES / "native-quotations.docx", quotation_parts())
     write_package(FIXTURES / "native-tei-conversion.docx", tei_conversion_parts())
+    write_tei_conversion_metadata()
+    write_contract_metadata_fixtures()
     write_package(FIXTURES / "native-lists.docx", list_parts())
     write_package(FIXTURES / "native-lists-tei.docx", list_tei_parts())
     write_list_tei_metadata()

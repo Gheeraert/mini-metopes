@@ -4,13 +4,13 @@ from pathlib import Path
 import pytest
 
 from mini_metopes.metadata import (
-    Affiliation, Contributor, DocumentMetadata, METADATA_SCHEMA_VERSION, MetadataSource,
+    Affiliation, Contributor, DocumentMetadata, METADATA_SCHEMA_VERSION, SourceDocument,
     compute_file_sha256, default_metadata_path,
 )
 
 
 def test_metadata_model_is_immutable_and_default_path_is_portable() -> None:
-    metadata = DocumentMetadata(METADATA_SCHEMA_VERSION, MetadataSource("mon.document.docx", "a" * 64), "chapter", "fr", "Titre")
+    metadata = DocumentMetadata(METADATA_SCHEMA_VERSION, SourceDocument("mon.document.docx", "a" * 64), "chapter", "fr", "Titre")
     with pytest.raises(FrozenInstanceError):
         metadata.title = "Autre"  # type: ignore[misc]
     assert default_metadata_path(Path("mon.document.DOCX")) == Path("mon.document.metadata.json")

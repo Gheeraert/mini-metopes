@@ -1,5 +1,8 @@
 # Métadonnées JSON v1
 
+> Remplacé par `metadata-json-v2.md` (schema_version 2.0), sans compatibilité
+> ascendante. Ce document est conservé pour l'historique.
+
 Le fichier associé à `document.docx` est `document.metadata.json`. Il contient
 un titre obligatoire, langue BCP 47, type contrôlé, contributeurs, affiliations,
 résumé, mots-clés et empreinte SHA-256 du DOCX. Les personnes sont soit

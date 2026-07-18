@@ -38,7 +38,12 @@ from mini_metopes.editorial import (
     VerseQuote,
 )
 from mini_metopes.validation import validate_xml_tree
-from mini_metopes.metadata import DocumentMetadata, normalize_orcid
+from mini_metopes.metadata import (
+    DocumentMetadata,
+    normalize_doi,
+    normalize_issn,
+    normalize_orcid,
+)
 
 from .model import TeiAsset, TeiConversionDiagnostic, TeiConversionResult, TeiWriteResult
 
@@ -74,6 +79,7 @@ class _SerializationState:
         *,
         source_paragraph_index: int | None = None,
         note_id: str | None = None,
+        metadata_path: str | None = None,
     ) -> None:
         self.diagnostics.append(
             TeiConversionDiagnostic(
@@ -82,6 +88,8 @@ class _SerializationState:
                 message=message,
                 source_paragraph_index=source_paragraph_index,
                 note_id=note_id,
+                origin="metadata" if metadata_path is not None else "serialization",
+                metadata_path=metadata_path,
             )
         )
 
@@ -111,7 +119,10 @@ def serialize_editorial_document_to_tei(
     state = _SerializationState(document, diagnostics, notes, set(), set())
     root = etree.Element(_tag("TEI"), nsmap=_NSMAP)
     _append_header(root, document.source_name, metadata, state)
-    body = etree.SubElement(etree.SubElement(root, _tag("text")), _tag("body"))
+    text_element = etree.SubElement(root, _tag("text"))
+    if metadata is not None and metadata.abstracts:
+        _append_front_abstracts(text_element, metadata)
+    body = etree.SubElement(text_element, _tag("body"))
     _append_body_blocks(body, document.blocks, state)
     if document.bibliography is not None:
         _append_bibliography(root.find(_tag("text")), document.bibliography, state)
@@ -276,13 +287,21 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
         affiliations = {item.affiliation_id: item for item in metadata.affiliations}
         for contributor_index, contributor in enumerate(metadata.contributors):
             element_name = "author" if contributor.role == "author" else "editor"
-            person = etree.SubElement(title_stmt, _tag(element_name))
-            if contributor.role not in {"author", "editor"}:
+            role_attribute = _TEI_CONTRIBUTOR_ROLES.get(contributor.role, "ctb")
+            person = etree.SubElement(title_stmt, _tag(element_name), role=role_attribute)
+            if contributor.role == "other":
                 state.diagnostics.append(TeiConversionDiagnostic(
-                    code="contributor_role_serialized_as_editor", severity="warning",
-                    message=f"role {contributor.role} serialise comme editor, le profil n'admet pas respStmt ici",
+                    code="contributor_role_serialized_as_contributor", severity="info",
+                    message="role other serialise comme editor role=ctb ; le libelle reste dans le JSON",
                     origin="metadata",
                     metadata_path=f"contributors[{contributor_index}].role",
+                ))
+            if contributor.email:
+                state.diagnostics.append(TeiConversionDiagnostic(
+                    code="contributor_email_not_serialized", severity="info",
+                    message="adresse electronique non serialisee par le profil Commons Publishing",
+                    origin="metadata",
+                    metadata_path=f"contributors[{contributor_index}].email",
                 ))
             if contributor.literal_name:
                 etree.SubElement(person, _tag("persName")).text = contributor.literal_name
@@ -323,25 +342,180 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                     origin="metadata",
                     metadata_path=f"affiliations[{affiliation_index}].id",
                 ))
-    publication = etree.SubElement(file_desc, _tag("publicationStmt"))
-    etree.SubElement(publication, _tag("p")).text = "Document généré par Mini-Métopes."
+    _append_publication_statement(file_desc, metadata, state)
     source_desc = etree.SubElement(file_desc, _tag("sourceDesc"))
     etree.SubElement(source_desc, _tag("p")).text = f"Conversion du fichier DOCX {source_name}."
     if metadata is not None:
+        _append_bibliographic_source_desc(file_desc, metadata, state)
         profile = etree.SubElement(header, _tag("profileDesc"))
         lang_usage = etree.SubElement(profile, _tag("langUsage"))
         etree.SubElement(lang_usage, _tag("language"), ident=metadata.language).text = metadata.language
-        if metadata.abstract:
-            state.diagnostics.append(TeiConversionDiagnostic(
-                code="abstract_not_serialized", severity="warning",
-                message="le profil Commons Publishing embarque n'admet pas le resume dans profileDesc",
-                origin="metadata",
-                metadata_path="document.abstract",
-            ))
         if metadata.keywords:
-            keywords = etree.SubElement(etree.SubElement(profile, _tag("textClass")), _tag("keywords"))
-            for keyword in metadata.keywords:
-                etree.SubElement(keywords, _tag("term")).text = keyword
+            text_class = etree.SubElement(profile, _tag("textClass"))
+            for group in metadata.keywords:
+                keywords = etree.SubElement(text_class, _tag("keywords"), scheme=group.scheme)
+                keywords.set(_XML_LANG, group.language)
+                listing = etree.SubElement(keywords, _tag("list"))
+                for keyword in group.items:
+                    etree.SubElement(listing, _tag("item")).text = keyword
+        if metadata.editorial_responsibility:
+            state.diagnostics.append(TeiConversionDiagnostic(
+                code="editorial_responsibility_not_serialized", severity="info",
+                message="responsable d'edition non serialisable : le profil embarque n'admet ni editionStmt ni respStmt",
+                origin="metadata",
+                metadata_path="editorial_responsibility",
+            ))
+
+
+_XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+_TEI_CONTRIBUTOR_ROLES = {
+    "author": "aut",
+    "editor": "edt",
+    "scientific_editor": "edt",
+    "translator": "trl",
+    "other": "ctb",
+}
+_TEI_IDNO_TYPES = {
+    ("doi", None): "DOI",
+    ("issn", None): "pISSN",
+    ("eissn", None): "eISSN",
+    ("local", None): "documentnumber",
+}
+
+
+def _append_publication_statement(
+    file_desc: etree._Element,
+    metadata: DocumentMetadata | None,
+    state: _SerializationState,
+) -> None:
+    """Serialiser publicationStmt : agence puis details, jamais de placeholder."""
+    publication = etree.SubElement(file_desc, _tag("publicationStmt"))
+    if metadata is None:
+        etree.SubElement(publication, _tag("p")).text = "Document généré par Mini-Métopes."
+        return
+    publisher = metadata.publication.publisher
+    availability = _availability_content(metadata)
+    has_details = bool(
+        metadata.identifiers
+        or metadata.publication.publication_date
+        or publisher.url
+        or availability
+    )
+    if publisher.name is None:
+        if has_details:
+            state.error(
+                "missing_publisher_for_publication_details",
+                "le profil exige un editeur avant les details de publication (date, identifiants, droits)",
+            )
+        etree.SubElement(publication, _tag("p")).text = "Document généré par Mini-Métopes."
+        return
+    etree.SubElement(publication, _tag("publisher")).text = publisher.name
+    if publisher.place or publisher.address:
+        state.diagnostics.append(TeiConversionDiagnostic(
+            code="publisher_address_not_serialized", severity="info",
+            message="lieu et adresse de l'editeur non serialisables dans publicationStmt (profil sans pubPlace/address)",
+            origin="metadata",
+            metadata_path="publication.publisher",
+        ))
+    if publisher.url:
+        etree.SubElement(publication, _tag("ref"), target=publisher.url, type="site").text = publisher.url
+    if metadata.publication.publication_date:
+        date = etree.SubElement(publication, _tag("date"), when=metadata.publication.publication_date, type="publishing")
+        date.text = metadata.publication.publication_date
+    for index, identifier in enumerate(metadata.identifiers):
+        idno_type, value = _tei_identifier(identifier, index, state)
+        if idno_type is None or value is None:
+            continue
+        etree.SubElement(publication, _tag("idno"), type=idno_type).text = value
+    if availability:
+        element = etree.SubElement(publication, _tag("availability"))
+        license_model = metadata.rights.license
+        if license_model.name:
+            attributes = {"target": license_model.url} if license_model.url else {}
+            etree.SubElement(element, _tag("licence"), **attributes).text = license_model.name
+        if metadata.rights.statement:
+            etree.SubElement(element, _tag("p")).text = metadata.rights.statement
+        if metadata.rights.holder:
+            etree.SubElement(element, _tag("p")).text = f"© {metadata.rights.holder}"
+
+
+def _availability_content(metadata: DocumentMetadata) -> bool:
+    rights = metadata.rights
+    return bool(rights.license.name or rights.statement or rights.holder)
+
+
+def _tei_identifier(identifier: object, index: int, state: _SerializationState) -> tuple[str | None, str | None]:
+    """Traduire un identifiant JSON vers idno/@type du profil embarque."""
+    from mini_metopes.metadata import Identifier, normalize_isbn
+
+    assert isinstance(identifier, Identifier)
+    path = f"identifiers[{index}]"
+    if identifier.identifier_type == "doi":
+        return "DOI", normalize_doi(identifier.value)
+    if identifier.identifier_type in {"isbn-13", "isbn-10"}:
+        if normalize_isbn(identifier.value) is None or identifier.identifier_format is None:
+            state.error("invalid_isbn", "ISBN invalide ou format absent", metadata_path=f"{path}.value")
+            return None, None
+        return ("pISBN" if identifier.identifier_format == "print" else "eISBN"), identifier.value.strip()
+    if identifier.identifier_type in {"issn", "eissn"}:
+        return _TEI_IDNO_TYPES[(identifier.identifier_type, None)], normalize_issn(identifier.value)
+    if identifier.identifier_type == "local":
+        return "documentnumber", identifier.value.strip()
+    state.error("invalid_identifier_type", f"type d'identifiant inconnu : {identifier.identifier_type}", metadata_path=f"{path}.type")
+    return None, None
+
+
+def _append_bibliographic_source_desc(
+    file_desc: etree._Element,
+    metadata: DocumentMetadata,
+    state: _SerializationState,
+) -> None:
+    """Serialiser collection et pagination dans un sourceDesc bibliographique."""
+    collection = metadata.collection
+    pagination = metadata.pagination
+    page_range = (
+        pagination is not None and pagination.page_from is not None and pagination.page_to is not None
+    )
+    if pagination is not None and pagination.extent is not None:
+        state.diagnostics.append(TeiConversionDiagnostic(
+            code="pagination_extent_not_serialized", severity="warning",
+            message="etendue de pagination non serialisable sans extent dans le profil embarque",
+            origin="metadata",
+            metadata_path="pagination.extent",
+        ))
+    if collection is None and not page_range:
+        return
+    source_desc = etree.SubElement(file_desc, _tag("sourceDesc"))
+    bibl = etree.SubElement(source_desc, _tag("bibl"))
+    if collection is not None:
+        series = etree.SubElement(bibl, _tag("series"))
+        etree.SubElement(series, _tag("title")).text = collection.title
+        if collection.volume:
+            etree.SubElement(series, _tag("biblScope"), unit="volume").text = collection.volume
+        if collection.issn:
+            etree.SubElement(series, _tag("idno"), type="pISSN").text = normalize_issn(collection.issn)
+    if page_range:
+        assert pagination is not None
+        etree.SubElement(bibl, _tag("biblScope"), unit="page").text = f"{pagination.page_from}-{pagination.page_to}"
+
+
+def _append_front_abstracts(text_element: etree._Element, metadata: DocumentMetadata) -> None:
+    """Serialiser resumes et quatrieme de couverture dans text/front.
+
+    Le profil embarque n'admet pas abstract dans profileDesc ; il admet en
+    revanche des divisions front de type abstract. La quatrieme de couverture
+    est distinguee par l'attribut libre n="back-cover".
+    """
+    front = etree.SubElement(text_element, _tag("front"))
+    for abstract in metadata.abstracts:
+        attributes = {"type": "abstract"}
+        if abstract.abstract_type == "back-cover":
+            attributes["n"] = "back-cover"
+        division = etree.SubElement(front, _tag("div"), **attributes)
+        division.set(_XML_LANG, abstract.language)
+        for paragraph in abstract.text.splitlines():
+            if paragraph.strip():
+                etree.SubElement(division, _tag("p")).text = paragraph.strip()
 
 
 def _affiliation_text(affiliation: object) -> str:

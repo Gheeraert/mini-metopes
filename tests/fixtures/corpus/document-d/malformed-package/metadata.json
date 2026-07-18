@@ -1,16 +1,14 @@
 {
-  "schema_version": "1.0",
-  "source": {
-    "filename": "source.docx",
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "source.docx",
     "sha256": "957c3cec65bafd884f81d5082405d4a259baac857ebdf5244bd6d6f571e65507"
   },
   "document": {
     "type": "chapter",
     "language": "fr",
     "title": "Cas invalide malformed-package",
-    "subtitle": null,
-    "abstract": null,
-    "keywords": []
+    "subtitle": null
   },
   "contributors": [
     {
@@ -18,8 +16,6 @@
       "role": "author",
       "given_name": "Corpus",
       "family_name": "Test",
-      "literal_name": null,
-      "orcid": null,
       "affiliations": []
     }
   ],

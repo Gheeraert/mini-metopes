@@ -1,16 +1,14 @@
 {
-  "schema_version": "1.0",
-  "source": {
-    "filename": "native-consecutive-paragraphs.docx",
+  "schema_version": "2.0",
+  "source_document": {
+    "path": "native-consecutive-paragraphs.docx",
     "sha256": "8dc16b1d451989349850e013ce357e6c13e9bbf0401eaca4cc7df0126c3f2796"
   },
   "document": {
     "type": "chapter",
     "language": "fr",
     "title": "Paragraphes de suite",
-    "subtitle": "Style Corps de texte",
-    "abstract": null,
-    "keywords": []
+    "subtitle": "Style Corps de texte"
   },
   "contributors": [
     {
@@ -18,8 +16,6 @@
       "role": "author",
       "given_name": "Camille",
       "family_name": "Exemple",
-      "literal_name": null,
-      "orcid": null,
       "affiliations": []
     }
   ],

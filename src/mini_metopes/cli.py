@@ -75,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument("source", type=Path, help="fichier DOCX source")
     convert_parser.add_argument("output", type=Path, help="fichier TEI de sortie")
     convert_parser.add_argument("--metadata", type=Path, help="fichier JSON de metadonnees")
+    convert_parser.add_argument("--profile", type=Path, help="profil institutionnel JSON (valeurs par defaut)")
     metadata_validate_parser = subparsers.add_parser("validate-metadata", help="valider un fichier JSON de metadonnees")
     metadata_validate_parser.add_argument("path", type=Path, help="fichier JSON de metadonnees")
     metadata_validate_parser.add_argument("--source", type=Path, help="DOCX associe a verifier")
@@ -88,7 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Exécuter la CLI et retourner son code de sortie."""
     arguments = build_parser().parse_args(argv)
     if arguments.command == "convert-docx":
-        return _convert_docx(arguments.source, arguments.output, arguments.metadata)
+        return _convert_docx(arguments.source, arguments.output, arguments.metadata, arguments.profile)
     if arguments.command == "validate-metadata":
         return _validate_metadata(arguments.path, arguments.source)
     if arguments.command == "edit-metadata":
@@ -157,7 +158,7 @@ def _model_docx(path: Path, *, as_json: bool) -> int:
     return 0
 
 
-def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int:
+def _convert_docx(source: Path, output: Path, metadata_path: Path | None, profile_path: Path | None = None) -> int:
     if not source.exists():
         print(f"ERREUR - {source}: fichier introuvable")
         return 2
@@ -173,8 +174,19 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None) -> int
         for issue in loaded.issues:
             print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
         return 1
+    metadata = loaded.metadata
+    if profile_path is not None:
+        from .metadata import apply_institutional_profile, load_institutional_profile
+
+        profile, profile_issues = load_institutional_profile(profile_path)
+        if profile is None:
+            print(f"ECHEC [invalid_profile] — {profile_path.name}")
+            for issue in profile_issues:
+                print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
+            return 1
+        metadata = apply_institutional_profile(metadata, profile)
     try:
-        result = convert_docx_to_tei(source, metadata=loaded.metadata)
+        result = convert_docx_to_tei(source, metadata=metadata)
     except DocxInspectionError as error:
         print(f"ERREUR — {source}: {error}")
         return 2
