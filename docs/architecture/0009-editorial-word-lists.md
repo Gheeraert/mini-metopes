@@ -58,7 +58,10 @@ dans le modèle ; ils ne sont pas reproduits comme marqueurs visibles. Tout
 redémarre jamais, bloque avec `explicit_list_restart_not_serializable`.
 
 Les listes dans les notes suivent exactement le même modèle, mais restent dans
-les blocs de leur note. Les continuations non numérotées, listes de définitions,
-cases à cocher et calcul intégral des marqueurs Word restent hors périmètre.
-Le résumé humain de `model-docx` compte récursivement les listes du corps, les
-sous-listes et les listes présentes dans les notes.
+les blocs de leur note. Depuis l'ADR 0011, les continuations non numérotées ne
+sont acceptées que pour le style intégré `ListParagraph`, lorsqu'une reprise
+avec le même `numId`, le même `ilvl` et la même signature prouve le rattachement
+à l'item précédent. Les listes de définitions, cases à cocher et calcul
+intégral des marqueurs Word restent hors périmètre. Le résumé humain de
+`model-docx` compte récursivement les listes du corps, les sous-listes et les
+listes présentes dans les notes.

@@ -257,19 +257,15 @@ def _append_body_blocks(parent: etree._Element, blocks: tuple[EditorialBlock, ..
 
 def _append_block(parent: etree._Element, block: EditorialBlock, state: _SerializationState) -> None:
     if isinstance(block, Paragraph):
-        if not block.content:
-            state.error("empty_paragraph_not_serializable", "paragraphe vide non serialisable", source_paragraph_index=block.source_paragraph_index)
-            return
-        if block.rendition not in {None, "consecutive"}:
-            state.error(
-                "unsupported_paragraph_rendition",
-                f"rendition de paragraphe non prise en charge : {block.rendition}",
-                source_paragraph_index=block.source_paragraph_index,
-            )
-            return
-        attributes = {"rend": "consecutive"} if block.rendition == "consecutive" else {}
-        element = etree.SubElement(parent, _tag("p"), **attributes)
-        _append_inline(element, block.content, state)
+        _append_paragraph_element(
+            parent,
+            block.content,
+            rendition=block.rendition,
+            source_paragraph_index=block.source_paragraph_index,
+            state=state,
+            empty_code="empty_paragraph_not_serializable",
+            empty_message="paragraphe vide non serialisable",
+        )
         return
     if isinstance(block, ProseQuote):
         if not block.paragraphs:
@@ -340,17 +336,70 @@ def _append_editorial_list_item(
     item: EditorialListItem,
     state: _SerializationState,
 ) -> None:
-    if not item.content and not item.child_lists:
+    if not item.content and not item.child_lists and not item.continuation_paragraphs:
         state.error(
             "empty_list_item_not_serializable",
             "item de liste vide non serialisable",
             source_paragraph_index=item.source_paragraph_index,
         )
         return
+    if item.continuation_paragraphs and not item.content:
+        state.error(
+            "empty_list_item_not_serializable",
+            "item de liste multiparagraphe sans paragraphe initial",
+            source_paragraph_index=item.source_paragraph_index,
+        )
+        return
     element = etree.SubElement(parent, _tag("item"))
-    _append_inline(element, item.content, state)
+    if item.continuation_paragraphs:
+        _append_paragraph_element(
+            element,
+            item.content,
+            rendition=None,
+            source_paragraph_index=item.source_paragraph_index,
+            state=state,
+            empty_code="empty_list_item_not_serializable",
+            empty_message="paragraphe initial d'item de liste vide non serialisable",
+        )
+        for paragraph in item.continuation_paragraphs:
+            _append_paragraph_element(
+                element,
+                paragraph.content,
+                rendition=paragraph.rendition,
+                source_paragraph_index=paragraph.source_paragraph_index,
+                state=state,
+                empty_code="empty_list_continuation_not_serializable",
+                empty_message="paragraphe de continuation de liste vide non serialisable",
+            )
+    else:
+        _append_inline(element, item.content, state)
     for child in item.child_lists:
         _append_editorial_list(element, child, state)
+
+
+def _append_paragraph_element(
+    parent: etree._Element,
+    content: tuple[EditorialInline, ...],
+    *,
+    rendition: object,
+    source_paragraph_index: int,
+    state: _SerializationState,
+    empty_code: str,
+    empty_message: str,
+) -> None:
+    if not content:
+        state.error(empty_code, empty_message, source_paragraph_index=source_paragraph_index)
+        return
+    if rendition not in {None, "consecutive"}:
+        state.error(
+            "unsupported_paragraph_rendition",
+            f"rendition de paragraphe non prise en charge : {rendition}",
+            source_paragraph_index=source_paragraph_index,
+        )
+        return
+    attributes = {"rend": "consecutive"} if rendition == "consecutive" else {}
+    element = etree.SubElement(parent, _tag("p"), **attributes)
+    _append_inline(element, content, state)
 
 
 def _append_inline(parent: etree._Element, items: tuple[EditorialInline, ...], state: _SerializationState) -> None:

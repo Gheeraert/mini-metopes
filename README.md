@@ -94,3 +94,7 @@ autre niveau, et tout `lvlRestart` explicite restent bloquants tant que
 Mini-Métopes ne calcule pas les compteurs effectifs Word. `numId="0"` est traité
 comme une suppression explicite de numérotation, pas comme une liste active. Le
 résumé `model-docx` compte les listes récursivement, y compris dans les notes.
+Le style intégré `ListParagraph` peut prolonger un item lorsque le paragraphe
+numéroté suivant reprend exactement la même liste ; ces continuations deviennent
+des paragraphes enfants de `<item>`. Les paragraphes `Normal` et les cas
+ambigus restent des interruptions conservatoires.

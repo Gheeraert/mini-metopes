@@ -35,6 +35,7 @@ class WordEditorialConvention:
     consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_names: frozenset[str] = frozenset()
+    list_continuation_style_ids: frozenset[str] = frozenset()
 
     def paragraph_role(
         self,
@@ -83,6 +84,16 @@ class WordEditorialConvention:
         """Retourner le niveau natif prioritaire, puis le niveau de plan explicite."""
         return self.paragraph_role(style_id, outline_level).heading_level
 
+    def is_list_continuation_style(
+        self,
+        style_id: str | None,
+        style_is_custom: bool | None,
+    ) -> bool:
+        """Reconnaître le style integre ListParagraph comme candidat explicite."""
+        if style_is_custom is True:
+            return False
+        return style_id in self.list_continuation_style_ids
+
     def character_marks(self, style_id: str | None) -> tuple[TextMark, ...] | None:
         """Retourner les marques associees a un style de caractere reconnu."""
         if style_id is None:
@@ -117,6 +128,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     consecutive_paragraph_style_ids=frozenset({"BodyText"}),
     excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
     consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
+    list_continuation_style_ids=frozenset({"ListParagraph"}),
 )
 
 

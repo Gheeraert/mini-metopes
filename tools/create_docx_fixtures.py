@@ -442,6 +442,45 @@ LIST_TEI_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:endnotes>
 """
 
+LIST_CONTINUATION_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Continuations de listes</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Items multiparagraphes</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Avant la liste.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Premier item.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Continuation avec </w:t></w:r><w:r><w:rPr><w:b/><w:i/></w:rPr><w:t>marques</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:br/><w:t>apres retour</w:t></w:r><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="1"/></w:r><w:r><w:rPr><w:rStyle w:val="EndnoteReference"/></w:rPr><w:endnoteReference w:id="2"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Seconde continuation.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Deuxieme item.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Troisieme item parent.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Premier item enfant.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Continuation enfant.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Deuxieme item enfant.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Retour parent.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Apres la liste ordonnee.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="44"/></w:numPr></w:pPr><w:r><w:t>Puces racine locale.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Continuation de puce.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="44"/></w:numPr></w:pPr><w:r><w:t>Seconde puce.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>
+"""
+
+LIST_CONTINUATION_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Item de note.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Continuation de note.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr></w:pPr><w:r><w:t>Second item de note.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+"""
+
+LIST_CONTINUATION_ENDNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="2"><w:p><w:pPr><w:pStyle w:val="EndnoteText"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="46"/></w:numPr></w:pPr><w:r><w:t>Item de note de fin.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Continuation de note de fin.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="EndnoteText"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="46"/></w:numPr></w:pPr><w:r><w:t>Second item de fin.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+"""
+
 CONSECUTIVE_STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
@@ -574,6 +613,18 @@ def list_tei_parts() -> dict[str, bytes | str]:
     }
 
 
+def list_continuation_parts() -> dict[str, bytes | str]:
+    return {
+        "[Content_Types].xml": CONTENT_TYPES,
+        "word/document.xml": LIST_CONTINUATION_DOCUMENT,
+        "word/styles.xml": LIST_TEI_STYLES,
+        "word/numbering.xml": LIST_NUMBERING,
+        "word/footnotes.xml": LIST_CONTINUATION_FOOTNOTES,
+        "word/endnotes.xml": LIST_CONTINUATION_ENDNOTES,
+        "word/_rels/document.xml.rels": EDITORIAL_RELATIONSHIPS,
+    }
+
+
 def consecutive_parts() -> dict[str, bytes | str]:
     return {
         "[Content_Types].xml": CONTENT_TYPES,
@@ -615,6 +666,40 @@ def write_list_tei_metadata() -> None:
     )
     METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
     (METADATA_FIXTURES / "native-lists-tei.metadata.json").write_text(
+        metadata_to_json(metadata), encoding="utf-8"
+    )
+
+
+def write_list_continuation_metadata() -> None:
+    """Ecrire les metadonnees associees a la fixture de continuations."""
+    from mini_metopes.metadata import (
+        METADATA_SCHEMA_VERSION,
+        Contributor,
+        DocumentMetadata,
+        MetadataSource,
+        compute_file_sha256,
+        metadata_to_json,
+    )
+
+    docx_path = FIXTURES / "native-list-continuations.docx"
+    metadata = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=MetadataSource(filename=docx_path.name, sha256=compute_file_sha256(docx_path)),
+        document_type="chapter",
+        language="fr",
+        title="Continuations de listes",
+        subtitle="Items multiparagraphes",
+        contributors=(
+            Contributor(
+                contributor_id="person-1",
+                role="author",
+                given_name="Lucie",
+                family_name="Exemple",
+            ),
+        ),
+    )
+    METADATA_FIXTURES.mkdir(parents=True, exist_ok=True)
+    (METADATA_FIXTURES / "native-list-continuations.metadata.json").write_text(
         metadata_to_json(metadata), encoding="utf-8"
     )
 
@@ -665,6 +750,8 @@ def main() -> None:
     write_package(FIXTURES / "native-lists.docx", list_parts())
     write_package(FIXTURES / "native-lists-tei.docx", list_tei_parts())
     write_list_tei_metadata()
+    write_package(FIXTURES / "native-list-continuations.docx", list_continuation_parts())
+    write_list_continuation_metadata()
     write_package(FIXTURES / "native-consecutive-paragraphs.docx", consecutive_parts())
     write_consecutive_metadata()
     write_package(

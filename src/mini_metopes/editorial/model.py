@@ -159,6 +159,7 @@ class EditorialListItem:
     child_lists: tuple["EditorialList", ...]
     source_paragraph_index: int
     source_style_id: str | None
+    continuation_paragraphs: tuple[Paragraph, ...] = ()
     kind: Literal["list_item"] = "list_item"
 
 
