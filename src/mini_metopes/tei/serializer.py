@@ -443,8 +443,15 @@ def _append_bibliographic_reference(
     if not reference.content:
         state.error("empty_bibliographic_reference_not_serializable", "reference bibliographique vide", source_paragraph_index=reference.source_paragraph_index)
         return
+    if _contains_bibliographic_inline(reference.content):
+        state.error(
+            "nested_bibliographic_reference_not_serializable",
+            "reference bibliographique inline dans une reference bibliographique",
+            source_paragraph_index=reference.source_paragraph_index,
+        )
+        return
     element = etree.SubElement(parent, _tag("bibl"))
-    _append_inline(element, reference.content, state)
+    _append_inline(element, reference.content, state, inside_bibl=True)
 
 
 def _append_bibliography(parent: etree._Element | None, bibliography: object, state: _SerializationState) -> None:
@@ -456,13 +463,20 @@ def _append_bibliography(parent: etree._Element | None, bibliography: object, st
     if not bibliography.title:
         state.error("empty_bibliography_title_not_serializable", "titre de bibliographie vide", source_paragraph_index=bibliography.source_paragraph_index)
         return
+    if _contains_bibliographic_inline(bibliography.title):
+        state.error(
+            "nested_bibliographic_reference_not_serializable",
+            "reference bibliographique inline dans un titre de bibliographie",
+            source_paragraph_index=bibliography.source_paragraph_index,
+        )
+        return
     if not bibliography.entries:
         state.error("bibliography_without_entries_not_serializable", "bibliographie sans entree", source_paragraph_index=bibliography.source_paragraph_index)
         return
     back = etree.SubElement(parent, _tag("back"))
     division = etree.SubElement(back, _tag("div"), type="bibliography")
     head = etree.SubElement(division, _tag("head"))
-    _append_inline(head, bibliography.title, state)
+    _append_inline(head, bibliography.title, state, inside_bibl=True)
     listing = etree.SubElement(division, _tag("listBibl"))
     for entry in bibliography.entries:
         _append_bibliographic_reference(listing, entry, state)
@@ -665,7 +679,13 @@ def _append_paragraph_element(
     _append_inline(element, content, state)
 
 
-def _append_inline(parent: etree._Element, items: tuple[EditorialInline, ...], state: _SerializationState) -> None:
+def _append_inline(
+    parent: etree._Element,
+    items: tuple[EditorialInline, ...],
+    state: _SerializationState,
+    *,
+    inside_bibl: bool = False,
+) -> None:
     previous: etree._Element | None = None
     for item in items:
         if isinstance(item, TextSpan):
@@ -678,14 +698,17 @@ def _append_inline(parent: etree._Element, items: tuple[EditorialInline, ...], s
                 _append_text(container, item.text)
                 previous = container
         elif isinstance(item, BibliographicReferenceInline):
+            if inside_bibl:
+                state.error("nested_bibliographic_reference_not_serializable", "reference bibliographique inline imbriquee")
+                continue
             if not item.content:
                 state.error("empty_bibliographic_reference_inline_not_serializable", "reference bibliographique inline vide")
                 continue
-            if any(isinstance(child, BibliographicReferenceInline) for child in item.content):
+            if _contains_bibliographic_inline(item.content):
                 state.error("nested_bibliographic_reference_not_serializable", "reference bibliographique inline imbriquee")
                 continue
             previous = etree.SubElement(parent, _tag("bibl"))
-            _append_inline(previous, item.content, state)
+            _append_inline(previous, item.content, state, inside_bibl=True)
         elif isinstance(item, LineBreak):
             previous = etree.SubElement(parent, _tag("lb"))
         elif isinstance(item, NoteReference):
@@ -698,6 +721,13 @@ def _append_inline(parent: etree._Element, items: tuple[EditorialInline, ...], s
             state.error("drawing_reference_not_serializable", "dessin sans informations editoriales suffisantes")
         else:
             raise TypeError(f"contenu editorial inconnu : {type(item)!r}")
+
+
+def _contains_bibliographic_inline(items: tuple[EditorialInline, ...]) -> bool:
+    for item in items:
+        if isinstance(item, BibliographicReferenceInline):
+            return True
+    return False
 
 
 def _text_container(parent: etree._Element, link: EditorialLink | None, state: _SerializationState) -> etree._Element:

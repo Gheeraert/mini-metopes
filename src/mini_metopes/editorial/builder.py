@@ -251,6 +251,7 @@ def _extract_final_bibliography(
     ]
     if not starts:
         return blocks, None, set()
+    reported_multiple_starts: set[int] = set()
     if len(starts) > 1:
         for index in starts[1:]:
             block = blocks[index]
@@ -258,12 +259,20 @@ def _extract_final_bibliography(
             diagnostics.append(_bibliographic_diagnostic(
                 "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
             ))
+            reported_multiple_starts.add(block.index)
     start_index = starts[0]
     start = blocks[start_index]
     assert isinstance(start, ParagraphInfo)
     title, references = _build_inline_content(
         start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
     )
+    if _contains_bibliographic_inline(title):
+        diagnostics.append(_bibliographic_diagnostic(
+            "nested_bibliographic_reference_not_serializable",
+            "reference bibliographique inline dans un titre de bibliographie",
+            start,
+            None,
+        ))
     if not title:
         diagnostics.append(_bibliographic_diagnostic(
             "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
@@ -283,6 +292,20 @@ def _extract_final_bibliography(
                 entries.append(reference)
             position += 1
             continue
+        invalid_bibliographic_style_code = (
+            _invalid_bibliography_style_code(block, convention)
+            if isinstance(block, ParagraphInfo)
+            else None
+        )
+        if invalid_bibliographic_style_code is not None:
+            diagnostics.append(_bibliographic_diagnostic(
+                invalid_bibliographic_style_code,
+                "style bibliographique controle invalide",
+                block,
+                None,
+            ))
+            position += 1
+            continue
         if isinstance(block, ParagraphInfo) and not block.text.strip() and not block.runs:
             diagnostics.append(_bibliographic_diagnostic(
                 "empty_bibliography_separator_ignored", "separateur vide dans la bibliographie ignore", block, None, severity="info"
@@ -292,9 +315,10 @@ def _extract_final_bibliography(
         if isinstance(block, ParagraphInfo) and convention.is_bibliography_start_style(
             block.style_id, block.style_name, block.style_is_custom, block.style_type
         ):
-            diagnostics.append(_bibliographic_diagnostic(
-                "multiple_bibliographies_not_serializable", "second debut de bibliographie", block, None
-            ))
+            if block.index not in reported_multiple_starts:
+                diagnostics.append(_bibliographic_diagnostic(
+                    "multiple_bibliographies_not_serializable", "second debut de bibliographie", block, None
+                ))
         else:
             diagnostics.append(EditorialDiagnostic(
                 code="nonterminal_bibliography_not_serializable", severity="error",
@@ -349,6 +373,17 @@ def _build_blocks(
             paragraph_position += 1
             continue
         role = _paragraph_role(paragraph, convention)
+
+        invalid_bibliographic_style_code = _invalid_bibliography_style_code(paragraph, convention)
+        if invalid_bibliographic_style_code is not None:
+            diagnostics.append(_bibliographic_diagnostic(
+                invalid_bibliographic_style_code,
+                "style bibliographique controle invalide",
+                paragraph,
+                note_id,
+            ))
+            paragraph_position += 1
+            continue
 
         if note_id is not None and convention.is_bibliography_start_style(
             paragraph.style_id, paragraph.style_name, paragraph.style_is_custom, paragraph.style_type
@@ -675,6 +710,14 @@ def _build_bibliographic_reference(
             "empty_bibliographic_reference_not_serializable", "reference bibliographique vide", paragraph, note_id
         ))
         return None, references
+    if _contains_bibliographic_inline(content):
+        diagnostics.append(_bibliographic_diagnostic(
+            "nested_bibliographic_reference_not_serializable",
+            "reference bibliographique inline dans une reference bibliographique",
+            paragraph,
+            note_id,
+        ))
+        return None, references
     if _has_active_numbering(paragraph):
         diagnostics.append(_bibliographic_diagnostic(
             "numbered_bibliographic_reference_not_serializable", "reference bibliographique numerotee", paragraph, note_id
@@ -686,6 +729,29 @@ def _build_bibliographic_reference(
         ))
         return None, references
     return BibliographicReference(content, paragraph.index, paragraph.style_id), references
+
+
+def _invalid_bibliography_style_code(
+    paragraph: ParagraphInfo,
+    convention: WordEditorialConvention,
+) -> str | None:
+    """Diagnostiquer seulement les tentatives identifiables de styles bibliographiques controles."""
+    if convention.bibliography_start_style_status(
+        paragraph.style_id, paragraph.style_name, paragraph.style_is_custom, paragraph.style_type
+    ) == "invalid":
+        return "invalid_bibliography_start_style"
+    if convention.bibliographic_reference_style_status(
+        paragraph.style_id, paragraph.style_name, paragraph.style_is_custom, paragraph.style_type
+    ) == "invalid":
+        return "invalid_bibliographic_reference_style"
+    return None
+
+
+def _contains_bibliographic_inline(items: tuple[EditorialInline, ...]) -> bool:
+    for item in items:
+        if isinstance(item, BibliographicReferenceInline):
+            return True
+    return False
 
 
 def _bibliographic_diagnostic(
@@ -1931,17 +1997,29 @@ def _build_inline_content(
                         note_id,
                     )
                 )
-        if convention.is_bibliographic_reference_inline_style(
+        inline_style_status = convention.bibliographic_reference_inline_style_status(
             run.style_id, run.style_name, run.style_is_custom, run.style_type
-        ):
+        )
+        if inline_style_status == "invalid":
+            diagnostics.append(_diagnostic(
+                "invalid_bibliographic_reference_inline_style",
+                "error",
+                "style bibliographique inline controle invalide",
+                paragraph,
+                run_index,
+                note_id,
+                style_id=run.style_id,
+            ))
+            continue
+        if inline_style_status == "valid":
             if not run_content:
                 diagnostics.append(_diagnostic(
-                    "empty_bibliographic_reference_inline_not_serializable", "reference bibliographique inline vide",
+                    "empty_bibliographic_reference_inline_not_serializable", "error", "reference bibliographique inline vide",
                     paragraph, run_index, note_id, style_id=run.style_id
                 ))
             elif any(isinstance(item, DrawingReference) for item in run_content):
                 diagnostics.append(_diagnostic(
-                    "drawing_in_bibliographic_reference_inline_not_serializable", "dessin dans une reference bibliographique inline",
+                    "drawing_in_bibliographic_reference_inline_not_serializable", "error", "dessin dans une reference bibliographique inline",
                     paragraph, run_index, note_id, style_id=run.style_id
                 ))
             elif content and isinstance(content[-1], BibliographicReferenceInline):
@@ -1963,9 +2041,9 @@ def _marks_for_run(
     note_id: str | None,
     diagnostics: list[EditorialDiagnostic],
 ) -> tuple[TextMark, ...]:
-    if convention.is_bibliographic_reference_inline_style(
+    if convention.bibliographic_reference_inline_style_status(
         run.style_id, run.style_name, run.style_is_custom, run.style_type
-    ):
+    ) in {"valid", "invalid"}:
         inherited = ()
     else:
         inherited = convention.character_marks(run.style_id)

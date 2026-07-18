@@ -11,6 +11,7 @@ from .model import ParagraphRendition, TextMark
 ParagraphRoleKind = Literal[
     "heading", "paragraph", "prose_quote", "verse_quote", "deferred", "unsupported"
 ]
+ControlledStyleStatus = Literal["valid", "invalid", "unrelated"]
 
 
 @dataclass(frozen=True)
@@ -165,23 +166,67 @@ class WordEditorialConvention:
     def is_bibliography_start_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
     ) -> bool:
-        return style_is_custom is True and style_type == "paragraph" and self._is_controlled_style(style_id, style_name, self.bibliography_start_style)
+        return self.bibliography_start_style_status(style_id, style_name, style_is_custom, style_type) == "valid"
 
     def is_bibliographic_reference_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
     ) -> bool:
-        return style_is_custom is True and style_type == "paragraph" and self._is_controlled_style(style_id, style_name, self.bibliographic_reference_style)
+        return self.bibliographic_reference_style_status(style_id, style_name, style_is_custom, style_type) == "valid"
 
     def is_bibliographic_reference_inline_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
     ) -> bool:
-        return style_is_custom is True and style_type == "character" and self._is_controlled_style(style_id, style_name, self.bibliographic_reference_inline_style)
+        return self.bibliographic_reference_inline_style_status(style_id, style_name, style_is_custom, style_type) == "valid"
+
+    def bibliography_start_style_status(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> ControlledStyleStatus:
+        return self._controlled_style_status(
+            style_id, style_name, style_is_custom, style_type, self.bibliography_start_style, "paragraph"
+        )
+
+    def bibliographic_reference_style_status(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> ControlledStyleStatus:
+        return self._controlled_style_status(
+            style_id, style_name, style_is_custom, style_type, self.bibliographic_reference_style, "paragraph"
+        )
+
+    def bibliographic_reference_inline_style_status(
+        self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
+    ) -> ControlledStyleStatus:
+        return self._controlled_style_status(
+            style_id, style_name, style_is_custom, style_type, self.bibliographic_reference_inline_style, "character"
+        )
 
     @staticmethod
     def _is_controlled_style(
         style_id: str | None, style_name: str | None, controlled: tuple[str, str] | None
     ) -> bool:
         return controlled is not None and (style_id, style_name) == controlled
+
+    @staticmethod
+    def _controlled_style_status(
+        style_id: str | None,
+        style_name: str | None,
+        style_is_custom: bool | None,
+        style_type: str | None,
+        controlled: tuple[str, str] | None,
+        expected_type: str,
+    ) -> ControlledStyleStatus:
+        if controlled is None:
+            return "unrelated"
+        expected_id, expected_name = controlled
+        if style_id != expected_id and style_name != expected_name:
+            return "unrelated"
+        if (
+            style_id == expected_id
+            and style_name == expected_name
+            and style_is_custom is True
+            and style_type == expected_type
+        ):
+            return "valid"
+        return "invalid"
 
     def character_marks(self, style_id: str | None) -> tuple[TextMark, ...] | None:
         """Retourner les marques associees a un style de caractere reconnu."""

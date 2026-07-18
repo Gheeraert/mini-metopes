@@ -616,17 +616,35 @@ BIBLIOGRAPHY_STYLES = DETAIL_TABLE_STYLES.replace(
     '  <w:style w:type="paragraph" w:styleId="UnknownParagraph">',
 )
 
-BIBLIOGRAPHY_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+BIBLIOGRAPHY_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyper" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/bibl" TargetMode="External"/>
+  <Relationship Id="rIdPng" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.png"/>
+</Relationships>
+"""
+
+BIBLIOGRAPHY_DOCUMENT = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>References bibliographiques</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>Bibliographie finale</w:t></w:r></w:p>
-    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Voir </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>Dupont, 2024</w:t></w:r><w:r><w:t>.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Chapitre bibliographique</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Voir </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>Dupont, </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/><w:b/><w:i/><w:smallCaps/><w:vertAlign w:val="superscript"/></w:rPr><w:t>2024</w:t></w:r><w:hyperlink r:id="rIdHyper"><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t> lien</w:t></w:r></w:hyperlink><w:r><w:t>.</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Premiere citation.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Seconde citation.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Source prose.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="IntenseQuote"/></w:pPr><w:r><w:t>Vers un</w:t><w:br/><w:t>Vers deux</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Source vers.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Item avec </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>reference de liste</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr><w:r><w:t>Suite avec </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>reference de continuation</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Normal"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr><w:r><w:t>Item suivant.</w:t></w:r></w:p>
+    <w:tbl><w:tblGrid><w:gridCol/></w:tblGrid><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Cellule avec </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>reference de table</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    {figure_paragraph("rIdPng", "Description bibliographique de figure.", doc_property_id=41, name="Picture bibliographie")}
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Legende avec </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>reference de legende</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Transition.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="TEIbiblreference"/></w:pPr><w:r><w:t>Reference autonome.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="TEIbiblstart"/></w:pPr><w:r><w:t>Bibliographie</w:t></w:r></w:p>
@@ -636,6 +654,13 @@ BIBLIOGRAPHY_DOCUMENT = """<?xml version="1.0" encoding="UTF-8"?>
     <w:sectPr/>
   </w:body>
 </w:document>
+"""
+
+BIBLIOGRAPHY_FOOTNOTES = """<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr><w:r><w:t>Note avec </w:t></w:r><w:r><w:rPr><w:rStyle w:val="TEIbiblreference-inline"/></w:rPr><w:t>reference de note</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
 """
 
 FIGURE_RELATIONSHIPS = """<?xml version="1.0" encoding="UTF-8"?>
@@ -877,6 +902,10 @@ def bibliography_parts() -> dict[str, bytes | str]:
         "[Content_Types].xml": CONTENT_TYPES,
         "word/document.xml": BIBLIOGRAPHY_DOCUMENT,
         "word/styles.xml": BIBLIOGRAPHY_STYLES,
+        "word/numbering.xml": LIST_NUMBERING,
+        "word/footnotes.xml": BIBLIOGRAPHY_FOOTNOTES,
+        "word/_rels/document.xml.rels": BIBLIOGRAPHY_RELATIONSHIPS,
+        "word/media/figure.png": FIGURE_PNG,
     }
 
 
