@@ -156,30 +156,56 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             return None
         return tree.index(selection[0])
 
+    def _requires_state(callback):
+        """Ignorer un declenchement tant qu'aucun document n'est charge."""
+
+        def wrapped(*args: object, **kwargs: object) -> object:
+            if state is None:
+                return None
+            return callback(*args, **kwargs)
+
+        return wrapped
+
     # -------------------------------------------------------------- onglet 1
 
     document_tab = scrollable_tab("Document")
     paths_frame = ttk.LabelFrame(document_tab, text="Fichiers", padding=6)
     paths_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
     paths_frame.columnconfigure(1, weight=1)
-    docx_label_var = tk.StringVar()
-    json_label_var = tk.StringVar()
+    docx_label_var = tk.StringVar(value="Aucun document sélectionné")
+    json_label_var = tk.StringVar(value="Aucun fichier de métadonnées")
+    locate_button_text_var = tk.StringVar(value="Localiser le DOCX…")
     ttk.Label(paths_frame, text="DOCX :").grid(row=0, column=0, sticky="w")
     ttk.Label(paths_frame, textvariable=docx_label_var).grid(row=0, column=1, sticky="w")
     ttk.Label(paths_frame, text="JSON :").grid(row=1, column=0, sticky="w")
     ttk.Label(paths_frame, textvariable=json_label_var).grid(row=1, column=1, sticky="w")
 
-    def relocate() -> None:
+    def choose_docx() -> None:
+        """Ouvrir le selecteur DOCX manuel ; jamais declenche automatiquement.
+
+        Premier appel (``state is None``) : charge le document choisi.
+        Appels suivants : relocalise le document source de l'etat courant.
+        """
         nonlocal state
         selected = filedialog.askopenfilename(parent=root, filetypes=[("Documents Word", "*.docx *.DOCX")])
         if not selected:
             return
-        from .metadata_controller import relocate_source_document
+        chosen = Path(selected)
+        if state is None:
+            try:
+                state = load_metadata_editor_state(chosen, metadata_path)
+            except (DocxInspectionError, OSError) as error:
+                messagebox.showerror("Erreur d'ouverture", str(error), parent=root)
+                return
+            set_editor_enabled(True)
+        else:
+            from .metadata_controller import relocate_source_document
 
-        state = relocate_source_document(collect(), Path(selected))
+            state = relocate_source_document(collect(), chosen)
         refresh_all()
 
-    ttk.Button(paths_frame, text="Relocaliser le DOCX…", command=relocate).grid(row=0, column=2, padx=6)
+    locate_button = ttk.Button(paths_frame, textvariable=locate_button_text_var, command=choose_docx)
+    locate_button.grid(row=0, column=2, padx=6)
 
     general = ttk.LabelFrame(document_tab, text="Document", padding=6)
     general.grid(row=1, column=0, columnspan=2, sticky="ew", pady=6)
@@ -289,6 +315,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     publisher_address_text = tk.Text(publisher_frame, height=3, width=48)
     publisher_address_text.grid(row=4, column=1, sticky="ew", pady=2)
 
+    @_requires_state
     def apply_profile() -> None:
         nonlocal state
         selected = filedialog.askopenfilename(parent=root, filetypes=[("Profil institutionnel", "*.json")])
@@ -523,6 +550,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         page_to_var.set(str(pagination.page_to) if pagination and pagination.page_to is not None else "")
         extent_var.set(str(pagination.extent) if pagination and pagination.extent is not None else "")
         save_label_var.set("Enregistrer sous…" if requires_save_as(state) else "Enregistrer")
+        locate_button_text_var.set("Relocaliser le DOCX…")
         refresh_lists()
 
     # -------------------------------------------------- operations de listes
@@ -538,10 +566,12 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             state = update_metadata(state, **{field: items})
             refresh_lists()
 
+        @_requires_state
         def add() -> None:
             if item := dialog(None):
                 set_items(current_items() + (item,))
 
+        @_requires_state
         def edit() -> None:
             index = selected_index(tree)
             if index is not None and (changed := dialog(current_items()[index])):
@@ -549,6 +579,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
                 items[index] = changed
                 set_items(tuple(items))
 
+        @_requires_state
         def delete() -> None:
             index = selected_index(tree)
             if index is not None:
@@ -556,6 +587,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
                 del items[index]
                 set_items(tuple(items))
 
+        @_requires_state
         def move(delta: int) -> None:
             index = selected_index(tree)
             if index is not None:
@@ -576,6 +608,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     sequence_actions(keyword_tree, "keywords", keyword_dialog, keyword_buttons)
     sequence_actions(identifier_tree, "identifiers", identifier_dialog, identifier_buttons)
 
+    @_requires_state
     def add_person() -> None:
         nonlocal state
         if item := contributor_dialog(None):
@@ -585,6 +618,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             except ValueError as error:
                 messagebox.showerror("Identifiant invalide", str(error), parent=root)
 
+    @_requires_state
     def edit_person() -> None:
         nonlocal state
         selection = contributor_tree.selection()
@@ -595,12 +629,14 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             except ValueError as error:
                 messagebox.showerror("Identifiant deja utilise", str(error), parent=root)
 
+    @_requires_state
     def delete_person() -> None:
         nonlocal state
         if selection := contributor_tree.selection():
             state = remove_contributor(state, selection[0])
             refresh_lists()
 
+    @_requires_state
     def move_person(delta: int) -> None:
         nonlocal state
         if not (selection := contributor_tree.selection()):
@@ -610,6 +646,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         refresh_lists()
         contributor_tree.selection_set(selection[0])
 
+    @_requires_state
     def add_institution() -> None:
         nonlocal state
         if item := affiliation_dialog(None):
@@ -619,6 +656,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             except ValueError as error:
                 messagebox.showerror("Identifiant invalide", str(error), parent=root)
 
+    @_requires_state
     def edit_institution() -> None:
         nonlocal state
         selection = affiliation_tree.selection()
@@ -629,6 +667,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             except ValueError as error:
                 messagebox.showerror("Identifiant deja utilise", str(error), parent=root)
 
+    @_requires_state
     def delete_institution() -> None:
         nonlocal state
         if selection := affiliation_tree.selection():
@@ -645,6 +684,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
 
     # ---------------------------------------------------------------- actions
 
+    @_requires_state
     def save(close: bool = False) -> None:
         nonlocal state
         candidate = collect()
@@ -700,9 +740,12 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
 
             state = relocate_source_document(state, docx)
         refresh_all()
+        set_editor_enabled(True)
 
-    ttk.Button(actions, textvariable=save_label_var, command=save).pack(side="left")
-    ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save(True)).pack(side="left", padx=5)
+    save_button = ttk.Button(actions, textvariable=save_label_var, command=save)
+    save_button.pack(side="left")
+    save_close_button = ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save(True))
+    save_close_button.pack(side="left", padx=5)
     ttk.Button(actions, text="Charger…", command=load_configuration).pack(side="left", padx=5)
 
     def cancel() -> None:
@@ -713,28 +756,34 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     ttk.Button(actions, text="Annuler", command=cancel).pack(side="right")
     root.protocol("WM_DELETE_WINDOW", cancel)
 
-    pending_error: list[Exception] = []
+    def _apply_widget_state(widget: tk.Widget, enabled: bool, skip: set) -> None:
+        for child in widget.winfo_children():
+            if child not in skip:
+                if isinstance(child, ttk.Combobox):
+                    child.configure(state="readonly" if enabled else "disabled")
+                elif isinstance(child, (ttk.Entry, ttk.Button)):
+                    child.configure(state="normal" if enabled else "disabled")
+                elif isinstance(child, tk.Text):
+                    child.configure(state="normal" if enabled else "disabled")
+            _apply_widget_state(child, enabled, skip)
 
-    def choose_initial_docx() -> None:
-        nonlocal docx_path, state
-        if docx_path is None:
-            selected = filedialog.askopenfilename(
-                parent=root, filetypes=[("Documents Word", "*.docx *.DOCX")],
-            )
-            if not selected:
-                root.destroy()
-                return
-            docx_path = Path(selected)
+    def set_editor_enabled(enabled: bool) -> None:
+        """Activer/desactiver les actions qui dependent d'un document charge."""
+        save_button.configure(state="normal" if enabled else "disabled")
+        save_close_button.configure(state="normal" if enabled else "disabled")
+        _apply_widget_state(notebook, enabled, {locate_button})
+
+    # Aucun selecteur ne s'ouvre seul : sans chemin CLI, la fenetre reste
+    # vide et attend le clic sur « Localiser le DOCX… ».
+    set_editor_enabled(False)
+    if docx_path is not None:
         try:
             state = load_metadata_editor_state(docx_path, metadata_path)
         except (DocxInspectionError, OSError) as error:
-            pending_error.append(error)
             root.destroy()
-            return
+            raise error
         refresh_all()
+        set_editor_enabled(True)
 
-    root.after_idle(choose_initial_docx)
     root.mainloop()
-    if pending_error:
-        raise pending_error[0]
     return 0
