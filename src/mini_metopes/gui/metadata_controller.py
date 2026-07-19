@@ -43,6 +43,7 @@ class MetadataEditorState:
     dirty: bool = False
     loaded_from_invalid_json: bool = False
     saved_metadata: DocumentMetadata | None = None
+    metadata_file_exists: bool = False
 
 
 def create_initial_metadata_state(docx_path: Path, metadata_path: Path | None = None) -> MetadataEditorState:
@@ -62,6 +63,7 @@ def create_initial_metadata_state(docx_path: Path, metadata_path: Path | None = 
         suggestions,
         _deduplicate_issues(suggestions.diagnostics),
         saved_metadata=metadata,
+        metadata_file_exists=False,
     )
 
 
@@ -83,6 +85,7 @@ def load_metadata_editor_state(docx_path: Path, metadata_path: Path | None = Non
             _deduplicate_issues(loaded.issues + suggestions.diagnostics),
             loaded_from_invalid_json=True,
             saved_metadata=None,
+            metadata_file_exists=True,
         )
     issues = loaded.issues + suggestions.diagnostics + metadata_consistency_issues(loaded.metadata, docx_path, suggestions)
     return MetadataEditorState(
@@ -92,6 +95,7 @@ def load_metadata_editor_state(docx_path: Path, metadata_path: Path | None = Non
         suggestions,
         _deduplicate_issues(issues),
         saved_metadata=loaded.metadata,
+        metadata_file_exists=True,
     )
 
 
@@ -167,7 +171,29 @@ def save_metadata_editor_state(state: MetadataEditorState) -> MetadataEditorStat
         dirty=False,
         loaded_from_invalid_json=False,
         saved_metadata=metadata,
+        metadata_file_exists=True,
     )
+
+
+def requires_save_as(state: MetadataEditorState) -> bool:
+    """Indiquer si l'action principale doit ouvrir « Enregistrer sous… »."""
+    return not state.metadata_file_exists
+
+
+def change_metadata_destination(state: MetadataEditorState, new_path: Path) -> MetadataEditorState:
+    """Deplacer la destination du JSON sans rien ecrire sur disque.
+
+    Le SHA-256 du DOCX est preserve (seul le chemin memorise change) et l'etat
+    est marque modifie ; l'appelant reste responsable de l'enregistrement.
+    """
+    metadata = replace(
+        state.metadata,
+        source=SourceDocument(
+            source_document_reference(state.docx_path, new_path),
+            state.metadata.source.sha256,
+        ),
+    )
+    return replace(state, metadata_path=new_path, metadata=metadata, dirty=True)
 
 
 def update_metadata(state: MetadataEditorState, **changes: Any) -> MetadataEditorState:

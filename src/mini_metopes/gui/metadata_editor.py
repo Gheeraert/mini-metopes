@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from mini_metopes.docx import DocxInspectionError
 from mini_metopes.metadata import (
     Abstract,
     Affiliation,
@@ -25,6 +26,7 @@ from mini_metopes.metadata import (
     Publication,
     Publisher,
     Rights,
+    default_metadata_path,
 )
 
 from .metadata_controller import (
@@ -32,6 +34,7 @@ from .metadata_controller import (
     add_affiliation,
     add_contributor,
     apply_profile_to_state,
+    change_metadata_destination,
     is_metadata_dirty,
     load_metadata_editor_state,
     locate_source_document,
@@ -39,6 +42,7 @@ from .metadata_controller import (
     next_identifier,
     remove_affiliation,
     remove_contributor,
+    requires_save_as,
     save_metadata_editor_state,
     update_affiliation,
     update_contributor,
@@ -63,24 +67,18 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     except tk.TclError as error:
         print(f"ERREUR - impossible d'initialiser l'interface graphique : {error}")
         return 2
-    root.withdraw()
-    if docx_path is None:
-        selected = filedialog.askopenfilename(parent=root, filetypes=[("Documents Word", "*.docx *.DOCX")])
-        if not selected:
-            root.destroy()
-            return 0
-        docx_path = Path(selected)
-    state = load_metadata_editor_state(docx_path, metadata_path)
-    root.deiconify()
     root.title("Mini-Metopes — Metadonnees")
     root.minsize(880, 620)
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
+    state: MetadataEditorState | None = None
+
     notebook = ttk.Notebook(root)
     notebook.grid(row=0, column=0, sticky="nsew", padx=8, pady=6)
     actions = ttk.Frame(root, padding=8)
     actions.grid(row=1, column=0, sticky="ew")
+    save_label_var = tk.StringVar(value="Enregistrer sous…")
 
     def scrollable_tab(title: str) -> ttk.Frame:
         container = ttk.Frame(notebook)
@@ -524,6 +522,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         page_from_var.set(str(pagination.page_from) if pagination and pagination.page_from is not None else "")
         page_to_var.set(str(pagination.page_to) if pagination and pagination.page_to is not None else "")
         extent_var.set(str(pagination.extent) if pagination and pagination.extent is not None else "")
+        save_label_var.set("Enregistrer sous…" if requires_save_as(state) else "Enregistrer")
         refresh_lists()
 
     # -------------------------------------------------- operations de listes
@@ -653,8 +652,21 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         if not validation.valid:
             messagebox.showerror("Metadonnees invalides", "\n".join(f"[{item.code}] {item.message}" for item in validation.issues if item.severity == "error"), parent=root)
             return
-        if state.loaded_from_invalid_json and not messagebox.askyesno("JSON invalide", "Le fichier JSON existant est invalide. L'ecraser avec ces valeurs ?", parent=root):
+        if candidate.loaded_from_invalid_json and not messagebox.askyesno("JSON invalide", "Le fichier JSON existant est invalide. L'ecraser avec ces valeurs ?", parent=root):
             return
+        if requires_save_as(candidate):
+            suggested = default_metadata_path(candidate.docx_path)
+            selected = filedialog.asksaveasfilename(
+                parent=root,
+                title="Enregistrer les metadonnees sous…",
+                initialdir=str(suggested.parent),
+                initialfile=suggested.name,
+                defaultextension=".json",
+                filetypes=[("Metadonnees JSON", "*.json")],
+            )
+            if not selected:
+                return
+            candidate = change_metadata_destination(candidate, Path(selected))
         try:
             state = save_metadata_editor_state(candidate)
         except OSError as error:
@@ -689,17 +701,40 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             state = relocate_source_document(state, docx)
         refresh_all()
 
-    ttk.Button(actions, text="Enregistrer", command=save).pack(side="left")
+    ttk.Button(actions, textvariable=save_label_var, command=save).pack(side="left")
     ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save(True)).pack(side="left", padx=5)
     ttk.Button(actions, text="Charger…", command=load_configuration).pack(side="left", padx=5)
 
     def cancel() -> None:
-        if collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
+        if state is not None and collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
             return
         root.destroy()
 
     ttk.Button(actions, text="Annuler", command=cancel).pack(side="right")
-    refresh_all()
     root.protocol("WM_DELETE_WINDOW", cancel)
+
+    pending_error: list[Exception] = []
+
+    def choose_initial_docx() -> None:
+        nonlocal docx_path, state
+        if docx_path is None:
+            selected = filedialog.askopenfilename(
+                parent=root, filetypes=[("Documents Word", "*.docx *.DOCX")],
+            )
+            if not selected:
+                root.destroy()
+                return
+            docx_path = Path(selected)
+        try:
+            state = load_metadata_editor_state(docx_path, metadata_path)
+        except (DocxInspectionError, OSError) as error:
+            pending_error.append(error)
+            root.destroy()
+            return
+        refresh_all()
+
+    root.after_idle(choose_initial_docx)
     root.mainloop()
+    if pending_error:
+        raise pending_error[0]
     return 0
