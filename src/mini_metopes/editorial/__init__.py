@@ -1,6 +1,6 @@
 """Convention Word native et modele editorial intermediaire."""
 
-from .builder import build_editorial_document, build_editorial_document_from_file
+from .builder import build_editorial_document, build_editorial_document_from_file, is_semantically_empty_paragraph
 from .convention import NATIVE_WORD_CONVENTION, ParagraphRole, ParagraphRoleKind, WordEditorialConvention
 from .model import (
     BibliographicReference,
@@ -85,4 +85,5 @@ __all__ = [
     "build_editorial_document_from_file",
     "editorial_build_result_to_data",
     "editorial_build_result_to_json",
+    "is_semantically_empty_paragraph",
 ]

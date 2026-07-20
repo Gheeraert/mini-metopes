@@ -628,7 +628,7 @@ def _build_blocks(
             continue
 
         if role.kind == "verse_quote":
-            stanzas = [_build_verse_stanza(paragraph, content, note_id, diagnostics)]
+            stanzas = list(_build_verse_stanzas(paragraph, content, note_id, diagnostics))
             paragraph_position += 1
             while paragraph_position < len(paragraphs):
                 next_paragraph = paragraphs[paragraph_position]
@@ -644,8 +644,20 @@ def _build_blocks(
                     note_id=note_id,
                 )
                 referenced_notes.update(next_references)
-                stanzas.append(_build_verse_stanza(next_paragraph, next_content, note_id, diagnostics))
+                stanzas.extend(_build_verse_stanzas(next_paragraph, next_content, note_id, diagnostics))
                 paragraph_position += 1
+            if not stanzas:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="ambiguous_empty_verse_block",
+                        severity="warning",
+                        message="bloc de vers entierement vide, contexte ambigu pour une frontiere de strophe",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                continue
             source, source_references, next_position = _citation_source_if_immediate(
                 paragraphs, paragraph_position, convention=convention, relationships=relationships,
                 diagnostics=diagnostics, note_id=note_id
@@ -653,6 +665,20 @@ def _build_blocks(
             referenced_notes.update(source_references)
             blocks.append(VerseQuote(stanzas=tuple(stanzas), source=source))
             paragraph_position = next_position
+            continue
+
+        if is_semantically_empty_paragraph(paragraph):
+            diagnostics.append(
+                EditorialDiagnostic(
+                    code="empty_paragraph_ignored",
+                    severity="info",
+                    message="paragraphe Word vide ignore (artefact de mise en page)",
+                    paragraph_index=paragraph.index,
+                    style_id=paragraph.style_id,
+                    note_id=note_id,
+                )
+            )
+            paragraph_position += 1
             continue
 
         _diagnose_paragraph_style(paragraph, convention, diagnostics, note_id)
@@ -771,6 +797,33 @@ def _has_active_numbering(paragraph: ParagraphInfo) -> bool:
     if paragraph.numbering is not None:
         return paragraph.numbering.status != "removed"
     return paragraph.numbering_id is not None and paragraph.numbering_id != "0"
+
+
+def is_semantically_empty_paragraph(paragraph: ParagraphInfo) -> bool:
+    """Determiner si un paragraphe Word n'a aucun contenu editorialement significatif.
+
+    Un paragraphe reellement vide n'a ni texte, ni note, ni lien, ni dessin,
+    ni signet, ni numerotation active, ni tabulation, ni saut de page ou de
+    colonne : ce n'est qu'un artefact de mise en page.
+    """
+    if paragraph.text.strip():
+        return False
+    if paragraph.footnote_reference_ids or paragraph.endnote_reference_ids:
+        return False
+    if paragraph.hyperlink_count or paragraph.hyperlink_relationship_ids:
+        return False
+    if paragraph.drawing_count or paragraph.drawing_relationship_ids:
+        return False
+    if paragraph.bookmark_start_ids:
+        return False
+    if _has_active_numbering(paragraph):
+        return False
+    for run in paragraph.runs:
+        if run.tabs:
+            return False
+        if any(break_type in {"page", "column"} for break_type in run.break_types):
+            return False
+    return True
 
 
 def _build_editorial_table(
@@ -1868,58 +1921,94 @@ def _diagnose_nonserializable_numbering(
     )
 
 
-def _build_verse_stanza(
+def _build_verse_stanzas(
     paragraph: ParagraphInfo,
     content: tuple[EditorialInline, ...],
     note_id: str | None,
     diagnostics: list[EditorialDiagnostic],
-) -> VerseStanza:
-    """Decouper un paragraphe ``IntenseQuote`` en vers sur les seuls retours manuels."""
+) -> tuple[VerseStanza, ...]:
+    """Decouper un paragraphe ``IntenseQuote`` en strophes, sans jamais produire de vers vide.
+
+    Une ligne vide isolee entre deux vers par des retours manuels separe deux
+    strophes distinctes (deux ``lg``) ; en debut ou fin de paragraphe elle
+    n'est qu'un espacement de mise en page et est ignoree. Un paragraphe
+    entierement vide ne produit aucune strophe.
+    """
     if not content:
         diagnostics.append(
             _diagnostic(
-                "empty_verse_stanza",
-                "warning",
-                "strophe poetique vide",
+                "empty_verse_paragraph_ignored",
+                "info",
+                "paragraphe de vers vide ignore (frontiere de strophe ou espacement)",
                 paragraph,
                 0,
                 note_id,
             )
         )
-        return VerseStanza(
-            lines=(VerseLine(content=(), source_paragraph_index=paragraph.index, line_index=0),),
-            source_paragraph_index=paragraph.index,
-            source_style_id=paragraph.style_id,
-        )
+        return ()
 
-    lines: list[tuple[EditorialInline, ...]] = []
+    raw_lines: list[tuple[EditorialInline, ...]] = []
     current: list[EditorialInline] = []
     for item in content:
         if isinstance(item, LineBreak):
-            lines.append(tuple(current))
+            raw_lines.append(tuple(current))
             current = []
         else:
             current.append(item)
-    lines.append(tuple(current))
-    for line_index, line in enumerate(lines):
-        if not line:
+    raw_lines.append(tuple(current))
+
+    start = 0
+    end = len(raw_lines)
+    while start < end and not raw_lines[start]:
+        start += 1
+    while end > start and not raw_lines[end - 1]:
+        end -= 1
+    trimmed = raw_lines[start:end]
+
+    if not trimmed:
+        diagnostics.append(
+            _diagnostic(
+                "empty_verse_paragraph_ignored",
+                "info",
+                "paragraphe de vers sans contenu textuel ignore",
+                paragraph,
+                0,
+                note_id,
+            )
+        )
+        return ()
+
+    groups: list[list[tuple[EditorialInline, ...]]] = [[]]
+    in_blank_run = False
+    for line in trimmed:
+        if line:
+            groups[-1].append(line)
+            in_blank_run = False
+        elif not in_blank_run:
+            groups.append([])
             diagnostics.append(
                 _diagnostic(
-                    "empty_verse",
-                    "warning",
-                    "vers poetique vide",
+                    "verse_stanza_break_from_blank_line",
+                    "info",
+                    "ligne(s) vide(s) interpretee(s) comme frontiere de strophe",
                     paragraph,
-                    line_index,
+                    0,
                     note_id,
                 )
             )
-    return VerseStanza(
-        lines=tuple(
-            VerseLine(content=line, source_paragraph_index=paragraph.index, line_index=line_index)
-            for line_index, line in enumerate(lines)
-        ),
-        source_paragraph_index=paragraph.index,
-        source_style_id=paragraph.style_id,
+            in_blank_run = True
+
+    return tuple(
+        VerseStanza(
+            lines=tuple(
+                VerseLine(content=line, source_paragraph_index=paragraph.index, line_index=line_index)
+                for line_index, line in enumerate(group)
+            ),
+            source_paragraph_index=paragraph.index,
+            source_style_id=paragraph.style_id,
+        )
+        for group in groups
+        if group
     )
 
 

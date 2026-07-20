@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "source_document": {
+    "path": "conclusion_racine_queer_styles_natifs_minimetopes.docx",
+    "sha256": "3fef7863ea266591fca566e1c1f99535105e97bd1d6b9e0c916df265116aa614"
+  },
+  "document": {
+    "type": "conclusion",
+    "language": "fr-FR",
+    "title": "Racine queer",
+    "subtitle": null
+  },
+  "contributors": [
+    {
+      "id": "person-1",
+      "role": "author",
+      "given_name": "Florence",
+      "family_name": "Filippi",
+      "orcid": "0000-0002-1825-0097",
+      "affiliations": [
+        "affiliation-1"
+      ]
+    }
+  ],
+  "affiliations": [
+    {
+      "id": "affiliation-1",
+      "name": "Universite de Rouen Normandie",
+      "city": "Rouen",
+      "country": "FR"
+    }
+  ],
+  "editorial_responsibility": [
+    {
+      "responsibility": "editrice",
+      "name": "Anais Monchy"
+    }
+  ],
+  "publication": {
+    "publisher": {
+      "name": "Presses universitaires de Rouen et du Havre",
+      "place": "Mont-Saint-Aignan",
+      "address": [
+        "Place Emile-Blondel",
+        "76821 Mont-Saint-Aignan Cedex"
+      ],
+      "url": "https://purh.univ-rouen.fr"
+    },
+    "publication_date": "2026-03"
+  },
+  "identifiers": [
+    {
+      "type": "doi",
+      "value": "10.4000/books.purh.99999",
+      "format": null
+    }
+  ],
+  "rights": {
+    "holder": "Presses universitaires de Rouen et du Havre",
+    "statement": "Tous droits reserves.",
+    "license": {
+      "name": "CC BY-NC-ND 4.0",
+      "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/"
+    }
+  },
+  "abstracts": [
+    {
+      "type": "summary",
+      "language": "fr",
+      "text": "Resume francais."
+    }
+  ],
+  "keywords": [
+    {
+      "language": "fr",
+      "scheme": "keywords",
+      "items": [
+        "test"
+      ]
+    }
+  ],
+  "collection": {
+    "title": "Cours de litterature",
+    "issn": "0000-0019",
+    "volume": "7"
+  },
+  "pagination": {
+    "from": 125,
+    "to": 148
+  }
+}

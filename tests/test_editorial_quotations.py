@@ -53,19 +53,29 @@ def test_consecutive_prose_quote_paragraphs_are_grouped_without_losing_boundarie
 
 def test_verse_quotes_preserve_stanzas_lines_and_inline_order(quotation_result) -> None:
     verse_quotes = [block for block in quotation_result.document.blocks if isinstance(block, VerseQuote)]
+    # Le premier paragraphe de vers contient une ligne vide interne (deux retours
+    # manuels consecutifs) : elle separe deux strophes distinctes plutot que de
+    # produire un vers vide au milieu d'une seule strophe.
     assert [len(quote.stanzas) for quote in verse_quotes] == [4, 1]
     first_stanza = verse_quotes[0].stanzas[0]
-    assert [line.line_index for line in first_stanza.lines] == [0, 1, 2, 3]
+    assert [line.line_index for line in first_stanza.lines] == [0, 1]
     assert first_stanza.lines[0].content == (TextSpan(text="Vers un"),)
-    assert first_stanza.lines[2].content == ()
     second_line = first_stanza.lines[1]
     assert any(isinstance(item, NoteReference) and item.note_id == "30" for item in second_line.content)
-    final_line = first_stanza.lines[3]
+    second_stanza = verse_quotes[0].stanzas[1]
+    assert [line.line_index for line in second_stanza.lines] == [0]
+    final_line = second_stanza.lines[0]
     assert any(isinstance(item, PageBreak) for item in final_line.content)
     assert any(isinstance(item, TextSpan) and item.link is not None for item in final_line.content)
-    assert any(item.code == "empty_verse" for item in quotation_result.diagnostics)
-    assert any(item.code == "empty_verse_stanza" for item in quotation_result.diagnostics)
-    assert [line.line_index for line in verse_quotes[1].stanzas[0].lines] == [0, 1, 2]
+    # Le paragraphe IntenseQuote entierement vide en fin de sequence est ignore
+    # sans produire de strophe ni de vers vide.
+    assert not any(stanza.source_paragraph_index == 8 for quote in verse_quotes for stanza in quote.stanzas)
+    assert any(item.code == "verse_stanza_break_from_blank_line" for item in quotation_result.diagnostics)
+    assert any(item.code == "empty_verse_paragraph_ignored" for item in quotation_result.diagnostics)
+    # Le second bloc de vers ne comporte qu'un seul vers reel : les lignes vides
+    # de debut et de fin (simple espacement) sont ignorees.
+    assert [line.line_index for line in verse_quotes[1].stanzas[0].lines] == [0]
+    assert verse_quotes[1].stanzas[0].lines[0].content == (TextSpan(text="Debut apres vide"),)
 
 
 def test_notes_apply_the_same_quote_convention_and_their_own_relationship_scope(quotation_result) -> None:
