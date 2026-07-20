@@ -29,6 +29,12 @@ from mini_metopes.metadata import (
     validate_metadata,
     write_metadata_file,
 )
+from mini_metopes.tei import (
+    TeiConversionResult,
+    TeiWriteResult,
+    convert_docx_to_tei,
+    write_tei_conversion_result,
+)
 
 
 @dataclass(frozen=True)
@@ -303,6 +309,34 @@ def _ensure_new_identifier(
         raise ValueError(invalid_message)
     if normalized in {value.strip() for value in existing}:
         raise ValueError(duplicate_message)
+
+
+@dataclass(frozen=True)
+class TeiGenerationOutcome:
+    """Bilan structure d'une generation TEI Commons Publishing depuis la GUI."""
+
+    result: TeiConversionResult
+    write_result: TeiWriteResult | None
+    output_path: Path
+
+    @property
+    def is_successful(self) -> bool:
+        """Indiquer si un XML valide a effectivement ete ecrit au chemin demande."""
+        return self.result.is_successful and self.write_result is not None
+
+
+def generate_tei_commons(docx_path: Path, metadata: DocumentMetadata, output_path: Path) -> TeiGenerationOutcome:
+    """Convertir un DOCX en TEI Commons Publishing puis ecrire le resultat s'il est valide.
+
+    Reutilise directement ``convert_docx_to_tei`` et ``write_tei_conversion_result``
+    (le meme coeur que la CLI ``convert-docx``) : aucun XML n'est ecrit lorsque
+    la conversion echoue.
+    """
+    result = convert_docx_to_tei(docx_path, metadata=metadata)
+    write_result: TeiWriteResult | None = None
+    if result.is_successful:
+        write_result = write_tei_conversion_result(result, output_path)
+    return TeiGenerationOutcome(result=result, write_result=write_result, output_path=output_path)
 
 
 def _deduplicate_issues(issues: tuple[MetadataIssue, ...]) -> tuple[MetadataIssue, ...]:

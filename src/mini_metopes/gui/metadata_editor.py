@@ -31,10 +31,12 @@ from mini_metopes.metadata import (
 
 from .metadata_controller import (
     MetadataEditorState,
+    TeiGenerationOutcome,
     add_affiliation,
     add_contributor,
     apply_profile_to_state,
     change_metadata_destination,
+    generate_tei_commons,
     is_metadata_dirty,
     load_metadata_editor_state,
     locate_source_document,
@@ -684,16 +686,23 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
 
     # ---------------------------------------------------------------- actions
 
-    @_requires_state
-    def save(close: bool = False) -> None:
+    def save_current_metadata(*, close: bool = False, show_success: bool = True) -> bool:
+        """Enregistrer l'etat courant ; reutilisee par Enregistrer et par la generation TEI.
+
+        Retourne ``True`` seulement si le JSON a effectivement ete ecrit (ou
+        etait deja a jour), afin que la generation puisse s'interrompre
+        proprement en cas d'annulation ou d'echec de l'enregistrement.
+        """
         nonlocal state
+        if state is None:
+            return False
         candidate = collect()
         validation = validate_metadata_editor_state(candidate)
         if not validation.valid:
             messagebox.showerror("Metadonnees invalides", "\n".join(f"[{item.code}] {item.message}" for item in validation.issues if item.severity == "error"), parent=root)
-            return
+            return False
         if candidate.loaded_from_invalid_json and not messagebox.askyesno("JSON invalide", "Le fichier JSON existant est invalide. L'ecraser avec ces valeurs ?", parent=root):
-            return
+            return False
         if requires_save_as(candidate):
             suggested = default_metadata_path(candidate.docx_path)
             selected = filedialog.asksaveasfilename(
@@ -705,17 +714,19 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
                 filetypes=[("Metadonnees JSON", "*.json")],
             )
             if not selected:
-                return
+                return False
             candidate = change_metadata_destination(candidate, Path(selected))
         try:
             state = save_metadata_editor_state(candidate)
         except OSError as error:
             messagebox.showerror("Echec d'enregistrement", str(error), parent=root)
-            return
+            return False
         refresh_all()
-        messagebox.showinfo("Mini-Metopes", f"Metadonnees enregistrees : {state.metadata_path}", parent=root)
+        if show_success:
+            messagebox.showinfo("Mini-Metopes", f"Metadonnees enregistrees : {state.metadata_path}", parent=root)
         if close:
             root.destroy()
+        return True
 
     def load_configuration() -> None:
         nonlocal state
@@ -742,11 +753,112 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         refresh_all()
         set_editor_enabled(True)
 
-    save_button = ttk.Button(actions, textvariable=save_label_var, command=save)
+    def _format_conversion_diagnostic(diagnostic: object) -> str:
+        location = getattr(diagnostic, "metadata_path", None) or getattr(diagnostic, "source_part", None) or ""
+        prefix = f"{location} : " if location else ""
+        return f"{diagnostic.severity.upper()} [{diagnostic.code}] {prefix}{diagnostic.message}"
+
+    def _format_validation_issue(issue: object) -> str:
+        position: list[str] = []
+        if issue.line is not None:
+            position.append(f"ligne {issue.line}")
+        if issue.column is not None:
+            position.append(f"colonne {issue.column}")
+        prefix = ", ".join(position)
+        return f"{prefix} : {issue.message}" if prefix else issue.message
+
+    def _show_diagnostics_window(title: str, lines: list[str]) -> None:
+        window = tk.Toplevel(root)
+        window.title(title)
+        window.geometry("640x400")
+        window.transient(root)
+        frame = ttk.Frame(window, padding=6)
+        frame.pack(fill="both", expand=True)
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        text_widget = tk.Text(frame, wrap="word")
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        text_widget.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        text_widget.insert("1.0", "\n".join(lines))
+        text_widget.configure(state="disabled")
+        ttk.Button(window, text="Fermer", command=window.destroy).pack(pady=6)
+
+    def _report_generation_outcome(outcome: TeiGenerationOutcome) -> None:
+        result = outcome.result
+        if outcome.is_successful:
+            lines = [
+                "La TEI Commons Publishing a été générée avec succès.",
+                "",
+                "Fichier :",
+                str(outcome.output_path),
+                "",
+                "Validation Commons Publishing : réussie",
+                f"Diagnostics non bloquants : {len(result.diagnostics)}",
+            ]
+            if result.assets and outcome.write_result is not None:
+                lines.append(f"Médias écrits : {outcome.write_result.media_written}")
+                lines.append(f"Médias réutilisés : {outcome.write_result.media_reused}")
+                if outcome.write_result.media_directory:
+                    lines.append(f"Répertoire médias : {outcome.write_result.media_directory}")
+            messagebox.showinfo("Mini-Métopes", "\n".join(lines), parent=root)
+            return
+        blocking = [diagnostic for diagnostic in result.diagnostics if diagnostic.severity == "error"]
+        detail_lines = [_format_conversion_diagnostic(diagnostic) for diagnostic in blocking]
+        detail_lines += [_format_validation_issue(issue) for issue in result.validation_issues]
+        summary = (
+            "Échec de la génération de la TEI Commons Publishing.\n\n"
+            f"Diagnostics bloquants : {len(blocking)}\n"
+            f"Erreurs de validation Commons Publishing : {len(result.validation_issues)}"
+        )
+        if not detail_lines:
+            messagebox.showerror("Mini-Métopes", summary, parent=root)
+        elif len(detail_lines) <= 8:
+            messagebox.showerror("Mini-Métopes", summary + "\n\n" + "\n".join(detail_lines), parent=root)
+        else:
+            messagebox.showerror("Mini-Métopes", summary, parent=root)
+            _show_diagnostics_window("Diagnostics de génération", detail_lines)
+
+    @_requires_state
+    def generate_tei() -> None:
+        nonlocal state
+        if not save_current_metadata(close=False, show_success=False):
+            return
+        assert state is not None
+        docx_path = state.docx_path
+        suggested = docx_path.with_suffix(".xml")
+        selected = filedialog.asksaveasfilename(
+            parent=root,
+            title="Générer la TEI Commons",
+            initialdir=str(docx_path.parent),
+            initialfile=suggested.name,
+            defaultextension=".xml",
+            filetypes=[("Fichiers XML", "*.xml")],
+        )
+        if not selected:
+            return
+        output_path = Path(selected)
+        generate_button.configure(state="disabled", text="Génération en cours…")
+        root.configure(cursor="watch")
+        root.update_idletasks()
+        try:
+            outcome = generate_tei_commons(state.docx_path, state.metadata, output_path)
+        except (DocxInspectionError, OSError, ValueError) as error:
+            messagebox.showerror("Erreur de génération", str(error), parent=root)
+            return
+        finally:
+            root.configure(cursor="")
+            generate_button.configure(state="normal", text="Générer la TEI Commons…")
+        _report_generation_outcome(outcome)
+
+    save_button = ttk.Button(actions, textvariable=save_label_var, command=lambda: save_current_metadata())
     save_button.pack(side="left")
-    save_close_button = ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save(True))
+    save_close_button = ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save_current_metadata(close=True))
     save_close_button.pack(side="left", padx=5)
     ttk.Button(actions, text="Charger…", command=load_configuration).pack(side="left", padx=5)
+    generate_button = ttk.Button(actions, text="Générer la TEI Commons…", command=generate_tei)
+    generate_button.pack(side="left", padx=5)
 
     def cancel() -> None:
         if state is not None and collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
@@ -771,6 +883,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         """Activer/desactiver les actions qui dependent d'un document charge."""
         save_button.configure(state="normal" if enabled else "disabled")
         save_close_button.configure(state="normal" if enabled else "disabled")
+        generate_button.configure(state="normal" if enabled else "disabled")
         _apply_widget_state(notebook, enabled, {locate_button})
 
     # Aucun selecteur ne s'ouvre seul : sans chemin CLI, la fenetre reste
