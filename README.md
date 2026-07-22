@@ -52,6 +52,64 @@ metadonnees validees qui alimentent le `teiHeader`. Par defaut,
 `document.docx` est associe a `document.metadata.json`; `convert-docx` exige ce
 JSON (ou `--metadata`) et ne lance jamais l'interface automatiquement.
 
+## Intégration de l'éditeur de métadonnées
+
+L'usage autonome reste la CLI :
+
+```powershell
+python -m mini_metopes edit-metadata document.docx
+```
+
+Elle ouvre sa propre fenêtre (`tk.Tk()`) et sa propre boucle d'événements, avec
+le bouton « Générer la TEI Commons… » disponible et un « Enregistrer sous… »
+pour tout nouveau fichier de métadonnées.
+
+Pour une application hôte Tkinter qui veut intégrer ce même éditeur comme
+boîte modale (au lieu d'une seconde application indépendante), `mini_metopes.gui`
+expose :
+
+```python
+from pathlib import Path
+from mini_metopes.gui import open_metadata_editor
+
+result = open_metadata_editor(
+    parent,                       # une fenetre Tk ou Toplevel existante
+    Path("document.docx"),        # obligatoire en usage integre
+    metadata_path=None,           # None => convention document.metadata.json
+    prompt_for_new_destination=False,
+    show_tei_generation=False,
+)
+
+if result.status == "saved":
+    metadata_json_path = result.metadata_path
+```
+
+En mode intégré, `open_metadata_editor` :
+
+- ne crée jamais de `tk.Tk()` ni de nouvelle boucle `mainloop()` : elle ouvre
+  un `tk.Toplevel(parent)` modal et bloque l'appelant via `wait_window`
+  jusqu'à sa fermeture ;
+- charge immédiatement le DOCX fourni (une éventuelle `DocxInspectionError`
+  ou `OSError` de chargement initial est relancée telle quelle vers
+  l'appelant, sans être affichée par l'éditeur) ;
+- avec `prompt_for_new_destination=False`, écrit un nouveau JSON directement
+  au chemin fourni (ou à la convention `document.metadata.json`) sans ouvrir
+  de sélecteur « Enregistrer sous… » ; avec `True` (valeur par défaut), le
+  comportement autonome habituel s'applique ;
+- avec `show_tei_generation=False` (valeur par défaut du mode intégré), le
+  bouton « Générer la TEI Commons… » n'est pas construit — la génération
+  reste à la charge de l'application hôte, après fermeture de l'éditeur.
+
+Le résultat renvoyé (`MetadataEditorResult`) est déterministe :
+
+- `status="saved"` uniquement après un « Enregistrer et fermer » réussi ;
+  `metadata_path` contient alors le chemin réellement écrit ;
+- `status="cancelled"` sur « Annuler » ou fermeture de la fenêtre — y compris
+  si un enregistrement précédent avait déjà écrit un JSON valide sur disque :
+  la fermeture ne « valide » pas rétroactivement un état modifié ensuite ;
+- un simple clic sur « Enregistrer » (sans fermer) écrit le JSON mais ne
+  produit pas encore de résultat : celui-ci n'est renvoyé qu'à la fermeture.
+
 `model-docx` applique une premiere convention native Word et produit un modele
 editorial avec diagnostics. `convert-docx` serialise le sous-ensemble pris en
 charge en TEI Commons Publishing validee. La convention reconnait `Quote` pour

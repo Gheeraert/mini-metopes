@@ -51,6 +51,7 @@ from .metadata_controller import (
     update_metadata,
     validate_metadata_editor_state,
 )
+from .metadata_editor_api import MetadataEditorResult
 
 _ROLES = ("author", "editor", "translator", "scientific_editor", "other")
 _DOCUMENT_TYPES = ("article", "chapter", "introduction", "conclusion", "bibliography", "other")
@@ -59,18 +60,25 @@ _IDENTIFIER_FORMATS = ("", "print", "pdf", "epub", "html")
 _ABSTRACT_TYPES = ("summary", "abstract", "back-cover")
 
 
-def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | None = None) -> int:
-    """Ouvrir explicitement l'editeur ; aucun Tkinter n'est lance a l'import."""
+def _build_metadata_editor(
+    root,
+    *,
+    docx_path: Path | None,
+    metadata_path: Path | None,
+    prompt_for_new_destination: bool,
+    show_tei_generation: bool,
+    outcome_box: list[MetadataEditorResult | None],
+) -> None:
+    """Construire l'interface commune dans ``root`` (``Tk`` ou ``Toplevel``).
+
+    Reutilisee telle quelle par l'enveloppe autonome (``run_metadata_editor``)
+    et par l'enveloppe integrable (``open_metadata_editor``) : seuls les
+    parametres ``prompt_for_new_destination`` / ``show_tei_generation`` et le
+    conteneur ``outcome_box`` (rempli a la fermeture) different entre les deux.
+    """
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
-    try:
-        root = tk.Tk()
-    except tk.TclError as error:
-        print(f"ERREUR - impossible d'initialiser l'interface graphique : {error}")
-        return 2
-    root.title("Mini-Metopes — Metadonnees")
-    root.minsize(880, 620)
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
@@ -703,7 +711,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             return False
         if candidate.loaded_from_invalid_json and not messagebox.askyesno("JSON invalide", "Le fichier JSON existant est invalide. L'ecraser avec ces valeurs ?", parent=root):
             return False
-        if requires_save_as(candidate):
+        if requires_save_as(candidate) and prompt_for_new_destination:
             suggested = default_metadata_path(candidate.docx_path)
             selected = filedialog.asksaveasfilename(
                 parent=root,
@@ -725,6 +733,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         if show_success:
             messagebox.showinfo("Mini-Metopes", f"Metadonnees enregistrees : {state.metadata_path}", parent=root)
         if close:
+            outcome_box[0] = MetadataEditorResult("saved", state.docx_path, state.metadata_path)
             root.destroy()
         return True
 
@@ -768,11 +777,11 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         return f"{prefix} : {issue.message}" if prefix else issue.message
 
     def _show_diagnostics_window(title: str, lines: list[str]) -> None:
-        window = tk.Toplevel(root)
-        window.title(title)
-        window.geometry("640x400")
-        window.transient(root)
-        frame = ttk.Frame(window, padding=6)
+        diag_window = tk.Toplevel(root)
+        diag_window.title(title)
+        diag_window.geometry("640x400")
+        diag_window.transient(root)
+        frame = ttk.Frame(diag_window, padding=6)
         frame.pack(fill="both", expand=True)
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
@@ -783,7 +792,7 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         scrollbar.grid(row=0, column=1, sticky="ns")
         text_widget.insert("1.0", "\n".join(lines))
         text_widget.configure(state="disabled")
-        ttk.Button(window, text="Fermer", command=window.destroy).pack(pady=6)
+        ttk.Button(diag_window, text="Fermer", command=diag_window.destroy).pack(pady=6)
 
     def _report_generation_outcome(outcome: TeiGenerationOutcome) -> None:
         result = outcome.result
@@ -839,7 +848,8 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         if not selected:
             return
         output_path = Path(selected)
-        generate_button.configure(state="disabled", text="Génération en cours…")
+        if generate_button is not None:
+            generate_button.configure(state="disabled", text="Génération en cours…")
         root.configure(cursor="watch")
         root.update_idletasks()
         try:
@@ -849,7 +859,8 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
             return
         finally:
             root.configure(cursor="")
-            generate_button.configure(state="normal", text="Générer la TEI Commons…")
+            if generate_button is not None:
+                generate_button.configure(state="normal", text="Générer la TEI Commons…")
         _report_generation_outcome(outcome)
 
     save_button = ttk.Button(actions, textvariable=save_label_var, command=lambda: save_current_metadata())
@@ -857,12 +868,15 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
     save_close_button = ttk.Button(actions, text="Enregistrer et fermer", command=lambda: save_current_metadata(close=True))
     save_close_button.pack(side="left", padx=5)
     ttk.Button(actions, text="Charger…", command=load_configuration).pack(side="left", padx=5)
-    generate_button = ttk.Button(actions, text="Générer la TEI Commons…", command=generate_tei)
-    generate_button.pack(side="left", padx=5)
+    generate_button: ttk.Button | None = None
+    if show_tei_generation:
+        generate_button = ttk.Button(actions, text="Générer la TEI Commons…", command=generate_tei)
+        generate_button.pack(side="left", padx=5)
 
     def cancel() -> None:
         if state is not None and collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
             return
+        outcome_box[0] = MetadataEditorResult("cancelled", state.docx_path if state is not None else docx_path, None)
         root.destroy()
 
     ttk.Button(actions, text="Annuler", command=cancel).pack(side="right")
@@ -883,11 +897,13 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         """Activer/desactiver les actions qui dependent d'un document charge."""
         save_button.configure(state="normal" if enabled else "disabled")
         save_close_button.configure(state="normal" if enabled else "disabled")
-        generate_button.configure(state="normal" if enabled else "disabled")
+        if generate_button is not None:
+            generate_button.configure(state="normal" if enabled else "disabled")
         _apply_widget_state(notebook, enabled, {locate_button})
 
-    # Aucun selecteur ne s'ouvre seul : sans chemin CLI, la fenetre reste
-    # vide et attend le clic sur « Localiser le DOCX… ».
+    # Aucun selecteur ne s'ouvre seul : sans chemin CLI (ou en mode integre, ou
+    # le DOCX est deja fourni), la fenetre reste vide et attend le clic sur
+    # « Localiser le DOCX… ».
     set_editor_enabled(False)
     if docx_path is not None:
         try:
@@ -898,5 +914,74 @@ def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | Non
         refresh_all()
         set_editor_enabled(True)
 
+
+def run_metadata_editor(docx_path: Path | None = None, metadata_path: Path | None = None) -> int:
+    """Ouvrir l'editeur autonome : sa propre fenetre racine et sa propre boucle.
+
+    Aucun Tkinter n'est lance a l'import ; tout est cree ici, a l'appel.
+    """
+    import tkinter as tk
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as error:
+        print(f"ERREUR - impossible d'initialiser l'interface graphique : {error}")
+        return 2
+    root.title("Mini-Metopes — Metadonnees")
+    root.minsize(880, 620)
+
+    _build_metadata_editor(
+        root,
+        docx_path=docx_path,
+        metadata_path=metadata_path,
+        prompt_for_new_destination=True,
+        show_tei_generation=True,
+        outcome_box=[None],
+    )
     root.mainloop()
     return 0
+
+
+def open_metadata_editor(
+    parent,
+    docx_path: Path,
+    metadata_path: Path | None = None,
+    *,
+    prompt_for_new_destination: bool = True,
+    show_tei_generation: bool = False,
+) -> MetadataEditorResult:
+    """Ouvrir l'editeur comme boite modale attachee a ``parent``.
+
+    Ne cree jamais de nouveau ``tk.Tk()`` ni de ``mainloop()`` : une fenetre
+    ``Toplevel`` est construite, rendue modale (``grab_set``), puis
+    ``parent.wait_window`` suspend l'appelant jusqu'a sa fermeture. Le DOCX est
+    charge immediatement ; si le chargement echoue (``DocxInspectionError`` ou
+    ``OSError``), la fenetre est detruite et l'exception est relancee sans
+    etre affichee ici — a l'appelant de la presenter dans sa propre GUI.
+
+    Le resultat n'est ``saved`` qu'apres un « Enregistrer et fermer » reussi ;
+    un simple « Enregistrer » ecrit deja le JSON sans clore la session, et une
+    annulation reste ``cancelled`` meme si un enregistrement precedent existe
+    deja sur disque.
+    """
+    import tkinter as tk
+
+    window = tk.Toplevel(parent)
+    window.title("Mini-Metopes — Metadonnees")
+    window.minsize(880, 620)
+    window.transient(parent)
+
+    outcome_box: list[MetadataEditorResult | None] = [None]
+    _build_metadata_editor(
+        window,
+        docx_path=docx_path,
+        metadata_path=metadata_path,
+        prompt_for_new_destination=prompt_for_new_destination,
+        show_tei_generation=show_tei_generation,
+        outcome_box=outcome_box,
+    )
+    window.grab_set()
+    parent.wait_window(window)
+    if outcome_box[0] is not None:
+        return outcome_box[0]
+    return MetadataEditorResult("cancelled", docx_path, None)
