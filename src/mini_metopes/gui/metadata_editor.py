@@ -42,6 +42,7 @@ from .metadata_controller import (
     locate_source_document,
     move_item,
     next_identifier,
+    parse_pagination_field,
     remove_affiliation,
     remove_contributor,
     requires_save_as,
@@ -211,7 +212,12 @@ def _build_metadata_editor(
         else:
             from .metadata_controller import relocate_source_document
 
-            state = relocate_source_document(collect(), chosen)
+            try:
+                candidate = collect()
+            except ValueError as error:
+                messagebox.showerror("Pagination invalide", str(error), parent=root)
+                return
+            state = relocate_source_document(candidate, chosen)
         refresh_all()
 
     locate_button = ttk.Button(paths_frame, textvariable=locate_button_text_var, command=choose_docx)
@@ -331,7 +337,12 @@ def _build_metadata_editor(
         selected = filedialog.askopenfilename(parent=root, filetypes=[("Profil institutionnel", "*.json")])
         if not selected:
             return
-        state = apply_profile_to_state(collect(), Path(selected))
+        try:
+            candidate = collect()
+        except ValueError as error:
+            messagebox.showerror("Pagination invalide", str(error), parent=root)
+            return
+        state = apply_profile_to_state(candidate, Path(selected))
         refresh_all()
 
     ttk.Button(publisher_frame, text="Appliquer un profil…", command=apply_profile).grid(row=5, column=1, sticky="w", pady=4)
@@ -457,17 +468,22 @@ def _build_metadata_editor(
     # ------------------------------------------------------------ etat <-> UI
 
     def collect() -> MetadataEditorState:
-        nonlocal state
+        """Construire l'etat courant depuis les widgets.
 
-        def parse_int(value: str) -> int | None:
-            value = value.strip()
-            return int(value) if value.isdigit() else (None if not value else -1)
+        Leve ``ValueError`` si un champ de pagination contient une saisie non
+        numerique ; les appelants doivent l'attraper et informer l'utilisateur
+        plutot que de laisser une valeur fabriquee (ex. ``-1``) circuler.
+        """
+        nonlocal state
 
         pagination = None
         if page_from_var.get().strip() or page_to_var.get().strip():
-            pagination = Pagination(page_from=parse_int(page_from_var.get()), page_to=parse_int(page_to_var.get()))
+            pagination = Pagination(
+                page_from=parse_pagination_field(page_from_var.get()),
+                page_to=parse_pagination_field(page_to_var.get()),
+            )
         elif extent_var.get().strip():
-            pagination = Pagination(extent=parse_int(extent_var.get()))
+            pagination = Pagination(extent=parse_pagination_field(extent_var.get()))
         collection = None
         if collection_title_var.get().strip() or collection_issn_var.get().strip() or collection_volume_var.get().strip():
             collection = Collection(
@@ -704,7 +720,11 @@ def _build_metadata_editor(
         nonlocal state
         if state is None:
             return False
-        candidate = collect()
+        try:
+            candidate = collect()
+        except ValueError as error:
+            messagebox.showerror("Pagination invalide", str(error), parent=root)
+            return False
         validation = validate_metadata_editor_state(candidate)
         if not validation.valid:
             messagebox.showerror("Metadonnees invalides", "\n".join(f"[{item.code}] {item.message}" for item in validation.issues if item.severity == "error"), parent=root)
@@ -874,8 +894,15 @@ def _build_metadata_editor(
         generate_button.pack(side="left", padx=5)
 
     def cancel() -> None:
-        if state is not None and collect().dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
-            return
+        if state is not None:
+            try:
+                dirty = collect().dirty
+            except ValueError:
+                # Saisie de pagination invalide : on considere l'etat comme
+                # modifie pour ne pas perdre silencieusement cette edition.
+                dirty = True
+            if dirty and not messagebox.askyesno("Modifications non enregistrees", "Abandonner les modifications ?", parent=root):
+                return
         outcome_box[0] = MetadataEditorResult("cancelled", state.docx_path if state is not None else docx_path, None)
         root.destroy()
 
