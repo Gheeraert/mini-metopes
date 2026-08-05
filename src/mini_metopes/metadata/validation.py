@@ -70,6 +70,7 @@ def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
     _validate_publication(metadata.publication, issues)
     for index, identifier in enumerate(metadata.identifiers):
         _validate_identifier_entry(identifier, index, issues)
+    _validate_identifier_duplicates(metadata.identifiers, issues)
     _validate_rights(metadata.rights, issues)
     for index, abstract in enumerate(metadata.abstracts):
         _validate_abstract(abstract, index, issues)
@@ -360,6 +361,40 @@ def _validate_http_url(value: str, code: str, path: str, issues: list[MetadataIs
     parsed = urlparse(value.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         issues.append(_error(code, "URL http(s) invalide", path))
+
+
+def _validate_identifier_duplicates(identifiers: tuple[Identifier, ...], issues: list[MetadataIssue]) -> None:
+    """Signaler les identifiants qui deviendraient indistinguables dans la TEI.
+
+    Une meme valeur repetee (copier-coller) et deux identifiants de meme
+    type et de meme support (ex. deux ISBN "print") se serialisent tous les
+    deux en `idno` sans qu'aucun attribut ne les distingue.
+    """
+    seen_values: dict[tuple[str, str], int] = {}
+    seen_type_format: dict[tuple[str, str], int] = {}
+    for index, identifier in enumerate(identifiers):
+        path = f"identifiers[{index}]"
+        normalized_value = identifier.value.strip().lower()
+        if normalized_value:
+            value_key = (identifier.identifier_type, normalized_value)
+            if value_key in seen_values:
+                issues.append(_error(
+                    "duplicate_identifier_value",
+                    f"identifiant duplique : {identifier.value.strip()}",
+                    f"{path}.value",
+                ))
+            else:
+                seen_values[value_key] = index
+        if identifier.identifier_format is not None:
+            format_key = (identifier.identifier_type, identifier.identifier_format)
+            if format_key in seen_type_format:
+                issues.append(_error(
+                    "duplicate_identifier_type_format",
+                    f"deux identifiants {identifier.identifier_type}/{identifier.identifier_format} indistinguables dans la TEI",
+                    path,
+                ))
+            else:
+                seen_type_format[format_key] = index
 
 
 def _duplicates(values: list[str], code: str, path: str, issues: list[MetadataIssue]) -> None:

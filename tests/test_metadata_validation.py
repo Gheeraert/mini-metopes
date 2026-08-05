@@ -104,6 +104,56 @@ def test_v2_validation_codes(metadata, changed, code: str) -> None:
     assert code in [issue.code for issue in validate_metadata(changed(metadata)).issues]
 
 
+def test_duplicate_identifier_value_is_reported(metadata) -> None:
+    duplicated = replace(
+        metadata,
+        identifiers=(
+            Identifier("doi", "10.4000/x.1"),
+            Identifier("doi", "10.4000/x.1"),
+        ),
+    )
+    codes = [issue.code for issue in validate_metadata(duplicated).issues]
+    assert "duplicate_identifier_value" in codes
+
+
+def test_duplicate_identifier_value_is_reported_after_case_and_space_normalization(metadata) -> None:
+    duplicated = replace(
+        metadata,
+        identifiers=(
+            Identifier("doi", "10.4000/X.1"),
+            Identifier("doi", " 10.4000/x.1 "),
+        ),
+    )
+    codes = [issue.code for issue in validate_metadata(duplicated).issues]
+    assert "duplicate_identifier_value" in codes
+
+
+def test_two_identifiers_with_the_same_type_and_format_are_reported(metadata) -> None:
+    """Deux ISBN "print" distincts se serialiseraient tous les deux en
+    idno[@type='pISBN'] sans qu'aucun attribut ne les distingue."""
+    collision = replace(
+        metadata,
+        identifiers=(
+            Identifier("isbn-13", "979-10-240-1755-6", "print"),
+            Identifier("isbn-13", "978-2-07-036822-8", "print"),
+        ),
+    )
+    codes = [issue.code for issue in validate_metadata(collision).issues]
+    assert "duplicate_identifier_type_format" in codes
+
+
+def test_different_identifier_formats_do_not_collide(metadata) -> None:
+    distinct = replace(
+        metadata,
+        identifiers=(
+            Identifier("isbn-13", "979-10-240-1755-6", "print"),
+            Identifier("isbn-13", "979-10-240-1755-6", "pdf"),
+        ),
+    )
+    codes = [issue.code for issue in validate_metadata(distinct).issues]
+    assert "duplicate_identifier_type_format" not in codes
+
+
 def test_similar_keywords_warn_without_deduplication(metadata) -> None:
     grouped = replace(metadata, keywords=(KeywordGroup("fr", ("Tragédie", "tragedie", "genre")),))
     result = validate_metadata(grouped)
