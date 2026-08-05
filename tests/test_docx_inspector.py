@@ -257,6 +257,80 @@ def test_tables_and_textboxes_in_notes_are_reported(tmp_path: Path) -> None:
     )
 
 
+def _build_docx_with_part(tmp_path: Path, name: str, extra_part: str, extra_content: str) -> Path:
+    path = tmp_path / name
+    files = {
+        "word/document.xml": (
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:body><w:p><w:r><w:t>Corps</w:t></w:r></w:p></w:body></w:document>"
+        ),
+        extra_part: extra_content,
+    }
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        for part_name, content in files.items():
+            info = ZipInfo(part_name, date_time=(2024, 1, 1, 0, 0, 0))
+            info.compress_type = ZIP_DEFLATED
+            archive.writestr(info, content)
+    return path
+
+
+@pytest.mark.parametrize(
+    ("header_xml", "expected_code"),
+    [
+        (
+            '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:p><w:r><w:t>Titre courant rédigé</w:t></w:r></w:p></w:hdr>",
+            "header_footer_text_not_serializable",
+        ),
+        (
+            '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            '<w:p><w:fldSimple w:instr="PAGE"><w:r><w:t>2</w:t></w:r></w:fldSimple></w:p></w:hdr>',
+            "headers_footers_not_inspected",
+        ),
+        (
+            '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:p>"
+            '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+            "<w:r><w:instrText>PAGE</w:instrText></w:r>"
+            '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+            "<w:r><w:t>2</w:t></w:r>"
+            '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+            "</w:p></w:hdr>",
+            "headers_footers_not_inspected",
+        ),
+        (
+            '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:p/></w:hdr>",
+            "headers_footers_not_inspected",
+        ),
+    ],
+    ids=["static-text", "simple-field", "complex-field", "empty"],
+)
+def test_header_content_determines_blocking(tmp_path: Path, header_xml: str, expected_code: str) -> None:
+    """Un en-tete ne bloque que s'il porte du texte redige, pas un simple champ page."""
+    path = _build_docx_with_part(tmp_path, "with-header.docx", "word/header1.xml", header_xml)
+
+    inspection = inspect_docx_file(path)
+
+    codes = [issue.code for issue in inspection.issues if issue.part == "word/header1.xml"]
+    assert codes == [expected_code]
+
+
+def test_footer_static_text_is_also_detected(tmp_path: Path) -> None:
+    footer_xml = (
+        '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:p><w:r><w:t>Colophon rédigé</w:t></w:r></w:p></w:ftr>"
+    )
+    path = _build_docx_with_part(tmp_path, "with-footer.docx", "word/footer1.xml", footer_xml)
+
+    inspection = inspect_docx_file(path)
+
+    assert any(
+        issue.code == "header_footer_text_not_serializable" and issue.part == "word/footer1.xml"
+        for issue in inspection.issues
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "code"),
     [

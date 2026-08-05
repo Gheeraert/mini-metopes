@@ -43,6 +43,7 @@ _BLOCKING_INSPECTION_CODES = frozenset(
         "image_media_too_large",
         "total_image_media_too_large",
         "unreadable_image_media",
+        "header_footer_text_not_serializable",
     }
 )
 _NON_BLOCKING_INSPECTION_CODES = frozenset(
