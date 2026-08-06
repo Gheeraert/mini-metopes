@@ -134,6 +134,28 @@ class ProseQuote:
 
 
 @dataclass(frozen=True)
+class EpigraphParagraph:
+    """Paragraphe source conserve dans une epigraphe."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["epigraph_paragraph"] = "epigraph_paragraph"
+
+
+@dataclass(frozen=True)
+class Epigraph:
+    """Suite contigue de paragraphes Word utilisant le style ``Salutation``.
+
+    Uniquement reconnue en tete de section (immediatement apres un titre, ou
+    au tout debut du document) ; voir la decision 0027.
+    """
+
+    paragraphs: tuple[EpigraphParagraph, ...]
+    kind: Literal["epigraph"] = "epigraph"
+
+
+@dataclass(frozen=True)
 class VerseLine:
     """Vers issu d'un segment separe par un retour manuel Word."""
 
@@ -275,7 +297,7 @@ class EditorialBibliography:
     kind: Literal["bibliography"] = "bibliography"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | Epigraph | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
 
 
 @dataclass(frozen=True)

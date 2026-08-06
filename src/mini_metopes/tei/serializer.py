@@ -17,6 +17,7 @@ from mini_metopes.editorial import (
     DrawingReference,
     EditorialBlock,
     EditorialDocument,
+    Epigraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -627,6 +628,22 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
                 _append_inline(element, line.content, state)
         if block.source is not None:
             _append_bibliographic_reference(wrapper, block.source, state)
+        return
+    if isinstance(block, Epigraph):
+        if not block.paragraphs:
+            state.error("empty_epigraph_not_serializable", "epigraphe vide non serialisable")
+            return
+        element = etree.SubElement(parent, _tag("epigraph"))
+        for paragraph in block.paragraphs:
+            if not paragraph.content:
+                state.error(
+                    "empty_epigraph_paragraph_not_serializable",
+                    "paragraphe d'epigraphe vide non serialisable",
+                    source_paragraph_index=paragraph.source_paragraph_index,
+                )
+                continue
+            p_element = etree.SubElement(element, _tag("p"))
+            _append_inline(p_element, paragraph.content, state)
         return
     if isinstance(block, BibliographicReference):
         _append_bibliographic_reference(parent, block, state)

@@ -12,6 +12,8 @@ from .model import (
     DrawingReference,
     EditorialBlock,
     EditorialBuildResult,
+    Epigraph,
+    EpigraphParagraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -88,6 +90,11 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
             "stanzas": [_verse_stanza_to_data(stanza) for stanza in block.stanzas],
             "source": _bibliographic_reference_to_data(block.source) if block.source is not None else None,
         }
+    if isinstance(block, Epigraph):
+        return {
+            "kind": block.kind,
+            "paragraphs": [_epigraph_paragraph_to_data(paragraph) for paragraph in block.paragraphs],
+        }
     if isinstance(block, EditorialList):
         return _list_to_data(block)
     if isinstance(block, EditorialFigure):
@@ -113,6 +120,15 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
 
 
 def _prose_quote_paragraph_to_data(paragraph: ProseQuoteParagraph) -> dict[str, object]:
+    return {
+        "kind": paragraph.kind,
+        "content": [_inline_to_data(item) for item in paragraph.content],
+        "source_paragraph_index": paragraph.source_paragraph_index,
+        "source_style_id": paragraph.source_style_id,
+    }
+
+
+def _epigraph_paragraph_to_data(paragraph: EpigraphParagraph) -> dict[str, object]:
     return {
         "kind": paragraph.kind,
         "content": [_inline_to_data(item) for item in paragraph.content],

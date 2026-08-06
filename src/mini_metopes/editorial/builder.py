@@ -33,6 +33,8 @@ from .model import (
     EditorialBibliography,
     EditorialDiagnostic,
     EditorialDocument,
+    Epigraph,
+    EpigraphParagraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -708,6 +710,75 @@ def _build_blocks(
             referenced_notes.update(source_references)
             blocks.append(VerseQuote(stanzas=tuple(stanzas), source=source))
             paragraph_position = next_position
+            continue
+
+        if role.kind == "epigraph":
+            if note_id is not None or not (not blocks or isinstance(blocks[-1], Heading)):
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="misplaced_epigraph_not_serializable",
+                        severity="error",
+                        message="epigraphe (style Salutation) hors position de tete de section",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
+            epigraph_paragraphs = [
+                EpigraphParagraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            ]
+            if not content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_epigraph_paragraph",
+                        severity="warning",
+                        message="paragraphe d'epigraphe vide",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
+                if _paragraph_role(next_paragraph, convention).kind != "epigraph":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                epigraph_paragraphs.append(
+                    EpigraphParagraph(
+                        content=next_content,
+                        source_paragraph_index=next_paragraph.index,
+                        source_style_id=next_paragraph.style_id,
+                    )
+                )
+                if not next_content:
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="empty_epigraph_paragraph",
+                            severity="warning",
+                            message="paragraphe d'epigraphe vide",
+                            paragraph_index=next_paragraph.index,
+                            style_id=next_paragraph.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position += 1
+            blocks.append(Epigraph(paragraphs=tuple(epigraph_paragraphs)))
             continue
 
         if is_semantically_empty_paragraph(paragraph):

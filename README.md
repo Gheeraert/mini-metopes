@@ -199,6 +199,12 @@ produite en tient lieu. Un diagnostic dedie et actionnable
 (`word_generated_toc_not_supported`) le signale, au lieu de l'echec generique
 de style inconnu.
 
+Le style natif Word `Salutation` devient une epigraphe TEI (`<epigraph>`,
+un `<p>` par paragraphe) lorsqu'un ou plusieurs paragraphes `Salutation`
+consecutifs suivent immediatement un titre, ou ouvrent le document. Ailleurs
+dans le flux ou a l'interieur d'une note, il reste refuse
+(`misplaced_epigraph_not_serializable`).
+
 Un run Word dont la langue de correction (`w:lang`) differe de la langue du
 document (`document.language` du JSON, comparee sur la seule sous-etiquette
 primaire, ex. `fr` dans `fr-FR`) devient `<hi xml:lang="...">` dans la TEI,
