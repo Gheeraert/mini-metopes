@@ -18,6 +18,7 @@ from mini_metopes.editorial import (
     EditorialBlock,
     EditorialDocument,
     Epigraph,
+    FloatingText,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -644,6 +645,27 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
                 continue
             p_element = etree.SubElement(element, _tag("p"))
             _append_inline(p_element, paragraph.content, state)
+        return
+    if isinstance(block, FloatingText):
+        if not block.paragraphs:
+            state.error("empty_floating_text_not_serializable", "encadre vide non serialisable")
+            return
+        element = etree.SubElement(parent, _tag("floatingText"))
+        inner_body = etree.SubElement(element, _tag("body"))
+        has_content = False
+        for paragraph in block.paragraphs:
+            if not paragraph.content:
+                state.error(
+                    "empty_floating_text_paragraph_not_serializable",
+                    "paragraphe d'encadre vide non serialisable",
+                    source_paragraph_index=paragraph.source_paragraph_index,
+                )
+                continue
+            p_element = etree.SubElement(inner_body, _tag("p"))
+            _append_inline(p_element, paragraph.content, state)
+            has_content = True
+        if not has_content:
+            state.error("empty_floating_text_not_serializable", "encadre sans contenu serialisable")
         return
     if isinstance(block, BibliographicReference):
         _append_bibliographic_reference(parent, block, state)

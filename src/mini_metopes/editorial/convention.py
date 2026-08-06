@@ -19,7 +19,7 @@ class StyleDeclaration(Protocol):
 
 
 ParagraphRoleKind = Literal[
-    "heading", "paragraph", "prose_quote", "verse_quote", "epigraph", "signature", "deferred", "unsupported"
+    "heading", "paragraph", "prose_quote", "verse_quote", "epigraph", "signature", "floating_text", "deferred", "unsupported"
 ]
 ControlledStyleStatus = Literal["valid", "invalid", "unrelated"]
 
@@ -45,6 +45,7 @@ class WordEditorialConvention:
     verse_quote_style_ids: frozenset[str]
     epigraph_style_ids: frozenset[str] = frozenset()
     signature_style_ids: frozenset[str] = frozenset()
+    floating_text_style_ids: frozenset[str] = frozenset()
     table_of_contents_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
@@ -85,6 +86,8 @@ class WordEditorialConvention:
             return ParagraphRole("epigraph")
         if style_id in self.signature_style_ids:
             return ParagraphRole("signature")
+        if style_id in self.floating_text_style_ids:
+            return ParagraphRole("floating_text")
         if style_id in self.deferred_paragraph_style_ids:
             return ParagraphRole("deferred")
         if outline_level is not None and 0 <= outline_level <= 5:
@@ -306,6 +309,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     verse_quote_style_ids=frozenset({"IntenseQuote"}),
     epigraph_style_ids=frozenset({"Salutation"}),
     signature_style_ids=frozenset({"Signature"}),
+    floating_text_style_ids=frozenset({"BlockText"}),
     table_of_contents_style_ids=frozenset({
         "TOC1", "TOC2", "TOC3", "TOC4", "TOC5", "TOC6", "TOC7", "TOC8", "TOC9", "TOCHeading",
     }),
@@ -474,6 +478,7 @@ def resolve_convention_for_styles(
         verse_quote_style_ids=_expand(convention.verse_quote_style_ids),
         epigraph_style_ids=_expand(convention.epigraph_style_ids),
         signature_style_ids=_expand(convention.signature_style_ids),
+        floating_text_style_ids=_expand(convention.floating_text_style_ids),
         consecutive_paragraph_style_ids=_expand(convention.consecutive_paragraph_style_ids),
         list_continuation_style_ids=_expand(convention.list_continuation_style_ids),
         figure_container_style_ids=_expand(convention.figure_container_style_ids),

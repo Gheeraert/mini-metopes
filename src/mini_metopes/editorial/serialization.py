@@ -14,6 +14,8 @@ from .model import (
     EditorialBuildResult,
     Epigraph,
     EpigraphParagraph,
+    FloatingText,
+    FloatingTextParagraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -95,6 +97,11 @@ def _block_to_data(block: EditorialBlock) -> dict[str, object]:
             "kind": block.kind,
             "paragraphs": [_epigraph_paragraph_to_data(paragraph) for paragraph in block.paragraphs],
         }
+    if isinstance(block, FloatingText):
+        return {
+            "kind": block.kind,
+            "paragraphs": [_floating_text_paragraph_to_data(paragraph) for paragraph in block.paragraphs],
+        }
     if isinstance(block, EditorialList):
         return _list_to_data(block)
     if isinstance(block, EditorialFigure):
@@ -129,6 +136,15 @@ def _prose_quote_paragraph_to_data(paragraph: ProseQuoteParagraph) -> dict[str, 
 
 
 def _epigraph_paragraph_to_data(paragraph: EpigraphParagraph) -> dict[str, object]:
+    return {
+        "kind": paragraph.kind,
+        "content": [_inline_to_data(item) for item in paragraph.content],
+        "source_paragraph_index": paragraph.source_paragraph_index,
+        "source_style_id": paragraph.source_style_id,
+    }
+
+
+def _floating_text_paragraph_to_data(paragraph: FloatingTextParagraph) -> dict[str, object]:
     return {
         "kind": paragraph.kind,
         "content": [_inline_to_data(item) for item in paragraph.content],

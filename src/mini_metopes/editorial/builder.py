@@ -35,6 +35,8 @@ from .model import (
     EditorialDocument,
     Epigraph,
     EpigraphParagraph,
+    FloatingText,
+    FloatingTextParagraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -829,6 +831,75 @@ def _build_blocks(
                 )
             )
             paragraph_position += 1
+            continue
+
+        if role.kind == "floating_text":
+            if note_id is not None:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="floating_text_in_note_not_serializable",
+                        severity="error",
+                        message="encadre (style BlockText) non pris en charge dans une note",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
+            floating_paragraphs = [
+                FloatingTextParagraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            ]
+            if not content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_floating_text_paragraph",
+                        severity="warning",
+                        message="paragraphe d'encadre vide",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
+                if _paragraph_role(next_paragraph, convention).kind != "floating_text":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                floating_paragraphs.append(
+                    FloatingTextParagraph(
+                        content=next_content,
+                        source_paragraph_index=next_paragraph.index,
+                        source_style_id=next_paragraph.style_id,
+                    )
+                )
+                if not next_content:
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="empty_floating_text_paragraph",
+                            severity="warning",
+                            message="paragraphe d'encadre vide",
+                            paragraph_index=next_paragraph.index,
+                            style_id=next_paragraph.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position += 1
+            blocks.append(FloatingText(paragraphs=tuple(floating_paragraphs)))
             continue
 
         if is_semantically_empty_paragraph(paragraph):

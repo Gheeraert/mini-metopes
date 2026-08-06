@@ -214,6 +214,11 @@ de valeur `@rend` dediee). Le nom est compare aux `contributors` du JSON ;
 une absence de correspondance produit un avertissement
 (`signature_contributor_not_in_metadata`), jamais bloquant.
 
+Le style natif Word `Block Text` devient un encadre TEI (`<floatingText>`
+avec un `<body>` imbrique, un `<p>` par paragraphe), sans contrainte de
+position : il peut interrompre le flux principal n'importe ou, sauf a
+l'interieur d'une note (`floating_text_in_note_not_serializable`).
+
 Un run Word dont la langue de correction (`w:lang`) differe de la langue du
 document (`document.language` du JSON, comparee sur la seule sous-etiquette
 primaire, ex. `fr` dans `fr-FR`) devient `<hi xml:lang="...">` dans la TEI,

@@ -156,6 +156,29 @@ class Epigraph:
 
 
 @dataclass(frozen=True)
+class FloatingTextParagraph:
+    """Paragraphe source conserve dans un encadre (floatingText)."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["floating_text_paragraph"] = "floating_text_paragraph"
+
+
+@dataclass(frozen=True)
+class FloatingText:
+    """Encadre Word natif (style ``BlockText``), suite contigue de paragraphes.
+
+    Contrairement a Epigraph/Signature, aucune contrainte de position : un
+    encadre peut interrompre le flux principal a n'importe quel endroit
+    (voir decision 0029).
+    """
+
+    paragraphs: tuple[FloatingTextParagraph, ...]
+    kind: Literal["floating_text"] = "floating_text"
+
+
+@dataclass(frozen=True)
 class VerseLine:
     """Vers issu d'un segment separe par un retour manuel Word."""
 
@@ -297,7 +320,7 @@ class EditorialBibliography:
     kind: Literal["bibliography"] = "bibliography"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | Epigraph | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | Epigraph | FloatingText | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
 
 
 @dataclass(frozen=True)
