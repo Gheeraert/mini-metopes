@@ -1,14 +1,18 @@
-# Métadonnées JSON (schema_version 1.0)
+# Métadonnées JSON (schema_version 2.0)
 
 Spécification du JSON compagnon des DOCX Mini-Métopes. Le JSON porte les
 **métadonnées** ; les styles natifs Word portent la **structure du contenu**.
 Les styles Word Métopes restent hors périmètre, et aucun champ de métadonnées
 ne doit être encodé au moyen d'un style `TEI_*` dans le document Word.
 
-Ce contrat est la première version stable du JSON compagnon
-(`schema_version: "1.0"`). Les JSON du prototype antérieur (champ `source`,
-résumé et mots-clés plats) ne sont ni acceptés ni migrés : aucun JSON de
-production antérieur n'existe.
+Version 2.0 (décision 0038) : suppression du champ `document.type`
+(`article`/`chapter`/`book`/…) — Mini-Métopes ne produit plus que du XML de
+livres entiers (décision 0037), ce champ n'a jamais eu d'effet sur la
+conversion et n'apportait plus aucun signal utile. Un JSON `schema_version:
+"1.0"` (avec `document.type`) est refusé explicitement
+(`unsupported_schema_version`), aucune rétrocompatibilité n'étant requise.
+Les JSON du prototype antérieur à la version 1.0 (champ `source`, résumé et
+mots-clés plats) ne sont ni acceptés ni migrés non plus.
 
 ## Principes
 
@@ -39,9 +43,9 @@ production antérieur n'existe.
 
 | Groupe | Champs | Obligatoire | Hérité du profil |
 | --- | --- | --- | --- |
-| `schema_version` | `"1.0"` | oui | — |
+| `schema_version` | `"2.0"` | oui | — |
 | `source_document` | `path`, `sha256` | oui | — |
-| `document` | `title`, `subtitle`, `language` (BCP 47), `type` (`article`, `chapter`, `book`, `introduction`, `conclusion`, `bibliography`, `other`) | titre, langue, type | — |
+| `document` | `title`, `subtitle`, `language` (BCP 47) | titre, langue | — |
 | `contributors[]` | `id`, `role` (`author`, `editor`, `translator`, `scientific_editor`, `other`+`role_label`), `given_name`/`family_name` **ou** `literal_name`, `orcid`, `email`, `affiliations[]` (IDs) | liste possible vide ; ordre significatif | — |
 | `affiliations[]` | `id`, `name`, `unit`, `city`, `country`, `ror` (URL https ror.org) | — | — |
 | `editorial_responsibility[]` | `responsibility`, `name` | — | — |
@@ -125,7 +129,7 @@ métadonnées, `publicationStmt` retombe sur son paragraphe descriptif, et
 
 Validation (`error` sauf mention) : `unsupported_schema_version`,
 `missing_title`, `missing_language`, `invalid_language`,
-`invalid_document_type`, `invalid_source_path`, `invalid_source_sha256`,
+`invalid_source_path`, `invalid_source_sha256`,
 `invalid_contributor_id`, `invalid_contributor_role`,
 `missing_contributor_role_label`, `invalid_contributor_name`, `invalid_orcid`,
 `invalid_email`, `invalid_affiliation_reference`,

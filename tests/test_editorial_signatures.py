@@ -145,20 +145,20 @@ def test_more_than_two_terminal_signature_lines_are_refused() -> None:
     assert "misplaced_signature_not_serializable" in _codes(path)
 
 
-def test_signature_followed_by_a_titre3_contribution_heading_is_accepted() -> None:
-    """Livre a plusieurs contributions (decision 0032) : la signature d'une
-    contribution peut preceder le Titre3 de la contribution suivante."""
+def test_signature_followed_by_a_titre2_pivot_heading_is_accepted() -> None:
+    """Livre a plusieurs contributions (decision 0037) : la signature d'une
+    contribution peut preceder le Titre2 (pivot chapitre/contribution) de
+    la contribution suivante."""
     body = (
-        paragraph("Section", style="Heading2")
-        + paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
         + paragraph("Universite de Rouen", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Autre Auteur", style="Signature")
     )
-    path = _multi_level_docx("signature-titre3-next.docx", body)
+    path = _multi_level_docx("signature-titre2-next.docx", body)
 
     built = build_editorial_document(inspect_docx_file(path))
 
@@ -171,28 +171,41 @@ def test_signature_followed_by_a_titre3_contribution_heading_is_accepted() -> No
     assert signature_texts == ["Claire Dubuisson", "Autre Auteur"]
 
 
-def test_signature_followed_by_a_titre2_section_heading_is_accepted() -> None:
+def test_signature_followed_by_a_titre1_part_heading_is_accepted() -> None:
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Chapitre", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
-        + paragraph("Section suivante", style="Heading2")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Partie suivante", style="Heading1")
+        + paragraph("Chapitre suivant", style="Heading2")
         + paragraph("Corps du texte.")
-        + paragraph("Autre Auteur", style="Signature")
     )
-    path = _multi_level_docx("signature-titre2-next.docx", body)
+    path = _multi_level_docx("signature-titre1-next.docx", body)
 
     built = build_editorial_document(inspect_docx_file(path))
 
     assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
 
 
-def test_signature_followed_by_a_titre4_subsection_heading_is_refused() -> None:
-    """Un Titre4 reste une sous-section de la MEME contribution : la
-    signature ne peut pas le preceder (decision 0032)."""
+def test_signature_followed_by_a_titre3_section_heading_is_refused() -> None:
+    """Titre3 est desormais une section interne a la contribution, plus une
+    frontiere : la signature ne peut pas le preceder (decision 0037)."""
     body = (
-        paragraph("Contribution", style="Heading3")
+        paragraph("Contribution", style="Heading2")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Section", style="Heading3")
+    )
+    path = _multi_level_docx("signature-titre3-next.docx", body)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" in [d.code for d in built.diagnostics]
+
+
+def test_signature_followed_by_a_titre4_subsection_heading_is_refused() -> None:
+    body = (
+        paragraph("Contribution", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
         + paragraph("Sous-section", style="Heading4")
@@ -309,14 +322,14 @@ def test_page_break_after_signature_no_longer_blocks_tei_generation() -> None:
 
 def test_page_break_on_a_normal_paragraph_before_the_next_contribution_is_accepted() -> None:
     """Le meme saut de page, cette fois entre deux contributions d'un
-    livre (decision 0032) : la signature reste terminale par rapport a la
+    livre (decision 0037) : la signature reste terminale par rapport a la
     contribution qui precede."""
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
         + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Autre Auteur", style="Signature")
     )
@@ -343,41 +356,6 @@ def test_signature_serializes_as_a_plain_paragraph_without_rend() -> None:
     paragraphs = tree.xpath("//tei:body/tei:div/tei:p", namespaces=NS)
     assert [p.text for p in paragraphs[-2:]] == ["Claire Dubuisson", "Universite de Rouen"]
     assert all(p.get("rend") is None for p in paragraphs[-2:])
-
-
-def test_multi_contribution_book_serializes_nested_divs_and_both_signatures() -> None:
-    """Livre a deux contributions dans une meme section (decision 0032) :
-    verifie que l'imbrication generique par niveau de titre (deja
-    implementee dans tei/serializer.py, sans code nouveau) produit
-    Section > Contribution, et que chaque signature de contribution est
-    acceptee."""
-    body = (
-        paragraph("Section", style="Heading2")
-        + paragraph("Contribution un", style="Heading3")
-        + paragraph("Corps du texte un.")
-        + paragraph("Claire Dubuisson", style="Signature")
-        + paragraph("Universite de Rouen", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
-        + paragraph("Corps du texte deux.")
-        + paragraph("Autre Auteur", style="Signature")
-    )
-    path = _multi_level_docx("signature-book-e2e.docx", body)
-
-    result = convert_docx_to_tei(path, metadata=_metadata())
-
-    assert result.is_successful, result.diagnostics
-    assert "misplaced_signature_not_serializable" not in [d.code for d in result.diagnostics]
-    tree = etree.fromstring(result.xml_bytes)
-    section_divs = tree.xpath("//tei:body//tei:div[tei:head='Section']", namespaces=NS)
-    assert len(section_divs) == 1
-    contribution_divs = section_divs[0].xpath("./tei:div[tei:head]", namespaces=NS)
-    assert [div.findtext("tei:head", namespaces=NS) for div in contribution_divs] == ["Contribution un", "Contribution deux"]
-    signature_paragraphs = tree.xpath("//tei:body//tei:p", namespaces=NS)
-    assert [p.text for p in signature_paragraphs if p.text in {"Claire Dubuisson", "Universite de Rouen", "Autre Auteur"}] == [
-        "Claire Dubuisson",
-        "Universite de Rouen",
-        "Autre Auteur",
-    ]
 
 
 def test_extraction_reads_terminal_signature_without_consuming_it() -> None:
@@ -413,11 +391,11 @@ def test_extraction_ignores_more_than_two_terminal_signature_lines() -> None:
 
 def test_extraction_reads_one_signature_per_contribution() -> None:
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
         + paragraph("Universite de Rouen", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Autre Auteur", style="Signature")
     )
@@ -433,10 +411,10 @@ def test_extraction_reads_one_signature_per_contribution() -> None:
 
 def test_consistency_check_warns_per_unmatched_signature_with_distinct_paths() -> None:
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps.")
         + paragraph("Claire Dubuisson", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps.")
         + paragraph("Auteur Inconnu", style="Signature")
     )

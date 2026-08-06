@@ -129,8 +129,11 @@ def serialize_editorial_document_to_tei(
     text_element = etree.SubElement(root, _tag("text"))
     if metadata is not None and metadata.abstracts:
         _append_front_abstracts(text_element, metadata)
-    body = etree.SubElement(text_element, _tag("body"))
-    _append_body_blocks(body, document.blocks, state)
+    if _is_collective_work(document.blocks):
+        _append_collective_group(text_element, document.blocks, state)
+    else:
+        body = etree.SubElement(text_element, _tag("body"))
+        _append_body_blocks(body, document.blocks, state)
     if document.bibliography is not None:
         _append_bibliography(root.find(_tag("text")), document.bibliography, state)
     _diagnose_unreferenced_notes(state)
@@ -560,21 +563,106 @@ def _affiliation_text(affiliation: object) -> str:
     return ", ".join(part for part in (affiliation.name, affiliation.unit, affiliation.city, affiliation.country) if part)
 
 
-def _append_body_blocks(parent: etree._Element, blocks: tuple[EditorialBlock, ...], state: _SerializationState) -> None:
+def _is_collective_work(blocks: tuple[EditorialBlock, ...]) -> bool:
+    """Detection automatique, purement structurelle (decision 0037) : un
+    livre est un ouvrage collectif des que 2 titres de niveau 2 (pivot
+    chapitre/contribution) ou plus apparaissent dans le document. Aucun
+    champ manuel : ni menu, ni metadonnee dediee."""
+    return sum(1 for block in blocks if isinstance(block, Heading) and block.level == 2) >= 2
+
+
+def _split_into_contributions(
+    blocks: tuple[EditorialBlock, ...],
+) -> tuple[tuple[Heading, tuple[EditorialBlock, ...]], ...]:
+    """Decouper les blocs a chaque titre de niveau 2 (pivot de contribution).
+
+    Chaque segment demarre par le titre pivot lui-meme (consomme comme
+    titre de la page de titre, pas comme <head> de corps) et court jusqu'au
+    prochain titre de niveau 2 exclu, ou la fin du document.
+    """
+    segments: list[tuple[Heading, list[EditorialBlock]]] = []
+    for block in blocks:
+        if isinstance(block, Heading) and block.level == 2:
+            segments.append((block, []))
+            continue
+        if segments:
+            segments[-1][1].append(block)
+    return tuple((pivot, tuple(rest)) for pivot, rest in segments)
+
+
+def _append_collective_group(text_element: etree._Element, blocks: tuple[EditorialBlock, ...], state: _SerializationState) -> None:
+    """Serialiser un ouvrage collectif : ``group type="article"`` contenant
+    un ``text`` par contribution, chacun avec sa propre page de titre
+    (decision 0037). Une partie (Titre1) ne peut pas contenir plusieurs
+    contributions : TEI n'admet pas ``text``/``group`` comme enfant de
+    ``div`` ; refuse explicitement plutot que de perdre la partie en
+    silence."""
+    if any(isinstance(block, Heading) and block.level == 1 for block in blocks):
+        state.error(
+            "part_with_collective_work_not_serializable",
+            "une partie (Titre1) ne peut pas contenir plusieurs contributions (ouvrage collectif) : "
+            "TEI n'admet pas <text>/<group> comme enfant de <div>",
+        )
+        return
+    group = etree.SubElement(text_element, _tag("group"), type="article")
+    for pivot, rest in _split_into_contributions(blocks):
+        if not pivot.content:
+            state.error("empty_heading_not_serializable", "titre vide non serialisable", source_paragraph_index=pivot.source_paragraph_index)
+            continue
+        contribution_text = etree.SubElement(group, _tag("text"))
+        front = etree.SubElement(contribution_text, _tag("front"))
+        title_page = etree.SubElement(front, _tag("div"), type="titlePage")
+        title_paragraph = etree.SubElement(title_page, _tag("p"), rend="title-main")
+        _append_inline(title_paragraph, pivot.content, state)
+        contribution_body = etree.SubElement(contribution_text, _tag("body"))
+        _append_body_blocks(contribution_body, rest, state, base_level=2)
+
+
+# Correspondance niveau de titre Word -> @type TEI pour un livre (decision
+# 0037, contrat Impressions/Metopes, docs/architecture/METOPES_COMMONS_LATEI_CONTRACT.md) :
+# Titre1 = partie (optionnelle), Titre2 = chapitre (monographie) ou pivot de
+# contribution (ouvrage collectif, voir _is_collective_work), Titre3-5 =
+# section1-3. Titre6 -> section4 est une extrapolation du motif assumee par
+# Mini-Metopes (le schema admet section4-6, mais aucune ligne du contrat ne
+# couvre ce niveau explicitement).
+_MONOGRAPH_DIV_TYPES: dict[int, str] = {
+    1: "part",
+    2: "chapter",
+    3: "section1",
+    4: "section2",
+    5: "section3",
+    6: "section4",
+}
+
+
+def _append_body_blocks(
+    parent: etree._Element, blocks: tuple[EditorialBlock, ...], state: _SerializationState, *, base_level: int = 0
+) -> None:
+    """Imbriquer les blocs par niveau de titre sous ``parent``.
+
+    ``base_level`` decale le niveau de reference pour l'imbrication (pas
+    pour le ``@type``, toujours choisi sur le niveau absolu) : une
+    contribution d'ouvrage collectif (decision 0037) commence son propre
+    corps a un niveau logique 1 alors que ses titres restent absolument de
+    niveau 3+ (section1+), pour eviter des ``<div>`` anonymes de padding
+    representant les niveaux 1/2 deja consommes par la partie/le pivot.
+    """
     divisions: list[etree._Element] = []
     for block in blocks:
         if isinstance(block, Heading):
             if not block.content:
                 state.error("empty_heading_not_serializable", "titre vide non serialisable", source_paragraph_index=block.source_paragraph_index)
                 continue
-            while len(divisions) >= block.level:
+            relative_level = block.level - base_level
+            while len(divisions) >= relative_level:
                 divisions.pop()
-            while len(divisions) < block.level - 1:
+            while len(divisions) < relative_level - 1:
                 anonymous_parent = divisions[-1] if divisions else parent
                 anonymous = etree.SubElement(anonymous_parent, _tag("div"))
                 divisions.append(anonymous)
             container = divisions[-1] if divisions else parent
-            division = etree.SubElement(container, _tag("div"))
+            division_type = _MONOGRAPH_DIV_TYPES.get(block.level)
+            division = etree.SubElement(container, _tag("div"), type=division_type) if division_type else etree.SubElement(container, _tag("div"))
             head = etree.SubElement(division, _tag("head"))
             _append_inline(head, block.content, state)
             divisions.append(division)

@@ -1860,6 +1860,7 @@ Suggested values include: 1] volume (volume); 2] issue; 3] page (page); 4] line;
    <define name="model.resource">
       <choice>
          <ref name="text"/>
+         <ref name="group"/>
       </choice>
    </define>
    <define name="p">
@@ -1908,6 +1909,10 @@ Suggested values include: 1] volume (volume); 2] issue; 3] page (page); 4] line;
                         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0"/>
                         <value>credits</value>
                         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0"/>
+                        <value>title-main</value>
+                        <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : titre principal d'une page de titre de contribution.</a:documentation>
+                        <value>title-sub</value>
+                        <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : sous-titre d'une page de titre de contribution.</a:documentation>
                      </choice>
                   </oneOrMore>
                </list>
@@ -3367,6 +3372,7 @@ Sample values include: 1] first-line; 2] first-letter; 3] before; 4] after</a:do
             </optional>
             <choice>
                <ref name="body"/>
+               <ref name="group"/>
             </choice>
             <zeroOrMore>
                <ref name="model.global"/>
@@ -3385,6 +3391,54 @@ Sample values include: 1] first-line; 2] first-letter; 3] before; 4] after</a:do
          <ref name="att.global.attribute.xmllang"/>
          <ref name="att.global.attribute.xmlbase"/>
          <ref name="att.global.attribute.xmlspace"/>
+         <empty/>
+      </element>
+   </define>
+   <define name="group">
+      <element name="group">
+         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : (group) contains the body of a composite text, grouping together a sequence of distinct texts (or groups of such texts) which are regarded as a unit for some purpose, for example the collected works of an author, a sequence of prose essays by a single author, etc. [4. Default Text Structure 15.1. Varieties of Composite Text]</a:documentation>
+         <group>
+            <zeroOrMore>
+               <ref name="model.global"/>
+            </zeroOrMore>
+            <optional>
+               <group>
+                  <ref name="front"/>
+                  <zeroOrMore>
+                     <ref name="model.global"/>
+                  </zeroOrMore>
+               </group>
+            </optional>
+            <oneOrMore>
+               <group>
+                  <ref name="model.resource"/>
+                  <zeroOrMore>
+                     <ref name="model.global"/>
+                  </zeroOrMore>
+               </group>
+            </oneOrMore>
+            <optional>
+               <group>
+                  <ref name="back"/>
+                  <zeroOrMore>
+                     <ref name="model.global"/>
+                  </zeroOrMore>
+               </group>
+            </optional>
+         </group>
+         <ref name="att.global.attribute.xmlid"/>
+         <ref name="att.global.attribute.n"/>
+         <ref name="att.global.attribute.xmllang"/>
+         <ref name="att.global.attribute.xmlbase"/>
+         <ref name="att.global.attribute.xmlspace"/>
+         <optional>
+            <attribute name="type">
+               <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">characterizes the element in some sense, using any convenient classification scheme or typology.</a:documentation>
+               <data type="token">
+                  <param name="pattern">[^\p{C}\p{Z}]+</param>
+               </data>
+            </attribute>
+         </optional>
          <empty/>
       </element>
    </define>
@@ -3650,6 +3704,12 @@ Sample values include: 1] first-line; 2] first-letter; 3] before; 4] after</a:do
                   <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0"/>
                   <value>section6</value>
                   <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0"/>
+                  <value>part</value>
+                  <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : partie du livre, niveau le plus haut du corps.</a:documentation>
+                  <value>chapter</value>
+                  <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : chapitre d'une monographie.</a:documentation>
+                  <value>titlePage</value>
+                  <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">extension mini-metopes (contrat Impressions/Metopes) : page de titre d'une contribution, dans front.</a:documentation>
                </choice>
             </attribute>
          </optional>

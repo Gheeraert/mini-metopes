@@ -1,5 +1,9 @@
 # 0034 — Type de document `book`
 
+**Statut : remplacee par la decision 0038** (suppression complete du champ
+`document_type`, plus aucun type a distinguer). Conservee comme archive
+historique.
+
 ## Contexte
 
 Depuis la décision 0032, un DOCX peut représenter un livre entier à

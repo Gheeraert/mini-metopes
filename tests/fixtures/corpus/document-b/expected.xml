@@ -85,11 +85,11 @@
       </div>
     </front>
     <body>
-      <div>
+      <div type="part">
         <head>Introduction</head>
         <p>Opening paragraph with a reference<note place="foot"><p>First footnote of the article.</p></note> and a link to <ref target="https://example.org/reference">an external resource</ref>.</p>
         <p rend="consecutive">A consecutive paragraph continuing the previous one.</p>
-        <div>
+        <div type="chapter">
           <head>State of the Art</head>
           <quote>
             <p>A prose quotation attributed to an earlier author.</p>
@@ -104,7 +104,7 @@
             <item>First bulleted item</item>
             <item>Second bulleted item</item>
           </list>
-          <div>
+          <div type="section1">
             <head>Method</head>
             <p>Closing paragraph with a second note<note place="foot"><p>Second footnote of the article.</p></note>.</p>
           </div>

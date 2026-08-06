@@ -9,7 +9,10 @@ en charge les sorties HTML, LaTEI, PDF, EPUB et autres formats.
 Mini-Métopes fournit une validation normative Relax NG du noyau Commons
 Publishing, une inspection OOXML en lecture seule des fichiers DOCX et une
 premiere conversion DOCX -> TEI Commons Publishing pour un sous-ensemble
-conservatoire de la convention Word native.
+conservatoire de la convention Word native. Depuis la décision 0037,
+Mini-Métopes ne produit plus que du XML de **livres entiers** (monographie
+ou ouvrage collectif) — jamais un article ou un chapitre isolé ; voir la
+section « Hiérarchie de titres » plus bas.
 
 ## Développement
 
@@ -213,33 +216,52 @@ consecutifs suivent immediatement un titre, ou ouvrent le document. Ailleurs
 dans le flux ou a l'interieur d'une note, il reste refuse
 (`misplaced_epigraph_not_serializable`).
 
-Le style natif Word `Signature` marque la signature d'auteur en fin
-d'article/chapitre/contribution : premier paragraphe = prenom et nom,
+Le style natif Word `Signature` marque la signature d'auteur en fin de
+partie/chapitre/contribution : premier paragraphe = prenom et nom,
 second (facultatif) = institution de rattachement. Reconnu uniquement en
 suite terminale d'au plus deux lignes, la fin admise etant soit la fin du
-document, soit un titre de niveau 1 a 3 (voir hierarchie de titres
+document, soit un titre de niveau 1 a 2 (voir hierarchie de titres
 ci-dessous) ; sinon refuse (`misplaced_signature_not_serializable`).
 Chaque ligne devient un `<p>` simple (le profil Commons Publishing n'a pas
-de valeur `@rend` dediee). Le nom de chaque signature trouvee est compare
-aux `contributors` du JSON ; une absence de correspondance produit un
-avertissement par occurrence (`signature_contributor_not_in_metadata`),
-jamais bloquant. Un saut de page manuel qui suit immediatement la
-signature est ignore sans bloquer la conversion, meme s'il n'est plus
-porte par un paragraphe style `Signature` (decision 0035).
+de valeur `@rend` dediee pour la signature). Le nom de chaque signature
+trouvee est compare aux `contributors` du JSON ; une absence de
+correspondance produit un avertissement par occurrence
+(`signature_contributor_not_in_metadata`), jamais bloquant. Un saut de
+page manuel qui suit immediatement la signature est ignore sans bloquer
+la conversion, meme s'il n'est plus porte par un paragraphe style
+`Signature` (decision 0035).
 
-Un DOCX peut representer un chapitre/article autonome, ou un livre
-entier/extrait multi-chapitres. Dans ce second cas, la convention
-d'ecriture est : `Titre2` pour une section du livre (regroupe plusieurs
-contributions), `Titre3` pour le titre d'une contribution (recueil
-collectif) ou d'un chapitre (monographie) ; `Titre1` reste reserve au
-titre d'un chapitre/article autonome (usage habituel, une seule
-contribution par DOCX) et n'est pas utilise a l'interieur d'un livre.
-Cette hierarchie n'est pas imposee par une validation dediee : le
-mecanisme generique d'imbrication `<div>` par niveau de titre produit deja
-la structure attendue quel que soit le niveau de depart, et chaque bloc
-`Signature` est simplement terminal par rapport a la contribution qui le
-precede (voir decision 0032). La bibliographie generale du livre, elle,
-reste unique et terminale pour tout le document (decisions 0026/0030/0031).
+## Hierarchie de titres (livre entier uniquement, decision 0037)
+
+Mini-Metopes ne produit plus que du XML de livres entiers : jamais un
+article ou un chapitre isole. La hierarchie des niveaux de titre Word,
+compatible avec le contrat Impressions/Metopes
+(`docs/architecture/METOPES_COMMONS_LATEI_CONTRACT.md`), est :
+
+- **Titre1** = partie du livre, facultative (`div type="part"`).
+- **Titre2** = niveau pivot : titre de chapitre en monographie
+  (`div type="chapter"`), ou titre de contribution en ouvrage collectif.
+- **Titre3 a Titre6** = sections internes (`section1` a `section4`).
+
+La detection monographie/ouvrage collectif est **automatique et purement
+structurelle**, sans champ ni menu a renseigner : des que 2 titres de
+niveau 2 ou plus apparaissent dans le document, chaque occurrence devient
+une contribution independante, serialisee comme un `<text>` distinct avec
+sa propre page de titre (`<group type="article"><text><front>
+<div type="titlePage"><p rend="title-main">…</p></div></front>
+<body>…</body></text>…</group>`) ; avec 0 ou 1 titre de niveau 2, le livre
+reste une monographie a `<div>` typés imbriqués. Une signature reste
+terminale par rapport a la partie/au pivot qui la precede (Titre1 ou
+Titre2 suivant, voir decision 0037).
+
+Limites assumees pour cette passe : pas de sous-titre de contribution
+(`p rend="title-sub"`, aucune convention d'ecriture Word ne l'indique) ;
+une partie (Titre1) ne peut pas contenir plusieurs contributions (TEI
+n'admet pas `<text>`/`<group>` comme enfant de `<div>`) — refuse
+explicitement (`part_with_collective_work_not_serializable`).
+
+La bibliographie generale du livre reste unique et terminale pour tout le
+document (decisions 0026/0030/0031), inchangee par cette refonte.
 
 Le style natif Word `Block Text` devient un encadre TEI (`<floatingText>`
 avec un `<body>` imbrique, un `<p>` par paragraphe), sans contrainte de

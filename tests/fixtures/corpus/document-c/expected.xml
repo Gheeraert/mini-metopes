@@ -26,7 +26,7 @@
   </teiHeader>
   <text>
     <body>
-      <div>
+      <div type="part">
         <head>Le poème</head>
         <p>Le narrateur introduit le poème en <hi rend="italic">prose</hi>.<note place="foot"><p>Note sur la prose introductive.</p></note></p>
         <quote>

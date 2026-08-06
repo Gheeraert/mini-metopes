@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "source.docx",
     "sha256": "6a9552433424ef309e9d259adfae6e183926dfe55f631005e2b08e0f4ca56396"
   },
   "document": {
-    "type": "chapter",
     "language": "fr",
     "title": "Cas invalide discontinuous-list",
     "subtitle": null

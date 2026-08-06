@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "native-figure-details-and-tables.docx",
     "sha256": "3a7c473d25f10f0fa757516da4ebf704a1bf004c25f2300d00b76fe20f9b47f9"
   },
   "document": {
-    "type": "chapter",
     "language": "fr",
     "title": "Figures et tableaux",
     "subtitle": "Structures V1"

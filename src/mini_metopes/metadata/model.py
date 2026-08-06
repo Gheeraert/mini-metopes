@@ -6,10 +6,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-METADATA_SCHEMA_VERSION = "1.0"
+METADATA_SCHEMA_VERSION = "2.0"
 
 ContributorRole = Literal["author", "editor", "translator", "scientific_editor", "other"]
-DocumentType = Literal["article", "chapter", "book", "introduction", "conclusion", "bibliography", "other"]
 IdentifierType = Literal["doi", "isbn-13", "isbn-10", "issn", "eissn", "local"]
 IdentifierFormat = Literal["print", "pdf", "epub", "html"]
 AbstractType = Literal["summary", "abstract", "back-cover"]
@@ -167,7 +166,6 @@ class DocumentMetadata:
 
     schema_version: str
     source: SourceDocument
-    document_type: DocumentType
     language: str
     title: str
     subtitle: str | None = None

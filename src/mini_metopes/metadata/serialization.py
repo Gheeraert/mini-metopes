@@ -41,7 +41,6 @@ def metadata_to_data(metadata: DocumentMetadata) -> dict[str, Any]:
         "schema_version": metadata.schema_version,
         "source_document": {"path": metadata.source.path, "sha256": metadata.source.sha256},
         "document": {
-            "type": metadata.document_type,
             "language": metadata.language,
             "title": metadata.title,
             "subtitle": metadata.subtitle,
@@ -227,7 +226,6 @@ def _decode_metadata_payload(payload: object) -> _DecodedMetadata:
                 path=_string(_field(source, "path", issues, "source_document"), "source_document.path", issues) or "",
                 sha256=_string(_field(source, "sha256", issues, "source_document"), "source_document.sha256", issues) or "",
             ),
-            document_type=_string(_field(document, "type", issues, "document"), "document.type", issues) or "",
             language=_string(_field(document, "language", issues, "document"), "document.language", issues) or "",
             title=_string(_field(document, "title", issues, "document"), "document.title", issues) or "",
             subtitle=_optional_string(document.get("subtitle"), "document.subtitle", issues),

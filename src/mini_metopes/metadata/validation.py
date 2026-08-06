@@ -29,7 +29,6 @@ from .model import (
     Rights,
 )
 
-_DOCUMENT_TYPES = frozenset({"article", "chapter", "book", "introduction", "conclusion", "bibliography", "other"})
 _ROLES = frozenset({"author", "editor", "translator", "scientific_editor", "other"})
 _IDENTIFIER_TYPES = frozenset({"doi", "isbn-13", "isbn-10", "issn", "eissn", "local"})
 _IDENTIFIER_FORMATS = frozenset({"print", "pdf", "epub", "html"})
@@ -67,8 +66,6 @@ def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
     if not metadata.title.strip():
         issues.append(_error("missing_title", "titre obligatoire", "document.title"))
     _validate_language(metadata.language, "document.language", issues, required=True)
-    if metadata.document_type not in _DOCUMENT_TYPES:
-        issues.append(_error("invalid_document_type", "type de document invalide", "document.type"))
     if not metadata.source.path.strip():
         issues.append(_error("invalid_source_path", "chemin du DOCX source obligatoire", "source_document.path"))
     if not _SHA256_RE.fullmatch(metadata.source.sha256):
