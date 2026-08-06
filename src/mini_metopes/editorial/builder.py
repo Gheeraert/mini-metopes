@@ -1296,10 +1296,31 @@ def _build_figure_if_supported(
     next_position = position + 1
     if next_position < len(paragraphs):
         candidate = paragraphs[next_position]
-        if isinstance(candidate, ParagraphInfo) and (
-            convention.is_figure_caption_style(candidate.style_id, candidate.style_is_custom)
-            or convention.is_controlled_figure_caption_style(candidate.style_id, candidate.style_name, candidate.style_is_custom)
-        ):
+        is_native_caption = isinstance(candidate, ParagraphInfo) and convention.is_figure_caption_style(
+            candidate.style_id, candidate.style_is_custom
+        )
+        is_controlled_caption = isinstance(candidate, ParagraphInfo) and convention.is_controlled_figure_caption_style(
+            candidate.style_id, candidate.style_name, candidate.style_is_custom
+        )
+        if title is None and is_native_caption:
+            second_candidate = paragraphs[next_position + 1] if next_position + 1 < len(paragraphs) else None
+            second_is_native_caption = isinstance(second_candidate, ParagraphInfo) and convention.is_figure_caption_style(
+                second_candidate.style_id, second_candidate.style_is_custom
+            )
+            if second_is_native_caption:
+                # Protocole a deux paragraphes Caption natifs (decision 0033),
+                # calque sur celui de Signature : le premier devient le titre
+                # de la figure, le second sa legende. Un seul paragraphe
+                # Caption garde le comportement d'origine (legende seule).
+                title, title_references = _build_figure_text_paragraph(
+                    candidate, rendition="figure-title", role_name="title", convention=convention,
+                    relationships=relationships, diagnostics=diagnostics, note_id=note_id,
+                )
+                references.update(title_references)
+                next_position += 1
+                candidate = second_candidate
+                is_native_caption = True
+        if is_native_caption or is_controlled_caption:
             caption, caption_references = _build_figure_text_paragraph(
                 candidate, rendition="caption", role_name="caption", convention=convention,
                 relationships=relationships, diagnostics=diagnostics, note_id=note_id,

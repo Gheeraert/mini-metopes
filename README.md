@@ -176,7 +176,11 @@ transformees, melangees a du texte ou placees dans des listes restent refusees.
 
 Les figures simples peuvent maintenant recevoir un titre, une legende et des
 credits lorsque les styles controles `TEIfiguretitle`, `TEIfigurecaption` et
-`TEIfigurecredits` sont declares exactement. Les tableaux Word de premier niveau
+`TEIfigurecredits` sont declares exactement. Sans style personnalise, le style
+natif `Caption` suffit aussi pour le titre : deux paragraphes `Caption`
+consecutifs juste apres l'image donnent titre (premier) puis legende
+(second) ; un seul paragraphe `Caption` reste une legende seule, sans titre
+(retro-compatible avec l'usage existant). Voir decision 0033. Les tableaux Word de premier niveau
 deviennent des tableaux TEI lorsqu'ils sont rectangulaires, sans fusion ni
 imbrication, et que chaque cellule contient au plus un paragraphe simple. Les
 tableaux dans les notes, zones de texte ou listes, ainsi que les cellules

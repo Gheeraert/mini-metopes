@@ -146,6 +146,41 @@ def test_editorial_model_builds_figures_captions_and_content_addressed_urls() ->
     assert data["document"]["blocks"][1]["graphic"]["sha256"] == body_figures[0].graphic.sha256
 
 
+def test_two_consecutive_native_captions_become_figure_title_and_caption(tmp_path: Path) -> None:
+    """Protocole Caption a deux paragraphes (decision 0033), calque sur
+    Signature : le premier paragraphe Caption devient le titre de la
+    figure, le second sa legende."""
+    document = _zip_bytes(DOCX, "word/document.xml").decode("utf-8")
+    two_captions = (
+        '<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Titre de la figure</w:t></w:r></w:p>'
+        '<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Legende de la figure</w:t></w:r></w:p>'
+    )
+    path = tmp_path / "two-captions.docx"
+    _write_variant(path, {"word/document.xml": _replace_first_caption(document, two_captions)})
+
+    result = convert_docx_to_tei(path, metadata=_metadata())
+
+    assert result.is_successful, result.diagnostics
+    root = etree.fromstring(result.xml_bytes)
+    titled_figures = root.xpath(".//tei:figure[tei:head]", namespaces=TEI)
+    assert len(titled_figures) == 1
+    figure = titled_figures[0]
+    assert figure.findtext("tei:head", namespaces=TEI) == "Titre de la figure"
+    caption_paragraphs = figure.xpath("./tei:p[@rend='caption']", namespaces=TEI)
+    assert [p.text for p in caption_paragraphs] == ["Legende de la figure"]
+
+
+def test_single_native_caption_still_becomes_a_caption_only(tmp_path: Path) -> None:
+    """Retro-compatibilite explicite : un seul paragraphe Caption apres
+    l'image reste une legende seule, sans titre (comportement d'origine)."""
+    result = build_editorial_document(inspect_docx_file(DOCX), excluded_body_paragraph_indexes=frozenset({0, 1}))
+    body_figures = [block for block in result.document.blocks if isinstance(block, EditorialFigure)]
+
+    assert body_figures[0].title is None
+    assert body_figures[0].caption is not None
+    assert body_figures[0].caption.rendition == "caption"
+
+
 def test_tei_serializes_figures_and_assets_are_written_once(tmp_path: Path) -> None:
     result = convert_docx_to_tei(DOCX, metadata=_metadata())
     assert result.is_successful
