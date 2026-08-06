@@ -307,10 +307,19 @@ def _extract_final_bibliography(
         start_index = native_starts[0]
         start = blocks[start_index]
         assert isinstance(start, ParagraphInfo)
-        title = ()
-        references = set()
         entry_position = start_index
         title_required = False
+        heading_index = _preceding_heading_index(blocks, start_index, convention)
+        if heading_index is not None:
+            heading = blocks[heading_index]
+            assert isinstance(heading, ParagraphInfo)
+            title, references = _build_inline_content(
+                heading, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+            )
+            start_index = heading_index
+        else:
+            title = ()
+            references = set()
     entries, entry_position = _collect_bibliography_entries(
         blocks, entry_position,
         convention=convention, relationships=relationships, diagnostics=diagnostics,
@@ -324,6 +333,29 @@ def _extract_final_bibliography(
         title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries),
         title_required=title_required,
     ), references
+
+
+def _preceding_heading_index(
+    blocks: tuple[ParagraphInfo | TableInfo, ...], before_index: int, convention: WordEditorialConvention
+) -> int | None:
+    """Chercher un titre immediatement avant ``before_index``, blancs ignores.
+
+    Utilise pour rattacher un titre de section (ex. "Bibliographie") a une
+    bibliographie declenchee par le seul style natif ``Bibliography`` (sans
+    ``TEIbiblstart``) : Word n'a pas de style de titre de bibliographie
+    dedie, le titre de section qui la precede en tient lieu (voir decision
+    0031). Ne rattache rien si un autre contenu s'intercale.
+    """
+    index = before_index - 1
+    while index >= 0:
+        block = blocks[index]
+        if isinstance(block, ParagraphInfo) and is_semantically_empty_paragraph(block):
+            index -= 1
+            continue
+        if isinstance(block, ParagraphInfo) and _paragraph_role(block, convention).kind == "heading":
+            return index
+        return None
+    return None
 
 
 def _collect_bibliography_entries(
@@ -784,12 +816,14 @@ def _build_blocks(
             continue
 
         if role.kind == "signature":
-            if is_semantically_empty_paragraph(paragraph):
+            if _is_signature_run_filler(paragraph):
                 # Artefact Word frequent : le "style suivant" de Signature est
-                # lui-meme, si bien qu'une simple touche Entree en fin de bloc
-                # laisse un paragraphe Signature vide. Il ne doit ni compter
-                # dans la limite de deux lignes, ni a lui seul disqualifier la
-                # position terminale (voir decision 0028, corpus reel).
+                # lui-meme, si bien qu'une simple touche Entree (ou un saut de
+                # page force avant la section suivante) en fin de bloc laisse
+                # un paragraphe Signature sans contenu reel. Il ne doit ni
+                # compter dans la limite de deux lignes, ni a lui seul
+                # disqualifier la position terminale (voir decisions 0028 et
+                # 0031, corpus reel).
                 diagnostics.append(
                     EditorialDiagnostic(
                         code="empty_paragraph_ignored",
@@ -809,7 +843,7 @@ def _build_blocks(
                 and isinstance(paragraphs[run_end], ParagraphInfo)
                 and _paragraph_role(paragraphs[run_end], convention).kind == "signature"
             ):
-                if not is_semantically_empty_paragraph(paragraphs[run_end]):
+                if not _is_signature_run_filler(paragraphs[run_end]):
                     effective_length += 1
                 run_end += 1
             valid_position = note_id is None and run_end == len(paragraphs) and effective_length <= 2
@@ -1066,6 +1100,39 @@ def is_semantically_empty_paragraph(paragraph: ParagraphInfo) -> bool:
         if run.tabs:
             return False
         if any(break_type in {"page", "column"} for break_type in run.break_types):
+            return False
+    return True
+
+
+def _is_signature_run_filler(paragraph: ParagraphInfo) -> bool:
+    """Detecter un paragraphe ``Signature`` sans contenu reel, saut de page/
+    colonne isole inclus.
+
+    Le style Word integre ``Signature`` s'auto-continue (son "style suivant"
+    est lui-meme) : un saut de page force avant la section qui suit (la
+    bibliographie, typiquement) peut donc atterrir sur un paragraphe
+    ``Signature`` sans texte. A la difference de
+    ``is_semantically_empty_paragraph`` (utilisee partout ailleurs, ou un
+    saut de page ne doit jamais etre ignore silencieusement), ce filtre
+    n'est applique que dans le contexte tres specifique de la suite
+    terminale de paragraphes ``Signature`` : voir decision 0031, corpus
+    reel. Le saut de page lui-meme n'est jamais serialise ; le perimetre
+    etroit de cette exception evite d'affaiblir la regle generale.
+    """
+    if paragraph.text.strip():
+        return False
+    if paragraph.footnote_reference_ids or paragraph.endnote_reference_ids:
+        return False
+    if paragraph.hyperlink_count or paragraph.hyperlink_relationship_ids:
+        return False
+    if paragraph.drawing_count or paragraph.drawing_relationship_ids:
+        return False
+    if paragraph.bookmark_start_ids:
+        return False
+    if _has_active_numbering(paragraph):
+        return False
+    for run in paragraph.runs:
+        if run.tabs:
             return False
     return True
 

@@ -30,6 +30,15 @@ STYLES = """<?xml version="1.0" encoding="UTF-8"?>
 </w:styles>
 """
 
+STYLES_WITH_BIBLIOGRAPHY = """<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Signature"><w:name w:val="Signature"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Bibliography"><w:name w:val="Bibliography"/></w:style>
+</w:styles>
+"""
+
 
 def _metadata():
     loaded = load_metadata_file(METADATA)
@@ -129,6 +138,53 @@ def test_signature_inside_a_note_is_refused() -> None:
     path = _runtime_docx("signature-note.docx", body, footnotes=footnotes)
 
     assert "misplaced_signature_not_serializable" in _codes(path)
+
+
+def test_signature_followed_by_a_native_bibliography_heading_is_accepted() -> None:
+    """Corpus reel : la bibliographie generale du livre (Titre1) suit la
+    signature de la contribution. Le titre precedent la bibliographie
+    native en devient le <head> (decision 0031), rendant la signature
+    a nouveau terminale par rapport au corps de la contribution."""
+    body = (
+        paragraph("Titre", style="Heading1")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Universite de Rouen", style="Signature")
+        + paragraph("Bibliographie", style="Heading1")
+        + paragraph("Reference un.", style="Bibliography")
+        + paragraph("Reference deux.", style="Bibliography")
+    )
+    path = runtime_docx("signature-then-bibliography.docx")
+    write_docx(path, body, styles=STYLES_WITH_BIBLIOGRAPHY)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
+    assert built.document.bibliography is not None
+    assert built.document.bibliography.title[0].text == "Bibliographie"
+    assert len(built.document.bibliography.entries) == 2
+    last_two = built.document.blocks[-2:]
+    assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
+
+
+def test_trailing_page_break_only_signature_paragraph_does_not_count() -> None:
+    """Corpus reel : un saut de page force avant la section suivante peut
+    atterrir sur un paragraphe Signature vide (le "style suivant" de
+    Signature est lui-meme)."""
+    body = (
+        paragraph("Titre", style="Heading1")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Universite de Rouen", style="Signature")
+        + '<w:p><w:pPr><w:pStyle w:val="Signature"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>'
+    )
+    path = _runtime_docx("signature-trailing-page-break.docx", body)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
+    last_two = built.document.blocks[-2:]
+    assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
 
 
 def test_signature_serializes_as_a_plain_paragraph_without_rend() -> None:
