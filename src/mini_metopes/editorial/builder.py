@@ -781,6 +781,56 @@ def _build_blocks(
             blocks.append(Epigraph(paragraphs=tuple(epigraph_paragraphs)))
             continue
 
+        if role.kind == "signature":
+            run_end = paragraph_position
+            while (
+                run_end < len(paragraphs)
+                and isinstance(paragraphs[run_end], ParagraphInfo)
+                and _paragraph_role(paragraphs[run_end], convention).kind == "signature"
+            ):
+                run_end += 1
+            run_length = run_end - paragraph_position
+            valid_position = note_id is None and run_end == len(paragraphs) and run_length <= 2
+            if not valid_position:
+                for index in range(paragraph_position, run_end):
+                    invalid_block = paragraphs[index]
+                    assert isinstance(invalid_block, ParagraphInfo)
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="misplaced_signature_not_serializable",
+                            severity="error",
+                            message=(
+                                "signature d'auteur (style Signature) hors position de fin "
+                                "d'article/chapitre, ou plus de deux lignes (nom, institution)"
+                            ),
+                            paragraph_index=invalid_block.index,
+                            style_id=invalid_block.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position = run_end
+                continue
+            if not content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_signature_paragraph",
+                        severity="warning",
+                        message="ligne de signature d'auteur vide",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+            blocks.append(
+                Paragraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            )
+            paragraph_position += 1
+            continue
+
         if is_semantically_empty_paragraph(paragraph):
             diagnostics.append(
                 EditorialDiagnostic(

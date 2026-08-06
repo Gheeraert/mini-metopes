@@ -225,9 +225,18 @@ class MetadataLoadResult:
 
 @dataclass(frozen=True)
 class MetadataSuggestions:
-    """Valeurs uniquement proposees depuis le preambule Word."""
+    """Valeurs uniquement proposees depuis le preambule et la fin du DOCX.
+
+    ``signature_name``/``signature_affiliation`` sont lues depuis les
+    paragraphes ``Signature`` terminaux (decision 0028) : contrairement a
+    ``title``/``subtitle``, ces paragraphes ne sont jamais consommes (ils
+    restent du contenu TEI visible) ; seule leur valeur textuelle est
+    reprise ici pour le controle de coherence avec ``contributors``.
+    """
 
     title: str | None
     subtitle: str | None
     diagnostics: tuple[MetadataIssue, ...]
     consumed_paragraph_indexes: tuple[int, ...]
+    signature_name: str | None = None
+    signature_affiliation: str | None = None

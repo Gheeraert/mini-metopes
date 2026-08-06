@@ -205,6 +205,15 @@ consecutifs suivent immediatement un titre, ou ouvrent le document. Ailleurs
 dans le flux ou a l'interieur d'une note, il reste refuse
 (`misplaced_epigraph_not_serializable`).
 
+Le style natif Word `Signature` marque la signature d'auteur en fin
+d'article/chapitre : premier paragraphe = prenom et nom, second (facultatif)
+= institution de rattachement. Reconnu uniquement en suite terminale d'au
+plus deux lignes ; sinon refuse (`misplaced_signature_not_serializable`).
+Chaque ligne devient un `<p>` simple (le profil Commons Publishing n'a pas
+de valeur `@rend` dediee). Le nom est compare aux `contributors` du JSON ;
+une absence de correspondance produit un avertissement
+(`signature_contributor_not_in_metadata`), jamais bloquant.
+
 Un run Word dont la langue de correction (`w:lang`) differe de la langue du
 document (`document.language` du JSON, comparee sur la seule sous-etiquette
 primaire, ex. `fr` dans `fr-FR`) devient `<hi xml:lang="...">` dans la TEI,

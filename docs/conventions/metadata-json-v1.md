@@ -152,7 +152,8 @@ Chargement : `invalid_json`, `invalid_metadata_structure`,
 Profil : `profile_file_unreadable`, `invalid_profile_json`,
 `invalid_profile_structure`, `invalid_profile_id`.
 Cohérence : `metadata_source_filename_changed`, `metadata_source_changed`,
-`metadata_title_differs_from_docx`, `metadata_subtitle_differs_from_docx`.
+`metadata_title_differs_from_docx`, `metadata_subtitle_differs_from_docx`,
+`signature_contributor_not_in_metadata`.
 Sérialisation TEI : `missing_publisher_for_publication_details` (bloquant),
 `pagination_extent_not_serialized` (warning),
 `editorial_responsibility_not_serialized`, `publisher_address_not_serialized`,
