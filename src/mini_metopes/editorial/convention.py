@@ -212,13 +212,21 @@ class WordEditorialConvention:
         """Reconnaître le style natif Word ``Bibliography`` comme une reference.
 
         A la difference de ``TEIbiblreference``, ce n'est pas un style
-        controle : aucune declaration ``w:customStyle`` n'est exigee. Word
-        n'a pas de style de « debut de bibliographie » separe (voir decision
-        0026) ; la premiere entree Bibliography rencontree declenche
-        elle-meme la bibliographie terminale, sans titre.
+        controle : aucune declaration ``w:customStyle`` n'est exigee, et sa
+        presence n'est pas non plus rejetee. Un corpus reel a montre que
+        Word peut ecrire ``w:customStyle="1"`` sur ``Bibliography`` meme
+        quand il est applique tel quel depuis la galerie de styles, sans
+        jamais passer par le gestionnaire de citations (voir decision
+        0026 addendum) : exiger l'absence de ``customStyle`` rejetait donc
+        des documents reels legitimes. Le parametre ``style_is_custom`` est
+        conserve dans la signature pour compatibilite des appelants, mais
+        n'est plus utilise dans la decision.
+
+        Word n'a pas de style de « debut de bibliographie » separe (voir
+        decision 0026) ; la premiere entree Bibliography rencontree
+        declenche elle-meme la bibliographie terminale, sans titre.
         """
-        if style_is_custom is True:
-            return False
+        del style_is_custom
         return style_id in self.native_bibliography_style_ids
 
     def is_bibliographic_reference_inline_style(

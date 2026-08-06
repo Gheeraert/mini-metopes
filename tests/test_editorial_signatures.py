@@ -76,6 +76,25 @@ def test_two_terminal_signature_lines_become_two_paragraphs_in_order() -> None:
     assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
 
 
+def test_trailing_empty_signature_paragraph_does_not_count_toward_the_limit() -> None:
+    """Artefact Word reel : le "style suivant" de Signature est lui-meme, une
+    simple touche Entree laisse un paragraphe Signature vide en fin de bloc."""
+    body = (
+        paragraph("Titre", style="Heading1")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Universite de Rouen", style="Signature")
+        + '<w:p><w:pPr><w:pStyle w:val="Signature"/></w:pPr></w:p>'
+    )
+    path = _runtime_docx("signature-trailing-empty.docx", body)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
+    last_two = built.document.blocks[-2:]
+    assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
+
+
 def test_signature_not_at_the_end_is_refused() -> None:
     body = (
         paragraph("Titre", style="Heading1")

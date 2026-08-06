@@ -314,8 +314,28 @@ NATIVE_BIBLIOGRAPHY_STYLES = STYLES.replace(
 )
 
 
+CUSTOM_FLAGGED_BIBLIOGRAPHY_STYLES = STYLES.replace(
+    "</w:styles>",
+    '  <w:style w:type="paragraph" w:customStyle="1" w:styleId="Bibliography"><w:name w:val="Bibliography"/></w:style>\n</w:styles>',
+)
+
+
 def _native_bibl_entry(text: str) -> str:
     return _paragraph(text, "Bibliography")
+
+
+def test_native_bibliography_style_is_recognized_even_when_word_marks_it_custom() -> None:
+    """Corpus reel : Word peut ecrire w:customStyle="1" sur Bibliography meme
+    applique tel quel depuis la galerie, sans passer par le gestionnaire de
+    citations. Exiger l'absence de customStyle rejetait ce document reel."""
+    body = _paragraph("Corps du texte.") + _native_bibl_entry("Premiere reference.") + _native_bibl_entry("Seconde reference.")
+    path = _runtime_docx("native-bibliography-custom-flag.docx", body, styles=CUSTOM_FLAGGED_BIBLIOGRAPHY_STYLES)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert built.document.bibliography is not None
+    assert len(built.document.bibliography.entries) == 2
+    assert "unsupported_paragraph_style" not in [d.code for d in built.diagnostics]
 
 
 def test_native_bibliography_style_needs_no_controlled_start_style() -> None:

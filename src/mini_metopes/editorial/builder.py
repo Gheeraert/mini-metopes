@@ -784,15 +784,35 @@ def _build_blocks(
             continue
 
         if role.kind == "signature":
+            if is_semantically_empty_paragraph(paragraph):
+                # Artefact Word frequent : le "style suivant" de Signature est
+                # lui-meme, si bien qu'une simple touche Entree en fin de bloc
+                # laisse un paragraphe Signature vide. Il ne doit ni compter
+                # dans la limite de deux lignes, ni a lui seul disqualifier la
+                # position terminale (voir decision 0028, corpus reel).
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_paragraph_ignored",
+                        severity="info",
+                        message="paragraphe Word vide ignore (artefact de mise en page)",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
             run_end = paragraph_position
+            effective_length = 0
             while (
                 run_end < len(paragraphs)
                 and isinstance(paragraphs[run_end], ParagraphInfo)
                 and _paragraph_role(paragraphs[run_end], convention).kind == "signature"
             ):
+                if not is_semantically_empty_paragraph(paragraphs[run_end]):
+                    effective_length += 1
                 run_end += 1
-            run_length = run_end - paragraph_position
-            valid_position = note_id is None and run_end == len(paragraphs) and run_length <= 2
+            valid_position = note_id is None and run_end == len(paragraphs) and effective_length <= 2
             if not valid_position:
                 for index in range(paragraph_position, run_end):
                     invalid_block = paragraphs[index]
@@ -812,17 +832,6 @@ def _build_blocks(
                     )
                 paragraph_position = run_end
                 continue
-            if not content:
-                diagnostics.append(
-                    EditorialDiagnostic(
-                        code="empty_signature_paragraph",
-                        severity="warning",
-                        message="ligne de signature d'auteur vide",
-                        paragraph_index=paragraph.index,
-                        style_id=paragraph.style_id,
-                        note_id=note_id,
-                    )
-                )
             blocks.append(
                 Paragraph(
                     content=content,
