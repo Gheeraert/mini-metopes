@@ -160,6 +160,21 @@ def test_absent_optional_metadata_produce_no_empty_structures() -> None:
     assert tree.xpath("count(//tei:licence)", namespaces=NS) == 0.0
 
 
+def test_license_spdx_id_alone_resolves_to_canonical_name_and_url() -> None:
+    metadata = replace(
+        _base_metadata(),
+        abstracts=(), keywords=(), identifiers=(), collection=None, pagination=None,
+        rights=Rights(license=License(spdx_id="CC-BY-4.0")),
+        publication=Publication(publisher=Publisher(name="Presses de test")),
+    )
+    result = _convert(metadata)
+    tree = etree.fromstring(result.xml_bytes)
+
+    licence = tree.xpath("//tei:availability/tei:licence", namespaces=NS)[0]
+    assert licence.text == "CC BY 4.0"
+    assert licence.get("target") == "https://creativecommons.org/licenses/by/4.0/"
+
+
 def test_publication_details_without_publisher_block_conversion() -> None:
     metadata = replace(
         _base_metadata(),

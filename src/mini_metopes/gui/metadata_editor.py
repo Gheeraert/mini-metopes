@@ -16,6 +16,7 @@ import threading
 
 from mini_metopes.docx import DocxInspectionError
 from mini_metopes.metadata import (
+    SPDX_LICENSES,
     Abstract,
     Affiliation,
     Collection,
@@ -62,6 +63,7 @@ _DOCUMENT_TYPES = ("article", "chapter", "introduction", "conclusion", "bibliogr
 _IDENTIFIER_TYPES = ("doi", "isbn-13", "isbn-10", "issn", "eissn", "local")
 _IDENTIFIER_FORMATS = ("", "print", "pdf", "epub", "html")
 _ABSTRACT_TYPES = ("summary", "abstract", "back-cover")
+_LICENSE_SPDX_IDS = ("",) + tuple(SPDX_LICENSES)
 
 
 def _build_metadata_editor(
@@ -458,6 +460,17 @@ def _build_metadata_editor(
     for row, (label, variable) in enumerate((("Détenteur des droits", holder_var), ("Mention affichée", statement_var), ("Licence (nom)", license_name_var), ("Licence (URL)", license_url_var))):
         ttk.Label(rights_frame, text=label).grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(rights_frame, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=2)
+    license_spdx_row = 4
+    license_spdx_var = tk.StringVar()
+    ttk.Label(rights_frame, text="Licence (identifiant SPDX)").grid(row=license_spdx_row, column=0, sticky="w", pady=2)
+    ttk.Combobox(
+        rights_frame, textvariable=license_spdx_var, values=_LICENSE_SPDX_IDS, width=34, state="readonly",
+    ).grid(row=license_spdx_row, column=1, sticky="ew", pady=2)
+    ttk.Label(
+        rights_frame,
+        text="Si renseigné, complète automatiquement nom et URL quand ils sont vides.",
+        foreground="#555555",
+    ).grid(row=license_spdx_row + 1, column=0, columnspan=2, sticky="w")
 
     identifiers_frame, identifier_tree, identifier_buttons = list_frame(
         rights_tab, "Identifiants de publication",
@@ -546,6 +559,7 @@ def _build_metadata_editor(
                 license=License(
                     name=license_name_var.get().strip() or None,
                     url=license_url_var.get().strip() or None,
+                    spdx_id=license_spdx_var.get().strip() or None,
                 ),
             ),
             collection=collection,
@@ -604,6 +618,7 @@ def _build_metadata_editor(
         statement_var.set(state.metadata.rights.statement or "")
         license_name_var.set(state.metadata.rights.license.name or "")
         license_url_var.set(state.metadata.rights.license.url or "")
+        license_spdx_var.set(state.metadata.rights.license.spdx_id or "")
         collection = state.metadata.collection
         collection_title_var.set(collection.title if collection else "")
         collection_issn_var.set((collection.issn if collection else None) or "")

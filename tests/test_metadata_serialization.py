@@ -6,6 +6,8 @@ import pytest
 from mini_metopes.metadata import (
     Collection,
     Funding,
+    License,
+    Rights,
     load_metadata_file,
     metadata_from_json,
     metadata_to_json,
@@ -34,6 +36,16 @@ def test_funding_and_collection_editor_round_trip() -> None:
         collection=Collection("Une collection", editor="Un directeur de collection"),
     )
     rendered = metadata_to_json(enriched)
+    round_tripped = metadata_from_json(rendered)
+    assert round_tripped.metadata == enriched
+
+
+def test_license_spdx_id_round_trips() -> None:
+    loaded = load_metadata_file(FIXTURE)
+    assert loaded.metadata is not None
+    enriched = replace(loaded.metadata, rights=Rights(license=License(spdx_id="CC-BY-4.0")))
+    rendered = metadata_to_json(enriched)
+    assert '"spdx_id": "CC-BY-4.0"' in rendered
     round_tripped = metadata_from_json(rendered)
     assert round_tripped.metadata == enriched
 

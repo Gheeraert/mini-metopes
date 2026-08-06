@@ -93,10 +93,18 @@ class Identifier:
 
 @dataclass(frozen=True)
 class License:
-    """Licence affichee et son URI reelle ; jamais de valeur de substitution."""
+    """Licence affichee et son URI reelle ; jamais de valeur de substitution.
+
+    ``spdx_id`` est facultatif et complete ``name``/``url`` en texte libre :
+    quand il designe une licence Creative Commons connue
+    (``validation.SPDX_LICENSES``), ``name``/``url`` peuvent rester absents
+    et sont alors resolus automatiquement (voir
+    ``validation.resolved_license``).
+    """
 
     name: str | None = None
     url: str | None = None
+    spdx_id: str | None = None
 
 
 @dataclass(frozen=True)

@@ -47,7 +47,7 @@ production antérieur n'existe.
 | `editorial_responsibility[]` | `responsibility`, `name` | — | — |
 | `publication` | `publisher.name/place/address[]/url`, `publication_date` (`AAAA`, `AAAA-MM`, `AAAA-MM-JJ`) | — | `publisher.*` |
 | `identifiers[]` | `type` (`doi`, `isbn-13`, `isbn-10`, `issn`, `eissn`, `local`), `value`, `format` (`print`, `pdf`, `epub`, `html`) | format obligatoire pour un ISBN | — |
-| `rights` | `holder`, `statement`, `license.name`, `license.url` | nom de licence obligatoire avec URL | `holder` |
+| `rights` | `holder`, `statement`, `license.name`, `license.url`, `license.spdx_id` (sous-ensemble CC 4.0 + CC0, voir décision 0023) | nom de licence obligatoire avec URL, sauf `spdx_id` renseigné | `holder` |
 | `abstracts[]` | `type` (`summary`, `abstract`, `back-cover`), `language`, `text` (un paragraphe par ligne) | — | — |
 | `keywords[]` | `language`, `scheme` (défaut `keywords`), `items[]` | ordre conservé, pas de déduplication automatique | — |
 | `collection` | `title`, `issn`, `volume`, `editor` — collection simple uniquement | titre si présent | — |
@@ -144,7 +144,8 @@ Validation (`error` sauf mention) : `unsupported_schema_version`,
 `invalid_collection_title`, `invalid_collection_volume`,
 `invalid_collection_editor`,
 `conflicting_pagination`, `incomplete_pagination`, `invalid_pagination`,
-`invalid_funder`, `invalid_grant_number`.
+`invalid_funder`, `invalid_grant_number`,
+`invalid_license_spdx_id`, `license_spdx_id_mismatch` (warning).
 
 Chargement : `invalid_json`, `invalid_metadata_structure`,
 `missing_metadata_field`, `invalid_field_type`, `metadata_file_unreadable`.

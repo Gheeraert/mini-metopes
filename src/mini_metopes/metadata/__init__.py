@@ -12,11 +12,13 @@ from .model import *
 from .profile import apply_institutional_profile, load_institutional_profile
 from .serialization import load_metadata_file, metadata_from_json, metadata_to_data, metadata_to_json, write_metadata_file
 from .validation import (
+    SPDX_LICENSES,
     keyword_duplicate_pairs,
     normalize_doi,
     normalize_isbn,
     normalize_issn,
     normalize_orcid,
+    resolved_license,
     validate_metadata,
 )
 

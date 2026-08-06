@@ -43,6 +43,7 @@ from mini_metopes.metadata import (
     normalize_doi,
     normalize_issn,
     normalize_orcid,
+    resolved_license,
 )
 
 from .model import TeiAsset, TeiConversionDiagnostic, TeiConversionResult, TeiWriteResult
@@ -457,7 +458,7 @@ def _append_publication_statement(
         etree.SubElement(publication, _tag("idno"), type=idno_type).text = value
     if availability:
         element = etree.SubElement(publication, _tag("availability"))
-        license_model = metadata.rights.license
+        license_model = resolved_license(metadata.rights.license)
         if license_model.name:
             attributes = {"target": license_model.url} if license_model.url else {}
             etree.SubElement(element, _tag("licence"), **attributes).text = license_model.name
@@ -469,7 +470,8 @@ def _append_publication_statement(
 
 def _availability_content(metadata: DocumentMetadata) -> bool:
     rights = metadata.rights
-    return bool(rights.license.name or rights.statement or rights.holder)
+    license_model = resolved_license(rights.license)
+    return bool(license_model.name or rights.statement or rights.holder)
 
 
 def _tei_identifier(identifier: object, index: int, state: _SerializationState) -> tuple[str | None, str | None]:

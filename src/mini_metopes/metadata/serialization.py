@@ -133,7 +133,9 @@ def _publication_to_data(publication: Publication) -> dict[str, Any]:
 
 
 def _rights_to_data(rights: Rights) -> dict[str, Any]:
-    license_data = _drop_empty({"name": rights.license.name, "url": rights.license.url}, keep=())
+    license_data = _drop_empty(
+        {"name": rights.license.name, "url": rights.license.url, "spdx_id": rights.license.spdx_id}, keep=()
+    )
     return _drop_empty({
         "holder": rights.holder,
         "statement": rights.statement,
@@ -363,6 +365,7 @@ def _decode_rights(value: object, issues: list[MetadataIssue]) -> Rights:
             license_model = License(
                 name=_optional_string(license_item.get("name"), "rights.license.name", issues),
                 url=_optional_string(license_item.get("url"), "rights.license.url", issues),
+                spdx_id=_optional_string(license_item.get("spdx_id"), "rights.license.spdx_id", issues),
             )
     return Rights(
         holder=_optional_string(item.get("holder"), "rights.holder", issues),
