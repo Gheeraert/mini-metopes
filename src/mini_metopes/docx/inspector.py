@@ -572,6 +572,7 @@ def _read_run(element: etree._Element, styles_by_id: dict[str, StyleInfo]) -> Ru
         contents=contents,
         hyperlink_relationship_id=hyperlink_relationship_id,
         hyperlink_anchor=hyperlink_anchor,
+        language=_child_value(properties, "lang") if properties is not None else None,
         style_name=style.name if style else None,
         style_is_custom=style.is_custom if style else None,
         style_type=style.style_type if style else None,

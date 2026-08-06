@@ -116,6 +116,28 @@ def test_unsupported_paragraph_style_blocks_with_error_severity(editorial_inspec
     assert all(diagnostic.severity == "error" for diagnostic in matching)
 
 
+def test_runs_with_different_declared_language_are_not_merged(editorial_inspection) -> None:
+    paragraph = editorial_inspection.paragraphs[2]
+    base_run = paragraph.runs[0]
+    assert base_run.text == "Texte "
+    first = replace(base_run, text="Bonjour ", contents=(RunContentInfo(kind="text", text="Bonjour "),), language=None)
+    second = replace(base_run, text="hello", contents=(RunContentInfo(kind="text", text="hello"),), language="en-US")
+    modified = replace(paragraph, runs=(first, second) + paragraph.runs[1:])
+    inspection = replace(
+        editorial_inspection,
+        paragraphs=editorial_inspection.paragraphs[:2] + (modified,) + editorial_inspection.paragraphs[3:],
+    )
+
+    result = build_editorial_document(inspection)
+    paragraph_block = _block(result, 2)
+    assert isinstance(paragraph_block, Paragraph)
+    spans = [item for item in paragraph_block.content if isinstance(item, TextSpan)]
+    assert spans[0].text == "Bonjour "
+    assert spans[0].language is None
+    assert spans[1].text == "hello"
+    assert spans[1].language == "en-US"
+
+
 def test_style_classification_priority_handles_outline_fallbacks(editorial_inspection) -> None:
     result = build_editorial_document(editorial_inspection)
 

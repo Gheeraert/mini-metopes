@@ -182,3 +182,9 @@ citation, ou former une bibliographie finale ouverte par `TEIbiblstart`.
 Le style de caractere `TEIbiblreference-inline` produit un `bibl` inline. La
 bibliographie est unique, terminale et devient `text/back/listBibl`; Mini-Metopes
 ne deduit pas de `biblStruct`.
+
+Un run Word dont la langue de correction (`w:lang`) differe de la langue du
+document (`document.language` du JSON, comparee sur la seule sous-etiquette
+primaire, ex. `fr` dans `fr-FR`) devient `<hi xml:lang="...">` dans la TEI,
+meme sans autre mise en forme. Cela permet de marquer une citation en langue
+originale au fil du texte. Aucune supposition n'est faite sans metadonnees.

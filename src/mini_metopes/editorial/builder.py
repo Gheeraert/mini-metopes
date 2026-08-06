@@ -2067,7 +2067,7 @@ def _build_inline_content(
         for item in run.contents:
             if item.kind == "text":
                 if item.text:
-                    _append_inline(run_content, TextSpan(text=item.text, marks=marks, link=link))
+                    _append_inline(run_content, TextSpan(text=item.text, marks=marks, link=link, language=run.language))
             elif item.kind == "tab":
                 run_content.append(Tab())
                 diagnostics.append(
@@ -2266,7 +2266,7 @@ def _append_inline(content: list[EditorialInline], item: EditorialInline) -> Non
         return
     if content and isinstance(content[-1], TextSpan):
         previous = content[-1]
-        if previous.marks == item.marks and previous.link == item.link:
+        if previous.marks == item.marks and previous.link == item.link and previous.language == item.language:
             content[-1] = replace(previous, text=previous.text + item.text)
             return
     content.append(item)

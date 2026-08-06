@@ -71,6 +71,7 @@ class _SerializationState:
     notes: dict[tuple[str, str], EditorialNote]
     active_notes: set[tuple[str, str]]
     referenced_notes: set[tuple[str, str]]
+    document_language: str | None = None
 
     def error(
         self,
@@ -116,7 +117,10 @@ def serialize_editorial_document_to_tei(
             )
         else:
             notes[key] = note
-    state = _SerializationState(document, diagnostics, notes, set(), set())
+    state = _SerializationState(
+        document, diagnostics, notes, set(), set(),
+        document_language=metadata.language if metadata is not None else None,
+    )
     root = etree.Element(_tag("TEI"), nsmap=_NSMAP)
     _append_header(root, document.source_name, metadata, state)
     text_element = etree.SubElement(root, _tag("text"))
@@ -368,6 +372,25 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
 
 
 _XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+
+
+def _foreign_language_attribute(run_language: str | None, document_language: str | None) -> str | None:
+    """Determiner s'il faut porter `xml:lang` sur `<hi>` pour un run en langue etrangere.
+
+    Compare uniquement la sous-etiquette primaire (ex. `fr` dans `fr-FR`) :
+    un run Word tague `fr-FR` dans un document declare `fr` n'est pas une
+    exception a marquer. Sans langue de document connue (`metadata` absent),
+    aucune supposition n'est faite.
+    """
+    if run_language is None or document_language is None:
+        return None
+    if _primary_language_subtag(run_language) == _primary_language_subtag(document_language):
+        return None
+    return run_language
+
+
+def _primary_language_subtag(value: str) -> str:
+    return value.strip().split("-", 1)[0].lower()
 _TEI_CONTRIBUTOR_ROLES = {
     "author": "aut",
     "editor": "edt",
@@ -864,8 +887,12 @@ def _append_inline(
     for item in items:
         if isinstance(item, TextSpan):
             container = _text_container(parent, item.link, state)
-            if item.marks:
-                rendered = etree.SubElement(container, _tag("hi"), rend=" ".join(_REND_VALUES[mark] for mark in item.marks))
+            foreign_language = _foreign_language_attribute(item.language, state.document_language)
+            if item.marks or foreign_language is not None:
+                attributes = {"rend": " ".join(_REND_VALUES[mark] for mark in item.marks)} if item.marks else {}
+                rendered = etree.SubElement(container, _tag("hi"), **attributes)
+                if foreign_language is not None:
+                    rendered.set(_XML_LANG, foreign_language)
                 rendered.text = item.text
                 previous = rendered
             else:

@@ -112,6 +112,64 @@ def test_positive_native_conversion_has_no_unknown_style_diagnostics() -> None:
     assert "unsupported_character_style" not in [diagnostic.code for diagnostic in result.diagnostics]
 
 
+def test_run_with_declared_foreign_language_is_wrapped_in_hi_with_xml_lang() -> None:
+    """Un run Word tague dans une autre langue que le document (metadata.language
+    = fr) doit porter xml:lang, sans que ce soit une exception au principe
+    "pas de dialecte TEI local" (hi accepte xml:lang, voir docs/architecture/0019)."""
+    metadata = load_metadata_file(METADATA).metadata
+    assert metadata is not None
+    assert metadata.language == "fr"
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    paragraph = inspection.paragraphs[2]
+    assert paragraph.text == "Avant le premier titre."
+    foreign_run = replace(paragraph.runs[0], language="en-US")
+    modified_paragraph = replace(paragraph, runs=(foreign_run,))
+    inspection = replace(
+        inspection,
+        paragraphs=inspection.paragraphs[:2] + (modified_paragraph,) + inspection.paragraphs[3:],
+    )
+    consumed = extract_metadata_suggestions(inspection).consumed_paragraph_indexes
+    editorial = build_editorial_document(inspection, excluded_body_paragraph_indexes=frozenset(consumed))
+
+    result = serialize_editorial_document_to_tei(editorial.document, metadata=metadata)
+
+    assert result.is_successful
+    tree = _tree(result)
+    hi_elements = tree.xpath(
+        "//tei:hi[@xml:lang='en-US']",
+        namespaces={**NS, "xml": "http://www.w3.org/XML/1998/namespace"},
+    )
+    assert len(hi_elements) == 1
+    assert hi_elements[0].text == "Avant le premier titre."
+
+
+def test_run_with_matching_primary_language_subtag_is_not_wrapped() -> None:
+    """`fr-FR` (courant sous Word) ne doit pas etre traite comme etranger
+    dans un document declare `fr` : seule la sous-etiquette primaire compte."""
+    metadata = load_metadata_file(METADATA).metadata
+    assert metadata is not None
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    paragraph = inspection.paragraphs[2]
+    same_language_run = replace(paragraph.runs[0], language="fr-FR")
+    modified_paragraph = replace(paragraph, runs=(same_language_run,))
+    inspection = replace(
+        inspection,
+        paragraphs=inspection.paragraphs[:2] + (modified_paragraph,) + inspection.paragraphs[3:],
+    )
+    consumed = extract_metadata_suggestions(inspection).consumed_paragraph_indexes
+    editorial = build_editorial_document(inspection, excluded_body_paragraph_indexes=frozenset(consumed))
+
+    result = serialize_editorial_document_to_tei(editorial.document, metadata=metadata)
+
+    assert result.is_successful
+    tree = _tree(result)
+    hi_with_lang = tree.xpath(
+        "//tei:hi[@xml:lang]",
+        namespaces={**NS, "xml": "http://www.w3.org/XML/1998/namespace"},
+    )
+    assert hi_with_lang == []
+
+
 @pytest.mark.parametrize(
     ("document_factory", "code"),
     [

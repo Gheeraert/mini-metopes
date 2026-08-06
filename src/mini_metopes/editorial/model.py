@@ -30,6 +30,7 @@ class TextSpan:
     text: str
     marks: tuple[TextMark, ...] = ()
     link: EditorialLink | None = None
+    language: str | None = None
     kind: Literal["text"] = "text"
 
 
