@@ -206,13 +206,30 @@ dans le flux ou a l'interieur d'une note, il reste refuse
 (`misplaced_epigraph_not_serializable`).
 
 Le style natif Word `Signature` marque la signature d'auteur en fin
-d'article/chapitre : premier paragraphe = prenom et nom, second (facultatif)
-= institution de rattachement. Reconnu uniquement en suite terminale d'au
-plus deux lignes ; sinon refuse (`misplaced_signature_not_serializable`).
+d'article/chapitre/contribution : premier paragraphe = prenom et nom,
+second (facultatif) = institution de rattachement. Reconnu uniquement en
+suite terminale d'au plus deux lignes, la fin admise etant soit la fin du
+document, soit un titre de niveau 1 a 3 (voir hierarchie de titres
+ci-dessous) ; sinon refuse (`misplaced_signature_not_serializable`).
 Chaque ligne devient un `<p>` simple (le profil Commons Publishing n'a pas
-de valeur `@rend` dediee). Le nom est compare aux `contributors` du JSON ;
-une absence de correspondance produit un avertissement
-(`signature_contributor_not_in_metadata`), jamais bloquant.
+de valeur `@rend` dediee). Le nom de chaque signature trouvee est compare
+aux `contributors` du JSON ; une absence de correspondance produit un
+avertissement par occurrence (`signature_contributor_not_in_metadata`),
+jamais bloquant.
+
+Un DOCX peut representer un chapitre/article autonome, ou un livre
+entier/extrait multi-chapitres. Dans ce second cas, la convention
+d'ecriture est : `Titre2` pour une section du livre (regroupe plusieurs
+contributions), `Titre3` pour le titre d'une contribution (recueil
+collectif) ou d'un chapitre (monographie) ; `Titre1` reste reserve au
+titre d'un chapitre/article autonome (usage habituel, une seule
+contribution par DOCX) et n'est pas utilise a l'interieur d'un livre.
+Cette hierarchie n'est pas imposee par une validation dediee : le
+mecanisme generique d'imbrication `<div>` par niveau de titre produit deja
+la structure attendue quel que soit le niveau de depart, et chaque bloc
+`Signature` est simplement terminal par rapport a la contribution qui le
+precede (voir decision 0032). La bibliographie generale du livre, elle,
+reste unique et terminale pour tout le document (decisions 0026/0030/0031).
 
 Le style natif Word `Block Text` devient un encadre TEI (`<floatingText>`
 avec un `<body>` imbrique, un `<p>` par paragraphe), sans contrainte de

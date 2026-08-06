@@ -76,6 +76,23 @@ zones de texte, tableaux non simples, sauts de page/colonne, tabulations…)
 bloquent la conversion avec des diagnostics stables ; ils ne sont jamais
 transformés silencieusement en paragraphes.
 
+### Livre à plusieurs contributions (`Heading1`–`Heading3`)
+
+Un DOCX peut représenter un chapitre/article autonome (`Heading1` = titre
+du chapitre, usage habituel), ou un livre entier/extrait multi-chapitres.
+Dans ce second cas, convention d'écriture : `Heading2` (« Titre 2 ») pour
+une section du livre, `Heading3` (« Titre 3 ») pour le titre d'une
+contribution (recueil collectif) ou d'un chapitre (monographie) ;
+`Heading1` n'est pas utilisé à l'intérieur d'un livre. Cette hiérarchie
+n'est pas une règle bloquante : le mécanisme générique d'imbrication `div`
+par niveau de titre produit déjà la structure attendue quel que soit le
+niveau de départ (voir décision 0032). Conséquence directe pour le style
+`Signature` : un bloc terminal par rapport à une contribution est reconnu
+juste avant la fin du document, ou juste avant un titre de niveau 1 à 3
+(la contribution/section suivante) — un titre de niveau 4 ou plus reste
+une sous-section de la même contribution et ne rend pas la signature
+terminale.
+
 ## Vocabulaire XML des listes (vérifié)
 
 Sérialisation actuelle (`tei/serializer.py`) :

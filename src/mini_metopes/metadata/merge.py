@@ -20,12 +20,13 @@ def metadata_consistency_issues(metadata: DocumentMetadata, docx_path: Path, sug
         issues.append(MetadataIssue("metadata_title_differs_from_docx", "warning", "le titre JSON differe du Title Word", "document.title"))
     if suggestions.subtitle != metadata.subtitle and suggestions.subtitle is not None:
         issues.append(MetadataIssue("metadata_subtitle_differs_from_docx", "warning", "le sous-titre JSON differe du Subtitle Word", "document.subtitle"))
-    if suggestions.signature_name is not None and not _signature_matches_a_contributor(suggestions.signature_name, metadata):
-        issues.append(MetadataIssue(
-            "signature_contributor_not_in_metadata", "warning",
-            f"la signature Word ({suggestions.signature_name!r}) ne correspond a aucun contributeur du JSON",
-            "contributors",
-        ))
+    for index, signature in enumerate(suggestions.signatures):
+        if signature.name is not None and not _signature_matches_a_contributor(signature.name, metadata):
+            issues.append(MetadataIssue(
+                "signature_contributor_not_in_metadata", "warning",
+                f"la signature Word ({signature.name!r}) ne correspond a aucun contributeur du JSON",
+                f"signatures[{index}]",
+            ))
     return tuple(issues)
 
 

@@ -846,7 +846,11 @@ def _build_blocks(
                 if not _is_signature_run_filler(paragraphs[run_end]):
                     effective_length += 1
                 run_end += 1
-            valid_position = note_id is None and run_end == len(paragraphs) and effective_length <= 2
+            valid_position = (
+                note_id is None
+                and effective_length <= 2
+                and _signature_run_is_terminal(paragraphs, run_end, convention)
+            )
             if not valid_position:
                 for index in range(paragraph_position, run_end):
                     invalid_block = paragraphs[index]
@@ -856,8 +860,9 @@ def _build_blocks(
                             code="misplaced_signature_not_serializable",
                             severity="error",
                             message=(
-                                "signature d'auteur (style Signature) hors position de fin "
-                                "d'article/chapitre, ou plus de deux lignes (nom, institution)"
+                                "signature d'auteur (style Signature) doit preceder immediatement "
+                                "la section/contribution suivante (Titre1 a Titre3) ou la fin du "
+                                "document, et compter deux lignes au plus (nom, institution)"
                             ),
                             paragraph_index=invalid_block.index,
                             style_id=invalid_block.style_id,
@@ -1135,6 +1140,24 @@ def _is_signature_run_filler(paragraph: ParagraphInfo) -> bool:
         if run.tabs:
             return False
     return True
+
+
+def _signature_run_is_terminal(
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...], run_end: int, convention: WordEditorialConvention
+) -> bool:
+    """Un bloc ``Signature`` est terminal en fin de document, ou juste avant
+    un titre de niveau 1 a 3 (fin de contribution/section pour un livre a
+    plusieurs contributions ; voir decision 0032). Un titre de niveau 4 ou
+    plus reste une sous-section de la MEME contribution : la signature ne
+    peut pas le preceder.
+    """
+    if run_end == len(paragraphs):
+        return True
+    next_block = paragraphs[run_end]
+    if not isinstance(next_block, ParagraphInfo):
+        return False
+    role = _paragraph_role(next_block, convention)
+    return role.kind == "heading" and role.heading_level is not None and role.heading_level <= 3
 
 
 def _build_editorial_table(
