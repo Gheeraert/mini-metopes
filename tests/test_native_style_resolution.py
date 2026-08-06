@@ -66,6 +66,63 @@ def test_french_word_style_ids_resolve_through_canonical_names() -> None:
     }
 
 
+GERMAN_WORD_STYLES = (
+    # Word allemand : nom affiche localise, sous-ensemble verifie (decision 0020).
+    _style("berschrift1", "Überschrift 1"),
+    _style("Standard", "Standard"),
+    _style("Textkrper", "Textkörper"),
+    _style("Zitat", "Zitat"),
+    _style("Listenabsatz", "Listenabsatz"),
+    _style("Funotentext", "Fußnotentext"),
+    _style("Titel", "Titel"),
+    _style("Untertitel", "Untertitel"),
+    _style("Beschriftung", "Beschriftung"),
+)
+
+SPANISH_WORD_STYLES = (
+    # Word espagnol : nom affiche localise, sous-ensemble verifie (decision 0020).
+    _style("Ttulo1", "Título 1"),
+    _style("Textoindependiente", "Texto independiente"),
+    _style("Cita", "Cita"),
+    _style("Prrafodelista", "Párrafo de lista"),
+    _style("Textodenotaalpie", "Texto de nota al pie"),
+    _style("Ttulo", "Título"),
+    _style("Subttulo", "Subtítulo"),
+    _style("Ttulodeilustracin", "Título de ilustración"),
+    _style("nfasis", "Énfasis", style_type="character"),
+)
+
+
+def test_german_word_style_names_resolve_through_canonical_names() -> None:
+    aliases = native_style_alias_map(GERMAN_WORD_STYLES)
+    assert aliases == {
+        "berschrift1": "Heading1",
+        "Standard": "Normal",
+        "Textkrper": "BodyText",
+        "Zitat": "Quote",
+        "Listenabsatz": "ListParagraph",
+        "Funotentext": "FootnoteText",
+        "Titel": "Title",
+        "Untertitel": "Subtitle",
+        "Beschriftung": "Caption",
+    }
+
+
+def test_spanish_word_style_names_resolve_through_canonical_names() -> None:
+    aliases = native_style_alias_map(SPANISH_WORD_STYLES)
+    assert aliases == {
+        "Ttulo1": "Heading1",
+        "Textoindependiente": "BodyText",
+        "Cita": "Quote",
+        "Prrafodelista": "ListParagraph",
+        "Textodenotaalpie": "FootnoteText",
+        "Ttulo": "Title",
+        "Subttulo": "Subtitle",
+        "Ttulodeilustracin": "Caption",
+        "nfasis": "Emphasis",
+    }
+
+
 def test_localized_display_names_resolve_with_case_space_and_accent_folding() -> None:
     aliases = native_style_alias_map(
         (

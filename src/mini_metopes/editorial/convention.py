@@ -317,28 +317,31 @@ def _name_table(*names_by_canonical: tuple[str, tuple[str, ...]]) -> dict[str, s
 
 # Noms OOXML canoniques (invariants anglais de la specification, ce que Word
 # francais ecrit dans ``w:name``) et noms affiches localises (francais,
-# anglais) susceptibles d'apparaitre chez d'autres producteurs.
+# anglais, et un sous-ensemble verifie allemand/espagnol - voir la decision
+# 0020 pour la methode de verification et les entrees volontairement
+# absentes faute de confirmation suffisante) susceptibles d'apparaitre chez
+# d'autres producteurs.
 NATIVE_PARAGRAPH_STYLE_NAMES: dict[str, str] = _name_table(
-    ("Heading1", ("heading 1", "titre 1")),
-    ("Heading2", ("heading 2", "titre 2")),
-    ("Heading3", ("heading 3", "titre 3")),
-    ("Heading4", ("heading 4", "titre 4")),
-    ("Heading5", ("heading 5", "titre 5")),
-    ("Heading6", ("heading 6", "titre 6")),
-    ("Normal", ("normal",)),
-    ("BodyText", ("body text", "corps de texte")),
-    ("Quote", ("quote", "citation")),
+    ("Heading1", ("heading 1", "titre 1", "überschrift 1", "título 1")),
+    ("Heading2", ("heading 2", "titre 2", "überschrift 2", "título 2")),
+    ("Heading3", ("heading 3", "titre 3", "überschrift 3", "título 3")),
+    ("Heading4", ("heading 4", "titre 4", "überschrift 4", "título 4")),
+    ("Heading5", ("heading 5", "titre 5", "überschrift 5", "título 5")),
+    ("Heading6", ("heading 6", "titre 6", "überschrift 6", "título 6")),
+    ("Normal", ("normal", "standard")),
+    ("BodyText", ("body text", "corps de texte", "textkörper", "texto independiente")),
+    ("Quote", ("quote", "citation", "zitat", "cita")),
     ("IntenseQuote", ("intense quote", "citation intense")),
-    ("ListParagraph", ("list paragraph", "paragraphe de liste")),
-    ("FootnoteText", ("footnote text", "note de bas de page")),
-    ("EndnoteText", ("endnote text", "note de fin")),
-    ("Title", ("title", "titre")),
-    ("Subtitle", ("subtitle", "sous-titre")),
-    ("Caption", ("caption", "légende")),
+    ("ListParagraph", ("list paragraph", "paragraphe de liste", "listenabsatz", "párrafo de lista")),
+    ("FootnoteText", ("footnote text", "note de bas de page", "fußnotentext", "texto de nota al pie")),
+    ("EndnoteText", ("endnote text", "note de fin", "endnotentext", "texto de nota al final")),
+    ("Title", ("title", "titre", "titel", "título")),
+    ("Subtitle", ("subtitle", "sous-titre", "untertitel", "subtítulo")),
+    ("Caption", ("caption", "légende", "beschriftung", "título de ilustración")),
 )
 
 NATIVE_CHARACTER_STYLE_NAMES: dict[str, str] = _name_table(
-    ("Emphasis", ("emphasis", "accentuation")),
+    ("Emphasis", ("emphasis", "accentuation", "énfasis")),
     ("Strong", ("strong", "élevé")),
     ("Hyperlink", ("hyperlink", "lien hypertexte")),
     ("FollowedHyperlink", ("followedhyperlink", "followed hyperlink", "lien hypertexte suivi visité")),

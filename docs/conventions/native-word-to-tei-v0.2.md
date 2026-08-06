@@ -33,10 +33,13 @@ testée (`editorial/convention.py`, `native_style_alias_map`) :
    (`w:customStyle` absent ou faux), son `w:name` normalisé (casse, espaces,
    accents) est cherché dans la table de la convention, qui contient les noms
    OOXML canoniques anglais (ce que Word français écrit réellement :
-   `heading 1`, `Body Text`, `Intense Quote`, …) et les noms affichés
-   localisés français (`Titre 1`, `Corps de texte`, `Citation intense`, …)
-   produits par d'autres outils. Les tables des styles de paragraphe et de
-   caractère sont séparées.
+   `heading 1`, `Body Text`, `Intense Quote`, …), les noms affichés
+   localisés français (`Titre 1`, `Corps de texte`, `Citation intense`, …), et
+   depuis la décision 0020 un sous-ensemble vérifié de noms allemands et
+   espagnols (`Überschrift 1`, `Textkörper`, `Título 1`, `Texto
+   independiente`, …) — volontairement limité aux entrées confirmées ;
+   `IntenseQuote` n'est pas couvert dans ces deux langues. Les tables des
+   styles de paragraphe et de caractère sont séparées.
 3. **Niveau de plan.** Un paragraphe sans style reconnu mais doté d'un
    `outlineLvl` (direct ou hérité du style) entre 0 et 5 est traité comme
    titre de niveau `outlineLvl + 1`. C'est le seul repli hiérarchique.

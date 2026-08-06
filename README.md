@@ -116,6 +116,12 @@ charge en TEI Commons Publishing validee. La convention reconnait `Quote` pour
 les citations en prose et `IntenseQuote` pour les citations poetiques
 (strophes = paragraphes, vers = retours manuels).
 
+La reconnaissance des styles natifs repose sur l'identifiant OOXML stable,
+avec repli par nom affiche localise pour le francais et l'anglais, et un
+sous-ensemble verifie de l'allemand et l'espagnol (titres, corps de texte,
+citation en prose, notes, titre/sous-titre, legende ; voir la decision 0020
+pour le detail et les exclusions volontaires, notamment `IntenseQuote`).
+
 Le style Word integre `BodyText`, affiche en francais comme **Corps de texte**,
 devient un paragraphe de suite : le modele porte
 `rendition="consecutive"` et la TEI produit `<p rend="consecutive">`. Cette
