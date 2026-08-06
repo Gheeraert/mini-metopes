@@ -306,3 +306,66 @@ def test_cli_refusals_are_atomic_for_bibliographic_errors(tmp_path: Path) -> Non
     for name, (body, code, numbering) in cases.items():
         path = _runtime_docx(f"bibl-cli-{name}.docx", body, numbering=numbering)
         _assert_cli_refuses_atomically(path, tmp_path / name / "book.xml", code)
+
+
+NATIVE_BIBLIOGRAPHY_STYLES = STYLES.replace(
+    "</w:styles>",
+    '  <w:style w:type="paragraph" w:styleId="Bibliography"><w:name w:val="Bibliography"/></w:style>\n</w:styles>',
+)
+
+
+CUSTOM_FLAGGED_BIBLIOGRAPHY_STYLES = STYLES.replace(
+    "</w:styles>",
+    '  <w:style w:type="paragraph" w:customStyle="1" w:styleId="Bibliography"><w:name w:val="Bibliography"/></w:style>\n</w:styles>',
+)
+
+
+def _native_bibl_entry(text: str) -> str:
+    return _paragraph(text, "Bibliography")
+
+
+def test_native_bibliography_style_is_recognized_even_when_word_marks_it_custom() -> None:
+    """Corpus reel : Word peut ecrire w:customStyle="1" sur Bibliography meme
+    applique tel quel depuis la galerie, sans passer par le gestionnaire de
+    citations. Exiger l'absence de customStyle rejetait ce document reel."""
+    body = _paragraph("Corps du texte.") + _native_bibl_entry("Premiere reference.") + _native_bibl_entry("Seconde reference.")
+    path = _runtime_docx("native-bibliography-custom-flag.docx", body, styles=CUSTOM_FLAGGED_BIBLIOGRAPHY_STYLES)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert built.document.bibliography is not None
+    assert len(built.document.bibliography.entries) == 2
+    assert "unsupported_paragraph_style" not in [d.code for d in built.diagnostics]
+
+
+def test_native_bibliography_style_needs_no_controlled_start_style() -> None:
+    """Le style natif Word Bibliography suffit seul : pas de TEIbiblstart."""
+    body = _paragraph("Corps du texte.") + _native_bibl_entry("Premiere reference.") + _native_bibl_entry("Seconde reference.")
+    path = _runtime_docx("native-bibliography.docx", body, styles=NATIVE_BIBLIOGRAPHY_STYLES)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert built.document.bibliography is not None
+    assert built.document.bibliography.title == ()
+    assert len(built.document.bibliography.entries) == 2
+
+
+def test_native_bibliography_style_serializes_without_a_head() -> None:
+    body = _paragraph("Corps du texte.") + _native_bibl_entry("Premiere reference.") + _native_bibl_entry("Seconde reference.")
+    path = _runtime_docx("native-bibliography-tei.docx", body, styles=NATIVE_BIBLIOGRAPHY_STYLES)
+
+    result = convert_docx_to_tei(path, metadata=_metadata())
+
+    assert result.is_successful, result.diagnostics
+    tree = etree.fromstring(result.xml_bytes)
+    list_bibl = tree.xpath("//tei:back/tei:div[@type='bibliography']/tei:listBibl", namespaces=NS)[0]
+    assert list_bibl.xpath("tei:head", namespaces=NS) == []
+    assert len(list_bibl.xpath("tei:bibl", namespaces=NS)) == 2
+
+
+def test_native_bibliography_style_still_refuses_content_after_it() -> None:
+    """Meme regle "unique et terminale" que TEIbiblstart, sans style de debut dedie."""
+    body = _native_bibl_entry("Reference.") + _paragraph("Apres.")
+    path = _runtime_docx("native-bibliography-nonterminal.docx", body, styles=NATIVE_BIBLIOGRAPHY_STYLES)
+
+    assert "nonterminal_bibliography_not_serializable" in _codes(path)

@@ -19,7 +19,7 @@ class StyleDeclaration(Protocol):
 
 
 ParagraphRoleKind = Literal[
-    "heading", "paragraph", "prose_quote", "verse_quote", "deferred", "unsupported"
+    "heading", "paragraph", "prose_quote", "verse_quote", "epigraph", "signature", "floating_text", "deferred", "unsupported"
 ]
 ControlledStyleStatus = Literal["valid", "invalid", "unrelated"]
 
@@ -43,6 +43,10 @@ class WordEditorialConvention:
     deferred_paragraph_style_ids: frozenset[str]
     prose_quote_style_ids: frozenset[str]
     verse_quote_style_ids: frozenset[str]
+    epigraph_style_ids: frozenset[str] = frozenset()
+    signature_style_ids: frozenset[str] = frozenset()
+    floating_text_style_ids: frozenset[str] = frozenset()
+    table_of_contents_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_names: frozenset[str] = frozenset()
@@ -56,6 +60,7 @@ class WordEditorialConvention:
     bibliography_start_style: tuple[str, str] | None = None
     bibliographic_reference_style: tuple[str, str] | None = None
     bibliographic_reference_inline_style: tuple[str, str] | None = None
+    native_bibliography_style_ids: frozenset[str] = frozenset()
 
     def paragraph_role(
         self,
@@ -77,6 +82,12 @@ class WordEditorialConvention:
             return ParagraphRole("prose_quote")
         if style_id in self.verse_quote_style_ids:
             return ParagraphRole("verse_quote")
+        if style_id in self.epigraph_style_ids:
+            return ParagraphRole("epigraph")
+        if style_id in self.signature_style_ids:
+            return ParagraphRole("signature")
+        if style_id in self.floating_text_style_ids:
+            return ParagraphRole("floating_text")
         if style_id in self.deferred_paragraph_style_ids:
             return ParagraphRole("deferred")
         if outline_level is not None and 0 <= outline_level <= 5:
@@ -103,6 +114,18 @@ class WordEditorialConvention:
     def heading_level(self, style_id: str | None, outline_level: int | None) -> int | None:
         """Retourner le niveau natif prioritaire, puis le niveau de plan explicite."""
         return self.paragraph_role(style_id, outline_level).heading_level
+
+    def is_table_of_contents_style(self, style_id: str | None, style_is_custom: bool | None) -> bool:
+        """Reconnaître une table des matieres Word generee automatiquement.
+
+        Jamais serialisee : la structure ``div``/``head`` deja produite par
+        Mini-Metopes en tient lieu (voir decision 0025). Reconnue separement
+        du style personnalise inconnu generique pour donner un diagnostic
+        actionnable plutot qu'un ``unsupported_paragraph_style`` opaque.
+        """
+        if style_is_custom is True:
+            return False
+        return style_id in self.table_of_contents_style_ids
 
     def is_list_continuation_style(
         self,
@@ -181,7 +204,30 @@ class WordEditorialConvention:
     def is_bibliographic_reference_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
     ) -> bool:
+        if self.is_native_bibliography_reference_style(style_id, style_is_custom):
+            return True
         return self.bibliographic_reference_style_status(style_id, style_name, style_is_custom, style_type) == "valid"
+
+    def is_native_bibliography_reference_style(self, style_id: str | None, style_is_custom: bool | None) -> bool:
+        """Reconnaître le style natif Word ``Bibliography`` comme une reference.
+
+        A la difference de ``TEIbiblreference``, ce n'est pas un style
+        controle : aucune declaration ``w:customStyle`` n'est exigee, et sa
+        presence n'est pas non plus rejetee. Un corpus reel a montre que
+        Word peut ecrire ``w:customStyle="1"`` sur ``Bibliography`` meme
+        quand il est applique tel quel depuis la galerie de styles, sans
+        jamais passer par le gestionnaire de citations (voir decision
+        0026 addendum) : exiger l'absence de ``customStyle`` rejetait donc
+        des documents reels legitimes. Le parametre ``style_is_custom`` est
+        conserve dans la signature pour compatibilite des appelants, mais
+        n'est plus utilise dans la decision.
+
+        Word n'a pas de style de « debut de bibliographie » separe (voir
+        decision 0026) ; la premiere entree Bibliography rencontree
+        declenche elle-meme la bibliographie terminale, sans titre.
+        """
+        del style_is_custom
+        return style_id in self.native_bibliography_style_ids
 
     def is_bibliographic_reference_inline_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
@@ -269,6 +315,12 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     deferred_paragraph_style_ids=frozenset({"Title", "Subtitle"}),
     prose_quote_style_ids=frozenset({"Quote"}),
     verse_quote_style_ids=frozenset({"IntenseQuote"}),
+    epigraph_style_ids=frozenset({"Salutation"}),
+    signature_style_ids=frozenset({"Signature"}),
+    floating_text_style_ids=frozenset({"BlockText"}),
+    table_of_contents_style_ids=frozenset({
+        "TOC1", "TOC2", "TOC3", "TOC4", "TOC5", "TOC6", "TOC7", "TOC8", "TOC9", "TOCHeading",
+    }),
     consecutive_paragraph_style_ids=frozenset({"BodyText"}),
     excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
     consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
@@ -282,6 +334,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     bibliography_start_style=("TEIbiblstart", "TEI_bibl_start"),
     bibliographic_reference_style=("TEIbiblreference", "TEI_bibl_reference"),
     bibliographic_reference_inline_style=("TEIbiblreference-inline", "TEI_bibl_reference-inline"),
+    native_bibliography_style_ids=frozenset({"Bibliography"}),
 )
 
 
@@ -317,28 +370,31 @@ def _name_table(*names_by_canonical: tuple[str, tuple[str, ...]]) -> dict[str, s
 
 # Noms OOXML canoniques (invariants anglais de la specification, ce que Word
 # francais ecrit dans ``w:name``) et noms affiches localises (francais,
-# anglais) susceptibles d'apparaitre chez d'autres producteurs.
+# anglais, et un sous-ensemble verifie allemand/espagnol - voir la decision
+# 0020 pour la methode de verification et les entrees volontairement
+# absentes faute de confirmation suffisante) susceptibles d'apparaitre chez
+# d'autres producteurs.
 NATIVE_PARAGRAPH_STYLE_NAMES: dict[str, str] = _name_table(
-    ("Heading1", ("heading 1", "titre 1")),
-    ("Heading2", ("heading 2", "titre 2")),
-    ("Heading3", ("heading 3", "titre 3")),
-    ("Heading4", ("heading 4", "titre 4")),
-    ("Heading5", ("heading 5", "titre 5")),
-    ("Heading6", ("heading 6", "titre 6")),
-    ("Normal", ("normal",)),
-    ("BodyText", ("body text", "corps de texte")),
-    ("Quote", ("quote", "citation")),
+    ("Heading1", ("heading 1", "titre 1", "überschrift 1", "título 1")),
+    ("Heading2", ("heading 2", "titre 2", "überschrift 2", "título 2")),
+    ("Heading3", ("heading 3", "titre 3", "überschrift 3", "título 3")),
+    ("Heading4", ("heading 4", "titre 4", "überschrift 4", "título 4")),
+    ("Heading5", ("heading 5", "titre 5", "überschrift 5", "título 5")),
+    ("Heading6", ("heading 6", "titre 6", "überschrift 6", "título 6")),
+    ("Normal", ("normal", "standard")),
+    ("BodyText", ("body text", "corps de texte", "textkörper", "texto independiente")),
+    ("Quote", ("quote", "citation", "zitat", "cita")),
     ("IntenseQuote", ("intense quote", "citation intense")),
-    ("ListParagraph", ("list paragraph", "paragraphe de liste")),
-    ("FootnoteText", ("footnote text", "note de bas de page")),
-    ("EndnoteText", ("endnote text", "note de fin")),
-    ("Title", ("title", "titre")),
-    ("Subtitle", ("subtitle", "sous-titre")),
-    ("Caption", ("caption", "légende")),
+    ("ListParagraph", ("list paragraph", "paragraphe de liste", "listenabsatz", "párrafo de lista")),
+    ("FootnoteText", ("footnote text", "note de bas de page", "fußnotentext", "texto de nota al pie")),
+    ("EndnoteText", ("endnote text", "note de fin", "endnotentext", "texto de nota al final")),
+    ("Title", ("title", "titre", "titel", "título")),
+    ("Subtitle", ("subtitle", "sous-titre", "untertitel", "subtítulo")),
+    ("Caption", ("caption", "légende", "beschriftung", "título de ilustración")),
 )
 
 NATIVE_CHARACTER_STYLE_NAMES: dict[str, str] = _name_table(
-    ("Emphasis", ("emphasis", "accentuation")),
+    ("Emphasis", ("emphasis", "accentuation", "énfasis")),
     ("Strong", ("strong", "élevé")),
     ("Hyperlink", ("hyperlink", "lien hypertexte")),
     ("FollowedHyperlink", ("followedhyperlink", "followed hyperlink", "lien hypertexte suivi visité")),
@@ -428,6 +484,9 @@ def resolve_convention_for_styles(
         deferred_paragraph_style_ids=_expand(convention.deferred_paragraph_style_ids),
         prose_quote_style_ids=_expand(convention.prose_quote_style_ids),
         verse_quote_style_ids=_expand(convention.verse_quote_style_ids),
+        epigraph_style_ids=_expand(convention.epigraph_style_ids),
+        signature_style_ids=_expand(convention.signature_style_ids),
+        floating_text_style_ids=_expand(convention.floating_text_style_ids),
         consecutive_paragraph_style_ids=_expand(convention.consecutive_paragraph_style_ids),
         list_continuation_style_ids=_expand(convention.list_continuation_style_ids),
         figure_container_style_ids=_expand(convention.figure_container_style_ids),

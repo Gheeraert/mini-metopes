@@ -8,6 +8,7 @@ from mini_metopes.metadata import (
     Collection,
     Contributor,
     DocumentMetadata,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -19,6 +20,7 @@ from mini_metopes.metadata import (
     normalize_doi,
     normalize_isbn,
     normalize_issn,
+    resolved_license,
     validate_metadata,
 )
 
@@ -86,6 +88,9 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
     (lambda item: replace(item, publication=Publication(publication_date="hier")), "invalid_publication_date"),
     (lambda item: replace(item, rights=Rights(license=License("CC", "creativecommons.org"))), "invalid_license_url"),
     (lambda item: replace(item, rights=Rights(license=License(url="https://x.org/l"))), "missing_license_name"),
+    (lambda item: replace(item, rights=Rights(license=License(spdx_id="MIT"))), "invalid_license_spdx_id"),
+    (lambda item: replace(item, rights=Rights(license=License(name="CC BY 4.0", spdx_id="CC-BY-SA-4.0"))), "license_spdx_id_mismatch"),
+    (lambda item: replace(item, rights=Rights(license=License(url="https://example.org/", spdx_id="CC-BY-4.0"))), "license_spdx_id_mismatch"),
     (lambda item: replace(item, abstracts=(Abstract("summary", "fr", "  "),)), "empty_abstract"),
     (lambda item: replace(item, abstracts=(Abstract("preface", "fr", "x"),)), "invalid_abstract_type"),
     (lambda item: replace(item, abstracts=(Abstract("summary", "français", "x"),)), "invalid_language"),
@@ -93,6 +98,9 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
     (lambda item: replace(item, keywords=(KeywordGroup("fr", ("", "x")),)), "invalid_keyword"),
     (lambda item: replace(item, collection=Collection(" ")), "invalid_collection_title"),
     (lambda item: replace(item, collection=Collection("C", issn="0000-0021")), "invalid_issn"),
+    (lambda item: replace(item, collection=Collection("C", editor=" ")), "invalid_collection_editor"),
+    (lambda item: replace(item, funding=(Funding(" "),)), "invalid_funder"),
+    (lambda item: replace(item, funding=(Funding("ANR", " "),)), "invalid_grant_number"),
     (lambda item: replace(item, pagination=Pagination(page_from=10, page_to=5)), "invalid_pagination"),
     (lambda item: replace(item, pagination=Pagination(page_from=10)), "incomplete_pagination"),
     (lambda item: replace(item, pagination=Pagination(page_from=1, page_to=2, extent=10)), "conflicting_pagination"),
@@ -102,6 +110,37 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
 ])
 def test_v2_validation_codes(metadata, changed, code: str) -> None:
     assert code in [issue.code for issue in validate_metadata(changed(metadata)).issues]
+
+
+def test_funding_and_collection_editor_are_valid_when_well_formed(metadata) -> None:
+    valid = replace(
+        metadata,
+        funding=(Funding("ANR", "ANR-23-CE38-0001"), Funding("ERC")),
+        collection=Collection("Une collection", editor="Un directeur de collection"),
+    )
+    result = validate_metadata(valid)
+    assert result.valid
+    assert not [issue for issue in result.issues if issue.path and issue.path.startswith(("funding", "collection.editor"))]
+
+
+def test_license_spdx_id_alone_is_valid_without_name_or_url(metadata) -> None:
+    valid = replace(metadata, rights=Rights(license=License(spdx_id="CC-BY-4.0")))
+    result = validate_metadata(valid)
+    assert result.valid
+    assert not [issue for issue in result.issues if "license" in (issue.path or "")]
+
+
+def test_resolved_license_fills_name_and_url_from_spdx_id_without_overriding() -> None:
+    resolved = resolved_license(License(spdx_id="CC-BY-4.0"))
+    assert resolved.name == "CC BY 4.0"
+    assert resolved.url == "https://creativecommons.org/licenses/by/4.0/"
+
+    custom = resolved_license(License(name="Nom personnalise", spdx_id="CC-BY-4.0"))
+    assert custom.name == "Nom personnalise"
+    assert custom.url == "https://creativecommons.org/licenses/by/4.0/"
+
+    unknown = License(name="Autre licence")
+    assert resolved_license(unknown) == unknown
 
 
 def test_duplicate_identifier_value_is_reported(metadata) -> None:

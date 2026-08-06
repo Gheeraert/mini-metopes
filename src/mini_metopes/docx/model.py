@@ -182,6 +182,7 @@ class RunInfo:
     contents: tuple[RunContentInfo, ...]
     hyperlink_relationship_id: str | None
     hyperlink_anchor: str | None
+    language: str | None = None
     style_name: str | None = None
     style_is_custom: bool | None = None
     style_type: str | None = None

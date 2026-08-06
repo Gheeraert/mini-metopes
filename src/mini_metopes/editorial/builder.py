@@ -33,6 +33,10 @@ from .model import (
     EditorialBibliography,
     EditorialDiagnostic,
     EditorialDocument,
+    Epigraph,
+    EpigraphParagraph,
+    FloatingText,
+    FloatingTextParagraph,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -248,43 +252,124 @@ def _extract_final_bibliography(
     relationships: dict[str, RelationshipInfo],
     diagnostics: list[EditorialDiagnostic],
 ) -> tuple[tuple[ParagraphInfo | TableInfo, ...], EditorialBibliography | None, set[tuple[str, str]]]:
-    """Extraire l'unique bibliographie terminale du seul flux principal."""
+    """Extraire l'unique bibliographie terminale du seul flux principal.
+
+    Deux declencheurs, mutuellement exclusifs : le style controle
+    ``TEIbiblstart`` (titre explicite, prioritaire s'il est present), ou a
+    defaut le premier paragraphe du style natif ``Bibliography`` (pas de
+    titre : Word n'a pas de style de debut de bibliographie separe).
+    """
     starts = [
         index for index, block in enumerate(blocks)
         if isinstance(block, ParagraphInfo) and convention.is_bibliography_start_style(
             block.style_id, block.style_name, block.style_is_custom, block.style_type
         )
     ]
-    if not starts:
-        return blocks, None, set()
-    reported_multiple_starts: set[int] = set()
-    if len(starts) > 1:
-        for index in starts[1:]:
-            block = blocks[index]
-            assert isinstance(block, ParagraphInfo)
+    if starts:
+        reported_multiple_starts: set[int] = set()
+        if len(starts) > 1:
+            for index in starts[1:]:
+                block = blocks[index]
+                assert isinstance(block, ParagraphInfo)
+                diagnostics.append(_bibliographic_diagnostic(
+                    "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
+                ))
+                reported_multiple_starts.add(block.index)
+        start_index = starts[0]
+        start = blocks[start_index]
+        assert isinstance(start, ParagraphInfo)
+        title, references = _build_inline_content(
+            start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+        )
+        if _contains_bibliographic_inline(title):
             diagnostics.append(_bibliographic_diagnostic(
-                "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
+                "nested_bibliographic_reference_not_serializable",
+                "reference bibliographique inline dans un titre de bibliographie",
+                start,
+                None,
             ))
-            reported_multiple_starts.add(block.index)
-    start_index = starts[0]
-    start = blocks[start_index]
-    assert isinstance(start, ParagraphInfo)
-    title, references = _build_inline_content(
-        start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+        if not title:
+            diagnostics.append(_bibliographic_diagnostic(
+                "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
+            ))
+        entry_position = start_index + 1
+        title_required = True
+    else:
+        native_starts = [
+            index for index, block in enumerate(blocks)
+            if isinstance(block, ParagraphInfo) and convention.is_native_bibliography_reference_style(
+                block.style_id, block.style_is_custom
+            )
+        ]
+        if not native_starts:
+            return blocks, None, set()
+        reported_multiple_starts = set()
+        start_index = native_starts[0]
+        start = blocks[start_index]
+        assert isinstance(start, ParagraphInfo)
+        entry_position = start_index
+        title_required = False
+        heading_index = _preceding_heading_index(blocks, start_index, convention)
+        if heading_index is not None:
+            heading = blocks[heading_index]
+            assert isinstance(heading, ParagraphInfo)
+            title, references = _build_inline_content(
+                heading, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+            )
+            start_index = heading_index
+        else:
+            title = ()
+            references = set()
+    entries, entry_position = _collect_bibliography_entries(
+        blocks, entry_position,
+        convention=convention, relationships=relationships, diagnostics=diagnostics,
+        references=references, reported_multiple_starts=reported_multiple_starts,
     )
-    if _contains_bibliographic_inline(title):
+    if not entries:
         diagnostics.append(_bibliographic_diagnostic(
-            "nested_bibliographic_reference_not_serializable",
-            "reference bibliographique inline dans un titre de bibliographie",
-            start,
-            None,
+            "bibliography_without_entries_not_serializable", "bibliographie sans entree", start, None
         ))
-    if not title:
-        diagnostics.append(_bibliographic_diagnostic(
-            "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
-        ))
+    return blocks[:start_index], EditorialBibliography(
+        title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries),
+        title_required=title_required,
+    ), references
+
+
+def _preceding_heading_index(
+    blocks: tuple[ParagraphInfo | TableInfo, ...], before_index: int, convention: WordEditorialConvention
+) -> int | None:
+    """Chercher un titre immediatement avant ``before_index``, blancs ignores.
+
+    Utilise pour rattacher un titre de section (ex. "Bibliographie") a une
+    bibliographie declenchee par le seul style natif ``Bibliography`` (sans
+    ``TEIbiblstart``) : Word n'a pas de style de titre de bibliographie
+    dedie, le titre de section qui la precede en tient lieu (voir decision
+    0031). Ne rattache rien si un autre contenu s'intercale.
+    """
+    index = before_index - 1
+    while index >= 0:
+        block = blocks[index]
+        if isinstance(block, ParagraphInfo) and is_semantically_empty_paragraph(block):
+            index -= 1
+            continue
+        if isinstance(block, ParagraphInfo) and _paragraph_role(block, convention).kind == "heading":
+            return index
+        return None
+    return None
+
+
+def _collect_bibliography_entries(
+    blocks: tuple[ParagraphInfo | TableInfo, ...],
+    position: int,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    references: set[tuple[str, str]],
+    reported_multiple_starts: set[int],
+) -> tuple[list[BibliographicReference], int]:
+    """Consommer les entrees jusqu'a la fin du flux, en refusant tout intrus."""
     entries: list[BibliographicReference] = []
-    position = start_index + 1
     while position < len(blocks):
         block = blocks[position]
         if isinstance(block, ParagraphInfo) and convention.is_bibliographic_reference_style(
@@ -332,13 +417,7 @@ def _extract_final_bibliography(
                 style_id=(block.style_id if isinstance(block, ParagraphInfo) else None),
             ))
         position += 1
-    if not entries:
-        diagnostics.append(_bibliographic_diagnostic(
-            "bibliography_without_entries_not_serializable", "bibliographie sans entree", start, None
-        ))
-    return blocks[:start_index], EditorialBibliography(
-        title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries)
-    ), references
+    return entries, position
 
 
 def _build_blocks(
@@ -667,6 +746,210 @@ def _build_blocks(
             paragraph_position = next_position
             continue
 
+        if role.kind == "epigraph":
+            if note_id is not None or not (not blocks or isinstance(blocks[-1], Heading)):
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="misplaced_epigraph_not_serializable",
+                        severity="error",
+                        message="epigraphe (style Salutation) hors position de tete de section",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
+            epigraph_paragraphs = [
+                EpigraphParagraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            ]
+            if not content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_epigraph_paragraph",
+                        severity="warning",
+                        message="paragraphe d'epigraphe vide",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
+                if _paragraph_role(next_paragraph, convention).kind != "epigraph":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                epigraph_paragraphs.append(
+                    EpigraphParagraph(
+                        content=next_content,
+                        source_paragraph_index=next_paragraph.index,
+                        source_style_id=next_paragraph.style_id,
+                    )
+                )
+                if not next_content:
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="empty_epigraph_paragraph",
+                            severity="warning",
+                            message="paragraphe d'epigraphe vide",
+                            paragraph_index=next_paragraph.index,
+                            style_id=next_paragraph.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position += 1
+            blocks.append(Epigraph(paragraphs=tuple(epigraph_paragraphs)))
+            continue
+
+        if role.kind == "signature":
+            if _is_signature_run_filler(paragraph):
+                # Artefact Word frequent : le "style suivant" de Signature est
+                # lui-meme, si bien qu'une simple touche Entree (ou un saut de
+                # page force avant la section suivante) en fin de bloc laisse
+                # un paragraphe Signature sans contenu reel. Il ne doit ni
+                # compter dans la limite de deux lignes, ni a lui seul
+                # disqualifier la position terminale (voir decisions 0028 et
+                # 0031, corpus reel).
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_paragraph_ignored",
+                        severity="info",
+                        message="paragraphe Word vide ignore (artefact de mise en page)",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
+            run_end = paragraph_position
+            effective_length = 0
+            while (
+                run_end < len(paragraphs)
+                and isinstance(paragraphs[run_end], ParagraphInfo)
+                and _paragraph_role(paragraphs[run_end], convention).kind == "signature"
+            ):
+                if not _is_signature_run_filler(paragraphs[run_end]):
+                    effective_length += 1
+                run_end += 1
+            valid_position = (
+                note_id is None
+                and effective_length <= 2
+                and _signature_run_is_terminal(paragraphs, run_end, convention)
+            )
+            if not valid_position:
+                for index in range(paragraph_position, run_end):
+                    invalid_block = paragraphs[index]
+                    assert isinstance(invalid_block, ParagraphInfo)
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="misplaced_signature_not_serializable",
+                            severity="error",
+                            message=(
+                                "signature d'auteur (style Signature) doit preceder immediatement "
+                                "la section/contribution suivante (Titre1 a Titre3) ou la fin du "
+                                "document, et compter deux lignes au plus (nom, institution)"
+                            ),
+                            paragraph_index=invalid_block.index,
+                            style_id=invalid_block.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position = run_end
+                continue
+            blocks.append(
+                Paragraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            )
+            paragraph_position += 1
+            continue
+
+        if role.kind == "floating_text":
+            if note_id is not None:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="floating_text_in_note_not_serializable",
+                        severity="error",
+                        message="encadre (style BlockText) non pris en charge dans une note",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+                paragraph_position += 1
+                continue
+            floating_paragraphs = [
+                FloatingTextParagraph(
+                    content=content,
+                    source_paragraph_index=paragraph.index,
+                    source_style_id=paragraph.style_id,
+                )
+            ]
+            if not content:
+                diagnostics.append(
+                    EditorialDiagnostic(
+                        code="empty_floating_text_paragraph",
+                        severity="warning",
+                        message="paragraphe d'encadre vide",
+                        paragraph_index=paragraph.index,
+                        style_id=paragraph.style_id,
+                        note_id=note_id,
+                    )
+                )
+            paragraph_position += 1
+            while paragraph_position < len(paragraphs):
+                next_paragraph = paragraphs[paragraph_position]
+                if not isinstance(next_paragraph, ParagraphInfo):
+                    break
+                if _paragraph_role(next_paragraph, convention).kind != "floating_text":
+                    break
+                next_content, next_references = _build_inline_content(
+                    next_paragraph,
+                    convention=convention,
+                    relationships=relationships,
+                    diagnostics=diagnostics,
+                    note_id=note_id,
+                )
+                referenced_notes.update(next_references)
+                floating_paragraphs.append(
+                    FloatingTextParagraph(
+                        content=next_content,
+                        source_paragraph_index=next_paragraph.index,
+                        source_style_id=next_paragraph.style_id,
+                    )
+                )
+                if not next_content:
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="empty_floating_text_paragraph",
+                            severity="warning",
+                            message="paragraphe d'encadre vide",
+                            paragraph_index=next_paragraph.index,
+                            style_id=next_paragraph.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                paragraph_position += 1
+            blocks.append(FloatingText(paragraphs=tuple(floating_paragraphs)))
+            continue
+
         if is_semantically_empty_paragraph(paragraph):
             diagnostics.append(
                 EditorialDiagnostic(
@@ -826,6 +1109,57 @@ def is_semantically_empty_paragraph(paragraph: ParagraphInfo) -> bool:
     return True
 
 
+def _is_signature_run_filler(paragraph: ParagraphInfo) -> bool:
+    """Detecter un paragraphe ``Signature`` sans contenu reel, saut de page/
+    colonne isole inclus.
+
+    Le style Word integre ``Signature`` s'auto-continue (son "style suivant"
+    est lui-meme) : un saut de page force avant la section qui suit (la
+    bibliographie, typiquement) peut donc atterrir sur un paragraphe
+    ``Signature`` sans texte. A la difference de
+    ``is_semantically_empty_paragraph`` (utilisee partout ailleurs, ou un
+    saut de page ne doit jamais etre ignore silencieusement), ce filtre
+    n'est applique que dans le contexte tres specifique de la suite
+    terminale de paragraphes ``Signature`` : voir decision 0031, corpus
+    reel. Le saut de page lui-meme n'est jamais serialise ; le perimetre
+    etroit de cette exception evite d'affaiblir la regle generale.
+    """
+    if paragraph.text.strip():
+        return False
+    if paragraph.footnote_reference_ids or paragraph.endnote_reference_ids:
+        return False
+    if paragraph.hyperlink_count or paragraph.hyperlink_relationship_ids:
+        return False
+    if paragraph.drawing_count or paragraph.drawing_relationship_ids:
+        return False
+    if paragraph.bookmark_start_ids:
+        return False
+    if _has_active_numbering(paragraph):
+        return False
+    for run in paragraph.runs:
+        if run.tabs:
+            return False
+    return True
+
+
+def _signature_run_is_terminal(
+    paragraphs: tuple[ParagraphInfo | TableInfo, ...], run_end: int, convention: WordEditorialConvention
+) -> bool:
+    """Un bloc ``Signature`` est terminal en fin de document, ou juste avant
+    un titre de niveau 1 a 3 (fin de contribution/section pour un livre a
+    plusieurs contributions ; voir decision 0032). Un titre de niveau 4 ou
+    plus reste une sous-section de la MEME contribution : la signature ne
+    peut pas le preceder.
+    """
+    if run_end == len(paragraphs):
+        return True
+    next_block = paragraphs[run_end]
+    if not isinstance(next_block, ParagraphInfo):
+        return False
+    role = _paragraph_role(next_block, convention)
+    return role.kind == "heading" and role.heading_level is not None and role.heading_level <= 3
+
+
 def _build_editorial_table(
     table: TableInfo,
     *,
@@ -962,10 +1296,31 @@ def _build_figure_if_supported(
     next_position = position + 1
     if next_position < len(paragraphs):
         candidate = paragraphs[next_position]
-        if isinstance(candidate, ParagraphInfo) and (
-            convention.is_figure_caption_style(candidate.style_id, candidate.style_is_custom)
-            or convention.is_controlled_figure_caption_style(candidate.style_id, candidate.style_name, candidate.style_is_custom)
-        ):
+        is_native_caption = isinstance(candidate, ParagraphInfo) and convention.is_figure_caption_style(
+            candidate.style_id, candidate.style_is_custom
+        )
+        is_controlled_caption = isinstance(candidate, ParagraphInfo) and convention.is_controlled_figure_caption_style(
+            candidate.style_id, candidate.style_name, candidate.style_is_custom
+        )
+        if title is None and is_native_caption:
+            second_candidate = paragraphs[next_position + 1] if next_position + 1 < len(paragraphs) else None
+            second_is_native_caption = isinstance(second_candidate, ParagraphInfo) and convention.is_figure_caption_style(
+                second_candidate.style_id, second_candidate.style_is_custom
+            )
+            if second_is_native_caption:
+                # Protocole a deux paragraphes Caption natifs (decision 0033),
+                # calque sur celui de Signature : le premier devient le titre
+                # de la figure, le second sa legende. Un seul paragraphe
+                # Caption garde le comportement d'origine (legende seule).
+                title, title_references = _build_figure_text_paragraph(
+                    candidate, rendition="figure-title", role_name="title", convention=convention,
+                    relationships=relationships, diagnostics=diagnostics, note_id=note_id,
+                )
+                references.update(title_references)
+                next_position += 1
+                candidate = second_candidate
+                is_native_caption = True
+        if is_native_caption or is_controlled_caption:
             caption, caption_references = _build_figure_text_paragraph(
                 candidate, rendition="caption", role_name="caption", convention=convention,
                 relationships=relationships, diagnostics=diagnostics, note_id=note_id,
@@ -2038,6 +2393,21 @@ def _diagnose_paragraph_style(
             )
         )
         return
+    if convention.is_table_of_contents_style(style_id, paragraph.style_is_custom):
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="word_generated_toc_not_supported",
+                severity="error",
+                message=(
+                    f"table des matieres Word generee automatiquement detectee (style {style_id}) : "
+                    "supprimez-la avant conversion, la structure div/head deja produite en tient lieu"
+                ),
+                paragraph_index=paragraph.index,
+                style_id=style_id,
+                note_id=note_id,
+            )
+        )
+        return
     diagnostics.append(
         EditorialDiagnostic(
             code="unsupported_paragraph_style",
@@ -2067,7 +2437,7 @@ def _build_inline_content(
         for item in run.contents:
             if item.kind == "text":
                 if item.text:
-                    _append_inline(run_content, TextSpan(text=item.text, marks=marks, link=link))
+                    _append_inline(run_content, TextSpan(text=item.text, marks=marks, link=link, language=run.language))
             elif item.kind == "tab":
                 run_content.append(Tab())
                 diagnostics.append(
@@ -2266,7 +2636,7 @@ def _append_inline(content: list[EditorialInline], item: EditorialInline) -> Non
         return
     if content and isinstance(content[-1], TextSpan):
         previous = content[-1]
-        if previous.marks == item.marks and previous.link == item.link:
+        if previous.marks == item.marks and previous.link == item.link and previous.language == item.language:
             content[-1] = replace(previous, text=previous.text + item.text)
             return
     content.append(item)

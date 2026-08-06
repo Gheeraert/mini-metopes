@@ -30,6 +30,7 @@ class TextSpan:
     text: str
     marks: tuple[TextMark, ...] = ()
     link: EditorialLink | None = None
+    language: str | None = None
     kind: Literal["text"] = "text"
 
 
@@ -130,6 +131,51 @@ class ProseQuote:
     paragraphs: tuple[ProseQuoteParagraph, ...]
     source: "BibliographicReference | None" = None
     kind: Literal["prose_quote"] = "prose_quote"
+
+
+@dataclass(frozen=True)
+class EpigraphParagraph:
+    """Paragraphe source conserve dans une epigraphe."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["epigraph_paragraph"] = "epigraph_paragraph"
+
+
+@dataclass(frozen=True)
+class Epigraph:
+    """Suite contigue de paragraphes Word utilisant le style ``Salutation``.
+
+    Uniquement reconnue en tete de section (immediatement apres un titre, ou
+    au tout debut du document) ; voir la decision 0027.
+    """
+
+    paragraphs: tuple[EpigraphParagraph, ...]
+    kind: Literal["epigraph"] = "epigraph"
+
+
+@dataclass(frozen=True)
+class FloatingTextParagraph:
+    """Paragraphe source conserve dans un encadre (floatingText)."""
+
+    content: tuple[EditorialInline, ...]
+    source_paragraph_index: int
+    source_style_id: str | None
+    kind: Literal["floating_text_paragraph"] = "floating_text_paragraph"
+
+
+@dataclass(frozen=True)
+class FloatingText:
+    """Encadre Word natif (style ``BlockText``), suite contigue de paragraphes.
+
+    Contrairement a Epigraph/Signature, aucune contrainte de position : un
+    encadre peut interrompre le flux principal a n'importe quel endroit
+    (voir decision 0029).
+    """
+
+    paragraphs: tuple[FloatingTextParagraph, ...]
+    kind: Literal["floating_text"] = "floating_text"
 
 
 @dataclass(frozen=True)
@@ -270,10 +316,11 @@ class EditorialBibliography:
     source_paragraph_index: int
     source_style_id: str | None
     entries: tuple[BibliographicReference, ...]
+    title_required: bool = True
     kind: Literal["bibliography"] = "bibliography"
 
 
-EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
+EditorialBlock = Heading | Paragraph | ProseQuote | VerseQuote | Epigraph | FloatingText | EditorialList | EditorialFigure | EditorialTable | BibliographicReference
 
 
 @dataclass(frozen=True)

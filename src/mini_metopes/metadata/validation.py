@@ -18,8 +18,10 @@ from .model import (
     Contributor,
     DocumentMetadata,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
+    License,
     MetadataIssue,
     MetadataValidationResult,
     Pagination,
@@ -39,6 +41,22 @@ _DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 _DATE_RE = re.compile(r"^\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$")
 _ISSN_RE = re.compile(r"^\d{4}-?\d{3}[\dXx]$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+SPDX_LICENSES: dict[str, tuple[str, str]] = {
+    "CC-BY-4.0": ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+    "CC-BY-SA-4.0": ("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+    "CC-BY-ND-4.0": ("CC BY-ND 4.0", "https://creativecommons.org/licenses/by-nd/4.0/"),
+    "CC-BY-NC-4.0": ("CC BY-NC 4.0", "https://creativecommons.org/licenses/by-nc/4.0/"),
+    "CC-BY-NC-SA-4.0": ("CC BY-NC-SA 4.0", "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
+    "CC-BY-NC-ND-4.0": ("CC BY-NC-ND 4.0", "https://creativecommons.org/licenses/by-nc-nd/4.0/"),
+    "CC0-1.0": ("CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
+}
+"""Sous-ensemble SPDX des licences Creative Commons 4.0 (et CC0 1.0).
+
+Volontairement limite aux licences les plus frequentes en edition
+universitaire francophone ; toute autre licence reste representable en
+texte libre (``License.name``/``License.url``) sans ``spdx_id``.
+"""
 
 
 def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
@@ -80,6 +98,8 @@ def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
         _validate_collection(metadata.collection, issues)
     if metadata.pagination is not None:
         _validate_pagination(metadata.pagination, issues)
+    for index, funding in enumerate(metadata.funding):
+        _validate_funding(funding, index, issues)
     return MetadataValidationResult(not any(issue.severity == "error" for issue in issues), tuple(issues))
 
 
@@ -268,8 +288,52 @@ def _validate_rights(rights: Rights, issues: list[MetadataIssue]) -> None:
         issues.append(_error("invalid_license_name", "nom de licence vide", "rights.license.name"))
     if rights.license.url:
         _validate_http_url(rights.license.url, "invalid_license_url", "rights.license.url", issues)
-    if rights.license.url and rights.license.name is None:
+    if rights.license.url and rights.license.name is None and rights.license.spdx_id is None:
         issues.append(_error("missing_license_name", "nom de licence obligatoire avec une URL", "rights.license.name"))
+    _validate_license_spdx_id(rights.license, issues)
+
+
+def _validate_license_spdx_id(license_: License, issues: list[MetadataIssue]) -> None:
+    if license_.spdx_id is None:
+        return
+    canonical = SPDX_LICENSES.get(license_.spdx_id)
+    if canonical is None:
+        issues.append(_error("invalid_license_spdx_id", f"identifiant SPDX inconnu : {license_.spdx_id}", "rights.license.spdx_id"))
+        return
+    canonical_name, canonical_url = canonical
+    if license_.name is not None and license_.name.strip() and license_.name.strip() != canonical_name:
+        issues.append(MetadataIssue(
+            "license_spdx_id_mismatch", "warning",
+            f"nom de licence « {license_.name} » different du nom canonique « {canonical_name} » pour {license_.spdx_id}",
+            "rights.license.name",
+        ))
+    if license_.url is not None and license_.url.strip() and license_.url.strip() != canonical_url:
+        issues.append(MetadataIssue(
+            "license_spdx_id_mismatch", "warning",
+            f"URL de licence differente de l'URL canonique « {canonical_url} » pour {license_.spdx_id}",
+            "rights.license.url",
+        ))
+
+
+def resolved_license(license_: License) -> License:
+    """Completer name/url depuis spdx_id quand ils sont absents, sans ecraser une valeur explicite.
+
+    Utilisee a la serialisation pour eviter de dupliquer le registre
+    ``SPDX_LICENSES`` : la validation se contente de signaler les
+    incoherences (avertissement), jamais de corriger silencieusement une
+    valeur deja renseignee.
+    """
+    if license_.spdx_id is None:
+        return license_
+    canonical = SPDX_LICENSES.get(license_.spdx_id)
+    if canonical is None:
+        return license_
+    canonical_name, canonical_url = canonical
+    return License(
+        name=license_.name if license_.name is not None else canonical_name,
+        url=license_.url if license_.url is not None else canonical_url,
+        spdx_id=license_.spdx_id,
+    )
 
 
 def _validate_abstract(item: Abstract, index: int, issues: list[MetadataIssue]) -> None:
@@ -309,6 +373,16 @@ def _validate_collection(collection: Collection, issues: list[MetadataIssue]) ->
         issues.append(_error("invalid_issn", "ISSN de collection invalide", "collection.issn"))
     if collection.volume is not None and not collection.volume.strip():
         issues.append(_error("invalid_collection_volume", "numero de volume vide", "collection.volume"))
+    if collection.editor is not None and not collection.editor.strip():
+        issues.append(_error("invalid_collection_editor", "nom d'editeur de collection vide", "collection.editor"))
+
+
+def _validate_funding(funding: Funding, index: int, issues: list[MetadataIssue]) -> None:
+    path = f"funding[{index}]"
+    if not funding.funder.strip():
+        issues.append(_error("invalid_funder", "organisme de financement obligatoire", f"{path}.funder"))
+    if funding.grant_number is not None and not funding.grant_number.strip():
+        issues.append(_error("invalid_grant_number", "numero de subvention vide", f"{path}.grant_number"))
 
 
 def _validate_pagination(pagination: Pagination, issues: list[MetadataIssue]) -> None:

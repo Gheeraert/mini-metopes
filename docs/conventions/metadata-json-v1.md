@@ -47,11 +47,12 @@ production antérieur n'existe.
 | `editorial_responsibility[]` | `responsibility`, `name` | — | — |
 | `publication` | `publisher.name/place/address[]/url`, `publication_date` (`AAAA`, `AAAA-MM`, `AAAA-MM-JJ`) | — | `publisher.*` |
 | `identifiers[]` | `type` (`doi`, `isbn-13`, `isbn-10`, `issn`, `eissn`, `local`), `value`, `format` (`print`, `pdf`, `epub`, `html`) | format obligatoire pour un ISBN | — |
-| `rights` | `holder`, `statement`, `license.name`, `license.url` | nom de licence obligatoire avec URL | `holder` |
+| `rights` | `holder`, `statement`, `license.name`, `license.url`, `license.spdx_id` (sous-ensemble CC 4.0 + CC0, voir décision 0023) | nom de licence obligatoire avec URL, sauf `spdx_id` renseigné | `holder` |
 | `abstracts[]` | `type` (`summary`, `abstract`, `back-cover`), `language`, `text` (un paragraphe par ligne) | — | — |
 | `keywords[]` | `language`, `scheme` (défaut `keywords`), `items[]` | ordre conservé, pas de déduplication automatique | — |
-| `collection` | `title`, `issn`, `volume` — collection simple uniquement | titre si présent | — |
+| `collection` | `title`, `issn`, `volume`, `editor` — collection simple uniquement | titre si présent | — |
 | `pagination` | `from`+`to` **ou** `extent` (exclusifs) | — | — |
+| `funding[]` | `funder`, `grant_number` | funder obligatoire par entrée si le tableau est présent | — |
 
 Le titre et le sous-titre peuvent être suggérés depuis les styles Word natifs
 `Title`/`Subtitle` (y compris localisés `Titre`/`Sous-titre`), mais le JSON
@@ -109,11 +110,12 @@ Exemples : `tests/fixtures/metadata/minimal.json` (minimal),
 | `keywords[]` | `profileDesc/textClass/keywords[@scheme][@xml:lang]/list/item` | un `keywords` par groupe, ordre conservé |
 | `abstracts[]` | `text/front/div[@type='abstract'][@xml:lang]`, un `p` par ligne | le profil embarqué n'admet pas `abstract` dans `profileDesc` |
 | abstract `back-cover` | idem + `@n='back-cover'` | attribut libre `n`, documenté ici |
-| `collection` | second `sourceDesc/bibl/series` : `title`, `biblScope[@unit='volume']`, `idno[@type='pISSN']` | pas de `seriesStmt` dans le profil |
+| `collection` | second `sourceDesc/bibl/series` : `title`, `editor`, `biblScope[@unit='volume']`, `idno[@type='pISSN']` | pas de `seriesStmt` dans le profil |
 | `pagination.from`/`to` | `sourceDesc/bibl/biblScope[@unit='page']` (`125-148`) | pas de `@from/@to` dans le profil |
 | `pagination.extent` | non sérialisé (`pagination_extent_not_serialized`, avertissement) | pas d'`extent` dans le profil |
 | `editorial_responsibility` | non sérialisé (`editorial_responsibility_not_serialized`, info) | pas d'`editionStmt`/`respStmt` dans le profil |
 | `contributors[].email` | non sérialisé (info) | |
+| `funding[]` | `titleStmt/funder/orgName` + `funder/idno[@type='funder_registry']` si `grant_number` | un `funder` par entrée, ordre conservé ; `funder` (nom) toujours sérialisé, `grant_number` seulement si présent |
 
 Aucune structure vide ni valeur de substitution n'est produite : sans
 métadonnées, `publicationStmt` retombe sur son paragraphe descriptif, et
@@ -140,14 +142,18 @@ Validation (`error` sauf mention) : `unsupported_schema_version`,
 `empty_abstract`, `invalid_keyword_scheme`, `empty_keyword_group`,
 `invalid_keyword`, `similar_keywords` (warning),
 `invalid_collection_title`, `invalid_collection_volume`,
-`conflicting_pagination`, `incomplete_pagination`, `invalid_pagination`.
+`invalid_collection_editor`,
+`conflicting_pagination`, `incomplete_pagination`, `invalid_pagination`,
+`invalid_funder`, `invalid_grant_number`,
+`invalid_license_spdx_id`, `license_spdx_id_mismatch` (warning).
 
 Chargement : `invalid_json`, `invalid_metadata_structure`,
 `missing_metadata_field`, `invalid_field_type`, `metadata_file_unreadable`.
 Profil : `profile_file_unreadable`, `invalid_profile_json`,
 `invalid_profile_structure`, `invalid_profile_id`.
 Cohérence : `metadata_source_filename_changed`, `metadata_source_changed`,
-`metadata_title_differs_from_docx`, `metadata_subtitle_differs_from_docx`.
+`metadata_title_differs_from_docx`, `metadata_subtitle_differs_from_docx`,
+`signature_contributor_not_in_metadata`.
 Sérialisation TEI : `missing_publisher_for_publication_details` (bloquant),
 `pagination_extent_not_serialized` (warning),
 `editorial_responsibility_not_serialized`, `publisher_address_not_serialized`,

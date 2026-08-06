@@ -93,10 +93,18 @@ class Identifier:
 
 @dataclass(frozen=True)
 class License:
-    """Licence affichee et son URI reelle ; jamais de valeur de substitution."""
+    """Licence affichee et son URI reelle ; jamais de valeur de substitution.
+
+    ``spdx_id`` est facultatif et complete ``name``/``url`` en texte libre :
+    quand il designe une licence Creative Commons connue
+    (``validation.SPDX_LICENSES``), ``name``/``url`` peuvent rester absents
+    et sont alors resolus automatiquement (voir
+    ``validation.resolved_license``).
+    """
 
     name: str | None = None
     url: str | None = None
+    spdx_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +141,15 @@ class Collection:
     title: str
     issn: str | None = None
     volume: str | None = None
+    editor: str | None = None
+
+
+@dataclass(frozen=True)
+class Funding:
+    """Financement de l'unite editoriale (ex. ANR, ERC) ; nom libre, non normalise."""
+
+    funder: str
+    grant_number: str | None = None
 
 
 @dataclass(frozen=True)
@@ -164,6 +181,7 @@ class DocumentMetadata:
     keywords: tuple[KeywordGroup, ...] = ()
     collection: Collection | None = None
     pagination: Pagination | None = None
+    funding: tuple[Funding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -206,10 +224,26 @@ class MetadataLoadResult:
 
 
 @dataclass(frozen=True)
+class SignatureSuggestion:
+    """Une occurrence de bloc ``Signature`` lue dans le DOCX (nom, institution)."""
+
+    name: str | None
+    affiliation: str | None
+
+
+@dataclass(frozen=True)
 class MetadataSuggestions:
-    """Valeurs uniquement proposees depuis le preambule Word."""
+    """Valeurs uniquement proposees depuis le preambule et la fin du DOCX.
+
+    ``signatures`` est lue depuis chaque suite terminale (par contribution)
+    de paragraphes ``Signature`` (decisions 0028, 0032) : contrairement a
+    ``title``/``subtitle``, ces paragraphes ne sont jamais consommes (ils
+    restent du contenu TEI visible) ; seule leur valeur textuelle est
+    reprise ici pour le controle de coherence avec ``contributors``.
+    """
 
     title: str | None
     subtitle: str | None
     diagnostics: tuple[MetadataIssue, ...]
     consumed_paragraph_indexes: tuple[int, ...]
+    signatures: tuple[SignatureSuggestion, ...] = ()

@@ -116,6 +116,12 @@ charge en TEI Commons Publishing validee. La convention reconnait `Quote` pour
 les citations en prose et `IntenseQuote` pour les citations poetiques
 (strophes = paragraphes, vers = retours manuels).
 
+La reconnaissance des styles natifs repose sur l'identifiant OOXML stable,
+avec repli par nom affiche localise pour le francais et l'anglais, et un
+sous-ensemble verifie de l'allemand et l'espagnol (titres, corps de texte,
+citation en prose, notes, titre/sous-titre, legende ; voir la decision 0020
+pour le detail et les exclusions volontaires, notamment `IntenseQuote`).
+
 Le style Word integre `BodyText`, affiche en francais comme **Corps de texte**,
 devient un paragraphe de suite : le modele porte
 `rendition="consecutive"` et la TEI produit `<p rend="consecutive">`. Cette
@@ -170,7 +176,11 @@ transformees, melangees a du texte ou placees dans des listes restent refusees.
 
 Les figures simples peuvent maintenant recevoir un titre, une legende et des
 credits lorsque les styles controles `TEIfiguretitle`, `TEIfigurecaption` et
-`TEIfigurecredits` sont declares exactement. Les tableaux Word de premier niveau
+`TEIfigurecredits` sont declares exactement. Sans style personnalise, le style
+natif `Caption` suffit aussi pour le titre : deux paragraphes `Caption`
+consecutifs juste apres l'image donnent titre (premier) puis legende
+(second) ; un seul paragraphe `Caption` reste une legende seule, sans titre
+(retro-compatible avec l'usage existant). Voir decision 0033. Les tableaux Word de premier niveau
 deviennent des tableaux TEI lorsqu'ils sont rectangulaires, sans fusion ni
 imbrication, et que chaque cellule contient au plus un paragraphe simple. Les
 tableaux dans les notes, zones de texte ou listes, ainsi que les cellules
@@ -181,4 +191,57 @@ en TEI `bibl` : elles peuvent etre autonomes, devenir la source immediate d'une
 citation, ou former une bibliographie finale ouverte par `TEIbiblstart`.
 Le style de caractere `TEIbiblreference-inline` produit un `bibl` inline. La
 bibliographie est unique, terminale et devient `text/back/listBibl`; Mini-Metopes
-ne deduit pas de `biblStruct`.
+ne deduit pas de `biblStruct`. Le style natif Word `Bibliography` (sans
+`w:customStyle`) est egalement reconnu, partout ou `TEIbiblreference` l'est ;
+sans `TEIbiblstart`, le premier paragraphe `Bibliography` declenche lui-meme
+la bibliographie terminale, sans `<head>` (Word n'a pas de style de debut de
+bibliographie separe).
+
+Un tableau des matieres Word genere automatiquement (styles `TOC1`-`TOC9`,
+`TOCHeading`) n'est jamais serialise : la structure `div`/`head` deja
+produite en tient lieu. Un diagnostic dedie et actionnable
+(`word_generated_toc_not_supported`) le signale, au lieu de l'echec generique
+de style inconnu.
+
+Le style natif Word `Salutation` devient une epigraphe TEI (`<epigraph>`,
+un `<p>` par paragraphe) lorsqu'un ou plusieurs paragraphes `Salutation`
+consecutifs suivent immediatement un titre, ou ouvrent le document. Ailleurs
+dans le flux ou a l'interieur d'une note, il reste refuse
+(`misplaced_epigraph_not_serializable`).
+
+Le style natif Word `Signature` marque la signature d'auteur en fin
+d'article/chapitre/contribution : premier paragraphe = prenom et nom,
+second (facultatif) = institution de rattachement. Reconnu uniquement en
+suite terminale d'au plus deux lignes, la fin admise etant soit la fin du
+document, soit un titre de niveau 1 a 3 (voir hierarchie de titres
+ci-dessous) ; sinon refuse (`misplaced_signature_not_serializable`).
+Chaque ligne devient un `<p>` simple (le profil Commons Publishing n'a pas
+de valeur `@rend` dediee). Le nom de chaque signature trouvee est compare
+aux `contributors` du JSON ; une absence de correspondance produit un
+avertissement par occurrence (`signature_contributor_not_in_metadata`),
+jamais bloquant.
+
+Un DOCX peut representer un chapitre/article autonome, ou un livre
+entier/extrait multi-chapitres. Dans ce second cas, la convention
+d'ecriture est : `Titre2` pour une section du livre (regroupe plusieurs
+contributions), `Titre3` pour le titre d'une contribution (recueil
+collectif) ou d'un chapitre (monographie) ; `Titre1` reste reserve au
+titre d'un chapitre/article autonome (usage habituel, une seule
+contribution par DOCX) et n'est pas utilise a l'interieur d'un livre.
+Cette hierarchie n'est pas imposee par une validation dediee : le
+mecanisme generique d'imbrication `<div>` par niveau de titre produit deja
+la structure attendue quel que soit le niveau de depart, et chaque bloc
+`Signature` est simplement terminal par rapport a la contribution qui le
+precede (voir decision 0032). La bibliographie generale du livre, elle,
+reste unique et terminale pour tout le document (decisions 0026/0030/0031).
+
+Le style natif Word `Block Text` devient un encadre TEI (`<floatingText>`
+avec un `<body>` imbrique, un `<p>` par paragraphe), sans contrainte de
+position : il peut interrompre le flux principal n'importe ou, sauf a
+l'interieur d'une note (`floating_text_in_note_not_serializable`).
+
+Un run Word dont la langue de correction (`w:lang`) differe de la langue du
+document (`document.language` du JSON, comparee sur la seule sous-etiquette
+primaire, ex. `fr` dans `fr-FR`) devient `<hi xml:lang="...">` dans la TEI,
+meme sans autre mise en forme. Cela permet de marquer une citation en langue
+originale au fil du texte. Aucune supposition n'est faite sans metadonnees.

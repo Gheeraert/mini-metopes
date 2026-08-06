@@ -257,6 +257,27 @@ def test_tables_and_textboxes_in_notes_are_reported(tmp_path: Path) -> None:
     )
 
 
+def test_run_language_is_read_from_rpr_lang(tmp_path: Path) -> None:
+    path = tmp_path / "run-language.docx"
+    document_xml = (
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body><w:p>"
+        '<w:r><w:t>Texte en francais </w:t></w:r>'
+        '<w:r><w:rPr><w:lang w:val="en-US"/></w:rPr><w:t>foreign phrase</w:t></w:r>'
+        "</w:p></w:body></w:document>"
+    )
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        info = ZipInfo("word/document.xml", date_time=(2024, 1, 1, 0, 0, 0))
+        info.compress_type = ZIP_DEFLATED
+        archive.writestr(info, document_xml)
+
+    inspection = inspect_docx_file(path)
+
+    runs = inspection.paragraphs[0].runs
+    assert runs[0].language is None
+    assert runs[1].language == "en-US"
+
+
 def _build_docx_with_part(tmp_path: Path, name: str, extra_part: str, extra_content: str) -> Path:
     path = tmp_path / name
     files = {

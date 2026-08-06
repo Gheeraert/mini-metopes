@@ -33,10 +33,13 @@ testée (`editorial/convention.py`, `native_style_alias_map`) :
    (`w:customStyle` absent ou faux), son `w:name` normalisé (casse, espaces,
    accents) est cherché dans la table de la convention, qui contient les noms
    OOXML canoniques anglais (ce que Word français écrit réellement :
-   `heading 1`, `Body Text`, `Intense Quote`, …) et les noms affichés
-   localisés français (`Titre 1`, `Corps de texte`, `Citation intense`, …)
-   produits par d'autres outils. Les tables des styles de paragraphe et de
-   caractère sont séparées.
+   `heading 1`, `Body Text`, `Intense Quote`, …), les noms affichés
+   localisés français (`Titre 1`, `Corps de texte`, `Citation intense`, …), et
+   depuis la décision 0020 un sous-ensemble vérifié de noms allemands et
+   espagnols (`Überschrift 1`, `Textkörper`, `Título 1`, `Texto
+   independiente`, …) — volontairement limité aux entrées confirmées ;
+   `IntenseQuote` n'est pas couvert dans ces deux langues. Les tables des
+   styles de paragraphe et de caractère sont séparées.
 3. **Niveau de plan.** Un paragraphe sans style reconnu mais doté d'un
    `outlineLvl` (direct ou hérité du style) entre 0 et 5 est traité comme
    titre de niveau `outlineLvl + 1`. C'est le seul repli hiérarchique.
@@ -72,6 +75,23 @@ Les objets refusés en l'état (dessins non conformes à la convention figures,
 zones de texte, tableaux non simples, sauts de page/colonne, tabulations…)
 bloquent la conversion avec des diagnostics stables ; ils ne sont jamais
 transformés silencieusement en paragraphes.
+
+### Livre à plusieurs contributions (`Heading1`–`Heading3`)
+
+Un DOCX peut représenter un chapitre/article autonome (`Heading1` = titre
+du chapitre, usage habituel), ou un livre entier/extrait multi-chapitres.
+Dans ce second cas, convention d'écriture : `Heading2` (« Titre 2 ») pour
+une section du livre, `Heading3` (« Titre 3 ») pour le titre d'une
+contribution (recueil collectif) ou d'un chapitre (monographie) ;
+`Heading1` n'est pas utilisé à l'intérieur d'un livre. Cette hiérarchie
+n'est pas une règle bloquante : le mécanisme générique d'imbrication `div`
+par niveau de titre produit déjà la structure attendue quel que soit le
+niveau de départ (voir décision 0032). Conséquence directe pour le style
+`Signature` : un bloc terminal par rapport à une contribution est reconnu
+juste avant la fin du document, ou juste avant un titre de niveau 1 à 3
+(la contribution/section suivante) — un titre de niveau 4 ou plus reste
+une sous-section de la même contribution et ne rend pas la signature
+terminale.
 
 ## Vocabulaire XML des listes (vérifié)
 

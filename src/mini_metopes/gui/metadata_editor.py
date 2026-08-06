@@ -11,14 +11,18 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import queue
+import threading
 
 from mini_metopes.docx import DocxInspectionError
 from mini_metopes.metadata import (
+    SPDX_LICENSES,
     Abstract,
     Affiliation,
     Collection,
     Contributor,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -32,12 +36,20 @@ from mini_metopes.metadata import (
 from .metadata_controller import (
     MetadataEditorState,
     TeiGenerationOutcome,
+    abstract_field_errors,
     add_affiliation,
     add_contributor,
+    affiliation_field_errors,
     apply_profile_to_state,
     change_metadata_destination,
+    collection_field_errors,
+    contributor_field_errors,
+    funding_field_errors,
     generate_tei_commons,
+    identifier_field_errors,
     is_metadata_dirty,
+    keyword_group_field_errors,
+    license_field_errors,
     load_metadata_editor_state,
     locate_source_document,
     move_item,
@@ -46,6 +58,7 @@ from .metadata_controller import (
     remove_affiliation,
     remove_contributor,
     requires_save_as,
+    responsibility_field_errors,
     save_metadata_editor_state,
     update_affiliation,
     update_contributor,
@@ -59,6 +72,7 @@ _DOCUMENT_TYPES = ("article", "chapter", "introduction", "conclusion", "bibliogr
 _IDENTIFIER_TYPES = ("doi", "isbn-13", "isbn-10", "issn", "eissn", "local")
 _IDENTIFIER_FORMATS = ("", "print", "pdf", "epub", "html")
 _ABSTRACT_TYPES = ("summary", "abstract", "back-cover")
+_LICENSE_SPDX_IDS = ("",) + tuple(SPDX_LICENSES)
 
 
 def _build_metadata_editor(
@@ -148,6 +162,28 @@ def _build_metadata_editor(
         dialog.grab_set()
         root.wait_window(dialog)
         return result[0]
+
+    def _validated_form_dialog(title, fields, values, build_item, field_errors):
+        """``form_dialog`` en boucle jusqu'a une saisie valide.
+
+        Reutilise ``validate_metadata`` (via ``field_errors``, qui isole
+        l'entree en cours d'un document minimal jetable) au lieu de tout
+        reporter au clic sur « Enregistrer » : une erreur de format (ORCID,
+        DOI, regle nom littéral/structuré...) est signalee immediatement,
+        pres du formulaire ou elle a ete commise, et le dialogue reste
+        ouvert avec la saisie precedente pour correction.
+        """
+        current_values = values
+        while True:
+            collected = form_dialog(title, fields, current_values)
+            if collected is None:
+                return None
+            item = build_item(collected)
+            errors = field_errors(item)
+            if not errors:
+                return item
+            messagebox.showerror("Champs invalides", "\n".join(errors), parent=root)
+            current_values = collected
 
     def list_frame(parent: ttk.Frame, title: str, columns: tuple[tuple[str, str], ...], *, orderable: bool = False):
         frame = ttk.LabelFrame(parent, text=title, padding=5)
@@ -271,29 +307,33 @@ def _build_metadata_editor(
             "email": (current.email if current else None) or "",
             "affiliations": ", ".join(current.affiliation_ids) if current else "",
         }
-        collected = form_dialog("Contributeur", [
-            ("Identifiant", "id", "entry"),
-            ("Rôle", "role", "combo:" + "|".join(_ROLES)),
-            ("Libellé (rôle other)", "role_label", "entry"),
-            ("Prénom", "given_name", "entry"),
-            ("Nom", "family_name", "entry"),
-            ("Nom littéral", "literal_name", "entry"),
-            ("ORCID", "orcid", "entry"),
-            ("Courriel", "email", "entry"),
-            ("Affiliations (IDs, virgules)", "affiliations", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return Contributor(
-            contributor_id=collected["id"],
-            role=collected["role"],
-            given_name=collected["given_name"] or None,
-            family_name=collected["family_name"] or None,
-            literal_name=collected["literal_name"] or None,
-            orcid=collected["orcid"] or None,
-            email=collected["email"] or None,
-            role_label=collected["role_label"] or None,
-            affiliation_ids=tuple(value.strip() for value in collected["affiliations"].split(",") if value.strip()),
+        def build(collected: dict[str, str]) -> Contributor:
+            return Contributor(
+                contributor_id=collected["id"],
+                role=collected["role"],
+                given_name=collected["given_name"] or None,
+                family_name=collected["family_name"] or None,
+                literal_name=collected["literal_name"] or None,
+                orcid=collected["orcid"] or None,
+                email=collected["email"] or None,
+                role_label=collected["role_label"] or None,
+                affiliation_ids=tuple(value.strip() for value in collected["affiliations"].split(",") if value.strip()),
+            )
+
+        known_affiliation_ids = tuple(item.affiliation_id for item in state.metadata.affiliations)
+        return _validated_form_dialog(
+            "Contributeur", [
+                ("Identifiant", "id", "entry"),
+                ("Rôle", "role", "combo:" + "|".join(_ROLES)),
+                ("Libellé (rôle other)", "role_label", "entry"),
+                ("Prénom", "given_name", "entry"),
+                ("Nom", "family_name", "entry"),
+                ("Nom littéral", "literal_name", "entry"),
+                ("ORCID", "orcid", "entry"),
+                ("Courriel", "email", "entry"),
+                ("Affiliations (IDs, virgules)", "affiliations", "entry"),
+            ], values, build,
+            lambda item: contributor_field_errors(item, known_affiliation_ids),
         )
 
     def affiliation_dialog(current: Affiliation | None) -> Affiliation | None:
@@ -305,14 +345,16 @@ def _build_metadata_editor(
             "country": (current.country if current else None) or "",
             "ror": (current.ror if current else None) or "",
         }
-        collected = form_dialog("Affiliation", [
-            ("Identifiant", "id", "entry"), ("Institution", "name", "entry"), ("Unité", "unit", "entry"),
-            ("Ville", "city", "entry"), ("Pays", "country", "entry"), ("ROR (URL)", "ror", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return Affiliation(collected["id"], collected["name"], collected["unit"] or None,
-                           collected["city"] or None, collected["country"] or None, collected["ror"] or None)
+        def build(collected: dict[str, str]) -> Affiliation:
+            return Affiliation(collected["id"], collected["name"], collected["unit"] or None,
+                               collected["city"] or None, collected["country"] or None, collected["ror"] or None)
+
+        return _validated_form_dialog(
+            "Affiliation", [
+                ("Identifiant", "id", "entry"), ("Institution", "name", "entry"), ("Unité", "unit", "entry"),
+                ("Ville", "city", "entry"), ("Pays", "country", "entry"), ("ROR (URL)", "ror", "entry"),
+            ], values, build, affiliation_field_errors,
+        )
 
     # -------------------------------------------------------------- onglet 3
 
@@ -359,7 +401,13 @@ def _build_metadata_editor(
     collection_title_var = tk.StringVar()
     collection_issn_var = tk.StringVar()
     collection_volume_var = tk.StringVar()
-    for row, (label, variable) in enumerate((("Titre", collection_title_var), ("ISSN", collection_issn_var), ("Volume", collection_volume_var))):
+    collection_editor_var = tk.StringVar()
+    for row, (label, variable) in enumerate((
+        ("Titre", collection_title_var),
+        ("ISSN", collection_issn_var),
+        ("Volume", collection_volume_var),
+        ("Éditeur de la collection", collection_editor_var),
+    )):
         ttk.Label(collection_frame, text=label).grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(collection_frame, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=2)
 
@@ -371,6 +419,12 @@ def _build_metadata_editor(
     for column, (label, variable) in enumerate((("De la page", page_from_var), ("à la page", page_to_var), ("ou étendue (pages)", extent_var))):
         ttk.Label(pagination_frame, text=label).grid(row=0, column=column * 2, sticky="w", padx=(0, 4))
         ttk.Entry(pagination_frame, textvariable=variable, width=8).grid(row=0, column=column * 2 + 1, padx=(0, 12))
+
+    funding_frame, funding_tree, funding_buttons = list_frame(
+        publication_tab, "Financement (ANR, ERC…)",
+        (("funder", "Organisme"), ("grant_number", "Numéro de subvention")), orderable=True,
+    )
+    funding_frame.grid(row=4, column=0, columnspan=2, sticky="nsew", pady=6)
 
     # -------------------------------------------------------------- onglet 4
 
@@ -392,14 +446,17 @@ def _build_metadata_editor(
             "language": current.language if current else (language_var.get() or "fr"),
             "text": current.text if current else "",
         }
-        collected = form_dialog("Résumé", [
-            ("Type", "type", "combo:" + "|".join(_ABSTRACT_TYPES)),
-            ("Langue", "language", "entry"),
-            ("Texte (un paragraphe par ligne)", "text", "text"),
-        ], values)
-        if collected is None:
-            return None
-        return Abstract(collected["type"], collected["language"], collected["text"])
+
+        def build(collected: dict[str, str]) -> Abstract:
+            return Abstract(collected["type"], collected["language"], collected["text"])
+
+        return _validated_form_dialog(
+            "Résumé", [
+                ("Type", "type", "combo:" + "|".join(_ABSTRACT_TYPES)),
+                ("Langue", "language", "entry"),
+                ("Texte (un paragraphe par ligne)", "text", "text"),
+            ], values, build, abstract_field_errors,
+        )
 
     def keyword_dialog(current: KeywordGroup | None) -> KeywordGroup | None:
         values = {
@@ -407,28 +464,34 @@ def _build_metadata_editor(
             "scheme": current.scheme if current else "keywords",
             "items": "\n".join(current.items) if current else "",
         }
-        collected = form_dialog("Groupe de mots-clés", [
-            ("Langue", "language", "entry"),
-            ("Schéma", "scheme", "entry"),
-            ("Mots-clés (un par ligne)", "items", "text"),
-        ], values)
-        if collected is None:
-            return None
-        return KeywordGroup(
-            collected["language"],
-            tuple(line.strip() for line in collected["items"].splitlines() if line.strip()),
-            collected["scheme"] or "keywords",
+
+        def build(collected: dict[str, str]) -> KeywordGroup:
+            return KeywordGroup(
+                collected["language"],
+                tuple(line.strip() for line in collected["items"].splitlines() if line.strip()),
+                collected["scheme"] or "keywords",
+            )
+
+        return _validated_form_dialog(
+            "Groupe de mots-clés", [
+                ("Langue", "language", "entry"),
+                ("Schéma", "scheme", "entry"),
+                ("Mots-clés (un par ligne)", "items", "text"),
+            ], values, build, keyword_group_field_errors,
         )
 
     def responsibility_dialog(current: EditorialResponsibility | None) -> EditorialResponsibility | None:
         values = {"responsibility": current.responsibility if current else "", "name": current.name if current else ""}
-        collected = form_dialog("Responsable d'édition", [
-            ("Responsabilité (ex. éditrice)", "responsibility", "entry"),
-            ("Nom", "name", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return EditorialResponsibility(collected["responsibility"], collected["name"])
+
+        def build(collected: dict[str, str]) -> EditorialResponsibility:
+            return EditorialResponsibility(collected["responsibility"], collected["name"])
+
+        return _validated_form_dialog(
+            "Responsable d'édition", [
+                ("Responsabilité (ex. éditrice)", "responsibility", "entry"),
+                ("Nom", "name", "entry"),
+            ], values, build, responsibility_field_errors,
+        )
 
     # -------------------------------------------------------------- onglet 5
 
@@ -443,6 +506,17 @@ def _build_metadata_editor(
     for row, (label, variable) in enumerate((("Détenteur des droits", holder_var), ("Mention affichée", statement_var), ("Licence (nom)", license_name_var), ("Licence (URL)", license_url_var))):
         ttk.Label(rights_frame, text=label).grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(rights_frame, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=2)
+    license_spdx_row = 4
+    license_spdx_var = tk.StringVar()
+    ttk.Label(rights_frame, text="Licence (identifiant SPDX)").grid(row=license_spdx_row, column=0, sticky="w", pady=2)
+    ttk.Combobox(
+        rights_frame, textvariable=license_spdx_var, values=_LICENSE_SPDX_IDS, width=34, state="readonly",
+    ).grid(row=license_spdx_row, column=1, sticky="ew", pady=2)
+    ttk.Label(
+        rights_frame,
+        text="Si renseigné, complète automatiquement nom et URL quand ils sont vides.",
+        foreground="#555555",
+    ).grid(row=license_spdx_row + 1, column=0, columnspan=2, sticky="w")
 
     identifiers_frame, identifier_tree, identifier_buttons = list_frame(
         rights_tab, "Identifiants de publication",
@@ -456,14 +530,33 @@ def _build_metadata_editor(
             "value": current.value if current else "",
             "format": (current.identifier_format if current else None) or "",
         }
-        collected = form_dialog("Identifiant", [
-            ("Type", "type", "combo:" + "|".join(_IDENTIFIER_TYPES)),
-            ("Valeur", "value", "entry"),
-            ("Support", "format", "combo:" + "|".join(_IDENTIFIER_FORMATS)),
-        ], values)
-        if collected is None:
-            return None
-        return Identifier(collected["type"], collected["value"], collected["format"] or None)
+
+        def build(collected: dict[str, str]) -> Identifier:
+            return Identifier(collected["type"], collected["value"], collected["format"] or None)
+
+        return _validated_form_dialog(
+            "Identifiant", [
+                ("Type", "type", "combo:" + "|".join(_IDENTIFIER_TYPES)),
+                ("Valeur", "value", "entry"),
+                ("Support", "format", "combo:" + "|".join(_IDENTIFIER_FORMATS)),
+            ], values, build, identifier_field_errors,
+        )
+
+    def funding_dialog(current: Funding | None) -> Funding | None:
+        values = {
+            "funder": current.funder if current else "",
+            "grant_number": (current.grant_number if current else None) or "",
+        }
+
+        def build(collected: dict[str, str]) -> Funding:
+            return Funding(collected["funder"], collected["grant_number"] or None)
+
+        return _validated_form_dialog(
+            "Financement", [
+                ("Organisme (ex. ANR, ERC)", "funder", "entry"),
+                ("Numéro de subvention", "grant_number", "entry"),
+            ], values, build, funding_field_errors,
+        )
 
     # ------------------------------------------------------------ etat <-> UI
 
@@ -485,11 +578,17 @@ def _build_metadata_editor(
         elif extent_var.get().strip():
             pagination = Pagination(extent=parse_pagination_field(extent_var.get()))
         collection = None
-        if collection_title_var.get().strip() or collection_issn_var.get().strip() or collection_volume_var.get().strip():
+        if (
+            collection_title_var.get().strip()
+            or collection_issn_var.get().strip()
+            or collection_volume_var.get().strip()
+            or collection_editor_var.get().strip()
+        ):
             collection = Collection(
                 title=collection_title_var.get(),
                 issn=collection_issn_var.get().strip() or None,
                 volume=collection_volume_var.get().strip() or None,
+                editor=collection_editor_var.get().strip() or None,
             )
         metadata = replace(
             state.metadata,
@@ -512,6 +611,7 @@ def _build_metadata_editor(
                 license=License(
                     name=license_name_var.get().strip() or None,
                     url=license_url_var.get().strip() or None,
+                    spdx_id=license_spdx_var.get().strip() or None,
                 ),
             ),
             collection=collection,
@@ -548,6 +648,9 @@ def _build_metadata_editor(
         identifier_tree.delete(*identifier_tree.get_children())
         for index, item in enumerate(state.metadata.identifiers):
             identifier_tree.insert("", "end", iid=str(index), values=(item.identifier_type, item.value, item.identifier_format or ""))
+        funding_tree.delete(*funding_tree.get_children())
+        for index, item in enumerate(state.metadata.funding):
+            funding_tree.insert("", "end", iid=str(index), values=(item.funder, item.grant_number or ""))
 
     def refresh_all() -> None:
         docx_label_var.set(str(state.docx_path))
@@ -567,10 +670,12 @@ def _build_metadata_editor(
         statement_var.set(state.metadata.rights.statement or "")
         license_name_var.set(state.metadata.rights.license.name or "")
         license_url_var.set(state.metadata.rights.license.url or "")
+        license_spdx_var.set(state.metadata.rights.license.spdx_id or "")
         collection = state.metadata.collection
         collection_title_var.set(collection.title if collection else "")
         collection_issn_var.set((collection.issn if collection else None) or "")
         collection_volume_var.set((collection.volume if collection else None) or "")
+        collection_editor_var.set((collection.editor if collection else None) or "")
         pagination = state.metadata.pagination
         page_from_var.set(str(pagination.page_from) if pagination and pagination.page_from is not None else "")
         page_to_var.set(str(pagination.page_to) if pagination and pagination.page_to is not None else "")
@@ -633,6 +738,7 @@ def _build_metadata_editor(
     sequence_actions(abstract_tree, "abstracts", abstract_dialog, abstract_buttons)
     sequence_actions(keyword_tree, "keywords", keyword_dialog, keyword_buttons)
     sequence_actions(identifier_tree, "identifiers", identifier_dialog, identifier_buttons)
+    sequence_actions(funding_tree, "funding", funding_dialog, funding_buttons)
 
     @_requires_state
     def add_person() -> None:
@@ -849,6 +955,37 @@ def _build_metadata_editor(
             messagebox.showerror("Mini-Métopes", summary, parent=root)
             _show_diagnostics_window("Diagnostics de génération", detail_lines)
 
+    def _show_generation_wait_window() -> tk.Toplevel:
+        """Fenetre modale non bloquante rassurant l'utilisateur pendant la generation.
+
+        La conversion tourne sur un thread separe (inspection DOCX, construction
+        du modele editorial, validation RNG et ecriture des medias peuvent
+        prendre plusieurs secondes sur un document volumineux) ; cette fenetre
+        confirme que Mini-Metopes travaille toujours, sans geler la fenetre
+        principale.
+        """
+        wait_window = tk.Toplevel(root)
+        wait_window.title("Génération en cours")
+        wait_window.resizable(False, False)
+        wait_window.transient(root)
+        wait_window.protocol("WM_DELETE_WINDOW", lambda: None)
+        frame = ttk.Frame(wait_window, padding=16)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(
+            frame,
+            text=(
+                "Génération de la TEI Commons Publishing en cours…\n"
+                "Cela peut prendre quelques instants sur un document volumineux, "
+                "merci de patienter."
+            ),
+            justify="center",
+        ).pack(pady=(0, 10))
+        progress_bar = ttk.Progressbar(frame, mode="indeterminate", length=280)
+        progress_bar.pack()
+        progress_bar.start(12)
+        wait_window.grab_set()
+        return wait_window
+
     @_requires_state
     def generate_tei() -> None:
         nonlocal state
@@ -856,6 +993,7 @@ def _build_metadata_editor(
             return
         assert state is not None
         docx_path = state.docx_path
+        metadata = state.metadata
         suggested = docx_path.with_suffix(".xml")
         selected = filedialog.asksaveasfilename(
             parent=root,
@@ -868,20 +1006,36 @@ def _build_metadata_editor(
         if not selected:
             return
         output_path = Path(selected)
+
+        outcome_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+
+        def worker() -> None:
+            try:
+                outcome_queue.put(("success", generate_tei_commons(docx_path, metadata, output_path)))
+            except (DocxInspectionError, OSError, ValueError) as error:
+                outcome_queue.put(("error", error))
+
         if generate_button is not None:
             generate_button.configure(state="disabled", text="Génération en cours…")
-        root.configure(cursor="watch")
-        root.update_idletasks()
-        try:
-            outcome = generate_tei_commons(state.docx_path, state.metadata, output_path)
-        except (DocxInspectionError, OSError, ValueError) as error:
-            messagebox.showerror("Erreur de génération", str(error), parent=root)
-            return
-        finally:
-            root.configure(cursor="")
+        wait_window = _show_generation_wait_window()
+        threading.Thread(target=worker, daemon=True).start()
+
+        def poll() -> None:
+            try:
+                kind, payload = outcome_queue.get_nowait()
+            except queue.Empty:
+                root.after(100, poll)
+                return
+            wait_window.grab_release()
+            wait_window.destroy()
             if generate_button is not None:
                 generate_button.configure(state="normal", text="Générer la TEI Commons…")
-        _report_generation_outcome(outcome)
+            if kind == "error":
+                messagebox.showerror("Erreur de génération", str(payload), parent=root)
+                return
+            _report_generation_outcome(payload)
+
+        root.after(100, poll)
 
     save_button = ttk.Button(actions, textvariable=save_label_var, command=lambda: save_current_metadata())
     save_button.pack(side="left")

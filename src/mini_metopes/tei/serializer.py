@@ -17,6 +17,8 @@ from mini_metopes.editorial import (
     DrawingReference,
     EditorialBlock,
     EditorialDocument,
+    Epigraph,
+    FloatingText,
     EditorialFigure,
     EditorialGraphic,
     EditorialInline,
@@ -43,6 +45,7 @@ from mini_metopes.metadata import (
     normalize_doi,
     normalize_issn,
     normalize_orcid,
+    resolved_license,
 )
 
 from .model import TeiAsset, TeiConversionDiagnostic, TeiConversionResult, TeiWriteResult
@@ -71,6 +74,7 @@ class _SerializationState:
     notes: dict[tuple[str, str], EditorialNote]
     active_notes: set[tuple[str, str]]
     referenced_notes: set[tuple[str, str]]
+    document_language: str | None = None
 
     def error(
         self,
@@ -116,7 +120,10 @@ def serialize_editorial_document_to_tei(
             )
         else:
             notes[key] = note
-    state = _SerializationState(document, diagnostics, notes, set(), set())
+    state = _SerializationState(
+        document, diagnostics, notes, set(), set(),
+        document_language=metadata.language if metadata is not None else None,
+    )
     root = etree.Element(_tag("TEI"), nsmap=_NSMAP)
     _append_header(root, document.source_name, metadata, state)
     text_element = etree.SubElement(root, _tag("text"))
@@ -342,6 +349,11 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                     origin="metadata",
                     metadata_path=f"affiliations[{affiliation_index}].id",
                 ))
+        for funding in metadata.funding:
+            funder = etree.SubElement(title_stmt, _tag("funder"))
+            etree.SubElement(funder, _tag("orgName")).text = funding.funder
+            if funding.grant_number:
+                etree.SubElement(funder, _tag("idno"), type="funder_registry").text = funding.grant_number
     _append_publication_statement(file_desc, metadata, state)
     source_desc = etree.SubElement(file_desc, _tag("sourceDesc"))
     etree.SubElement(source_desc, _tag("p")).text = f"Conversion du fichier DOCX {source_name}."
@@ -368,6 +380,25 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
 
 
 _XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+
+
+def _foreign_language_attribute(run_language: str | None, document_language: str | None) -> str | None:
+    """Determiner s'il faut porter `xml:lang` sur `<hi>` pour un run en langue etrangere.
+
+    Compare uniquement la sous-etiquette primaire (ex. `fr` dans `fr-FR`) :
+    un run Word tague `fr-FR` dans un document declare `fr` n'est pas une
+    exception a marquer. Sans langue de document connue (`metadata` absent),
+    aucune supposition n'est faite.
+    """
+    if run_language is None or document_language is None:
+        return None
+    if _primary_language_subtag(run_language) == _primary_language_subtag(document_language):
+        return None
+    return run_language
+
+
+def _primary_language_subtag(value: str) -> str:
+    return value.strip().split("-", 1)[0].lower()
 _TEI_CONTRIBUTOR_ROLES = {
     "author": "aut",
     "editor": "edt",
@@ -429,7 +460,7 @@ def _append_publication_statement(
         etree.SubElement(publication, _tag("idno"), type=idno_type).text = value
     if availability:
         element = etree.SubElement(publication, _tag("availability"))
-        license_model = metadata.rights.license
+        license_model = resolved_license(metadata.rights.license)
         if license_model.name:
             attributes = {"target": license_model.url} if license_model.url else {}
             etree.SubElement(element, _tag("licence"), **attributes).text = license_model.name
@@ -441,7 +472,8 @@ def _append_publication_statement(
 
 def _availability_content(metadata: DocumentMetadata) -> bool:
     rights = metadata.rights
-    return bool(rights.license.name or rights.statement or rights.holder)
+    license_model = resolved_license(rights.license)
+    return bool(license_model.name or rights.statement or rights.holder)
 
 
 def _tei_identifier(identifier: object, index: int, state: _SerializationState) -> tuple[str | None, str | None]:
@@ -490,6 +522,8 @@ def _append_bibliographic_source_desc(
     if collection is not None:
         series = etree.SubElement(bibl, _tag("series"))
         etree.SubElement(series, _tag("title")).text = collection.title
+        if collection.editor:
+            etree.SubElement(series, _tag("editor")).text = collection.editor
         if collection.volume:
             etree.SubElement(series, _tag("biblScope"), unit="volume").text = collection.volume
         if collection.issn:
@@ -596,6 +630,43 @@ def _append_block(parent: etree._Element, block: EditorialBlock, state: _Seriali
         if block.source is not None:
             _append_bibliographic_reference(wrapper, block.source, state)
         return
+    if isinstance(block, Epigraph):
+        if not block.paragraphs:
+            state.error("empty_epigraph_not_serializable", "epigraphe vide non serialisable")
+            return
+        element = etree.SubElement(parent, _tag("epigraph"))
+        for paragraph in block.paragraphs:
+            if not paragraph.content:
+                state.error(
+                    "empty_epigraph_paragraph_not_serializable",
+                    "paragraphe d'epigraphe vide non serialisable",
+                    source_paragraph_index=paragraph.source_paragraph_index,
+                )
+                continue
+            p_element = etree.SubElement(element, _tag("p"))
+            _append_inline(p_element, paragraph.content, state)
+        return
+    if isinstance(block, FloatingText):
+        if not block.paragraphs:
+            state.error("empty_floating_text_not_serializable", "encadre vide non serialisable")
+            return
+        element = etree.SubElement(parent, _tag("floatingText"))
+        inner_body = etree.SubElement(element, _tag("body"))
+        has_content = False
+        for paragraph in block.paragraphs:
+            if not paragraph.content:
+                state.error(
+                    "empty_floating_text_paragraph_not_serializable",
+                    "paragraphe d'encadre vide non serialisable",
+                    source_paragraph_index=paragraph.source_paragraph_index,
+                )
+                continue
+            p_element = etree.SubElement(inner_body, _tag("p"))
+            _append_inline(p_element, paragraph.content, state)
+            has_content = True
+        if not has_content:
+            state.error("empty_floating_text_not_serializable", "encadre sans contenu serialisable")
+        return
     if isinstance(block, BibliographicReference):
         _append_bibliographic_reference(parent, block, state)
         return
@@ -634,7 +705,7 @@ def _append_bibliography(parent: etree._Element | None, bibliography: object, st
     if parent is None or not isinstance(bibliography, EditorialBibliography):
         state.error("bibliography_not_serializable", "bibliographie editoriale invalide")
         return
-    if not bibliography.title:
+    if not bibliography.title and bibliography.title_required:
         state.error("empty_bibliography_title_not_serializable", "titre de bibliographie vide", source_paragraph_index=bibliography.source_paragraph_index)
         return
     if _contains_bibliographic_inline(bibliography.title):
@@ -649,8 +720,9 @@ def _append_bibliography(parent: etree._Element | None, bibliography: object, st
         return
     back = etree.SubElement(parent, _tag("back"))
     division = etree.SubElement(back, _tag("div"), type="bibliography")
-    head = etree.SubElement(division, _tag("head"))
-    _append_inline(head, bibliography.title, state, inside_bibl=True)
+    if bibliography.title:
+        head = etree.SubElement(division, _tag("head"))
+        _append_inline(head, bibliography.title, state, inside_bibl=True)
     listing = etree.SubElement(division, _tag("listBibl"))
     for entry in bibliography.entries:
         _append_bibliographic_reference(listing, entry, state)
@@ -864,8 +936,12 @@ def _append_inline(
     for item in items:
         if isinstance(item, TextSpan):
             container = _text_container(parent, item.link, state)
-            if item.marks:
-                rendered = etree.SubElement(container, _tag("hi"), rend=" ".join(_REND_VALUES[mark] for mark in item.marks))
+            foreign_language = _foreign_language_attribute(item.language, state.document_language)
+            if item.marks or foreign_language is not None:
+                attributes = {"rend": " ".join(_REND_VALUES[mark] for mark in item.marks)} if item.marks else {}
+                rendered = etree.SubElement(container, _tag("hi"), **attributes)
+                if foreign_language is not None:
+                    rendered.set(_XML_LANG, foreign_language)
                 rendered.text = item.text
                 previous = rendered
             else:

@@ -82,3 +82,32 @@ controle `TEIfigurecaption` / `TEI_figure_caption`, et enfin du style controle
 `TEIfigurecredits` / `TEI_figure_credits`. Les styles homonymes ou voisins ne
 sont pas reconnus. Le titre devient `head`; la legende et les credits deviennent
 respectivement `p rend="caption"` et `p rend="credits"`.
+
+## Titre de figure sans style personnalise : protocole Caption a deux paragraphes (decision 0033)
+
+Sans recourir au style controle `TEIfiguretitle`, le style natif `Caption`
+suffit aussi a donner un titre a la figure, selon le meme principe que la
+signature d'auteur (decision 0028) : le nombre de paragraphes `Caption`
+consecutifs juste apres l'image determine leur role.
+
+- **Un seul** paragraphe `Caption` apres l'image -> legende seule, comme
+  decrit ci-dessus (`<p rend="caption">`), sans titre. Comportement
+  d'origine, inchange.
+- **Deux** paragraphes `Caption` consecutifs apres l'image -> le premier
+  devient le titre (`<head>`), le second la legende (`<p
+  rend="caption">`).
+
+```xml
+<figure>
+  <head>Titre de la figure</head>
+  <graphic url="media/<sha256>.png"/>
+  <figDesc>Description accessible.</figDesc>
+  <p rend="caption">Legende de la figure.</p>
+</figure>
+```
+
+Ce protocole ne s'applique que si aucun titre n'a deja ete fourni par
+`TEIfiguretitle` avant l'image (dans ce cas, un seul `Caption` apres
+l'image reste consomme comme legende, comportement inchange). Un
+paragraphe interpose entre les deux `Caption` rompt le protocole : le
+premier devient alors une legende isolee, pas un titre.
