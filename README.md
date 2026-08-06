@@ -132,7 +132,9 @@ n'a ete decidee.
 
 Les styles `Title` et `Subtitle` du preambule initial servent uniquement de
 suggestions et de controle de coherence avec le JSON; ils ne deviennent pas du
-contenu TEI. La conversion propage les diagnostics de l'inspection et du modele editorial.
+contenu TEI. Une page de titre Word (paragraphes `Title`/`Subtitle`) est donc
+facultative : le JSON reste seul responsable du `titleStmt`, et son absence
+dans le DOCX ne produit aucun avertissement. La conversion propage les diagnostics de l'inspection et du modele editorial.
 Elle refuse les styles `Title` et `Subtitle` hors preambule, les styles inconnus,
 les listes Word ambiguës ou non résolues, tableaux, zones de texte, dessins, liens internes et
 metadonnees riches afin d'eviter une TEI trompeuse. Les commentaires sont

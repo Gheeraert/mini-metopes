@@ -68,7 +68,7 @@ diagnostics explicites et bloquants.
 | `FootnoteText`, `EndnoteText` | id/nom, dans les notes | `Paragraph` ordinaire | `p` | — |
 | Gras, italique, petites capitales, capitales, exposant, indice | propriétés directes de run et styles `Emphasis`/`Strong` | marques `TextSpan.marks` | `hi rend="bold italic smallcaps caps sup sub"` (ordre stable) | styles de caractère inconnus : `unsupported_character_style`, bloquant |
 | Hyperliens externes | `w:hyperlink` avec relation externe | `EditorialLink(kind="external")` | `ref target="…"` | liens internes non matérialisés : diagnostic bloquant |
-| `Title`, `Subtitle` (« Titre », « Sous-titre ») initiaux | id/nom, préambule initial du corps | suggestion de métadonnées (consommée) | `titleStmt` via `metadata.json` | hors préambule : `metadata_style_not_initial`, bloquant |
+| `Title`, `Subtitle` (« Titre », « Sous-titre ») initiaux, facultatifs | id/nom, préambule initial du corps | suggestion de métadonnées (consommée) ; absents, ils ne produisent aucun diagnostic | `titleStmt` via `metadata.json` (seule source d'autorité) | hors préambule : `metadata_style_not_initial`, bloquant |
 | Style personnalisé quelconque (dont `TEI_quote` et autres `TEI_*` Métopes) | `w:customStyle="1"` non couvert par une convention contrôlée | aucun | aucune | `unsupported_paragraph_style` / `unsupported_character_style`, bloquant |
 
 Les objets refusés en l'état (dessins non conformes à la convention figures,

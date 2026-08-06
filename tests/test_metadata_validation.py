@@ -41,6 +41,12 @@ def test_validation_codes(metadata, changed, code: str) -> None:
     assert code in [issue.code for issue in validate_metadata(changed(metadata)).issues]
 
 
+def test_book_document_type_is_valid(metadata) -> None:
+    """Type ajoute pour les DOCX a plusieurs contributions (decision 0032/0034)."""
+    book = replace(metadata, document_type="book")
+    assert "invalid_document_type" not in [issue.code for issue in validate_metadata(book).issues]
+
+
 def test_people_affiliations_orcid_and_ror_are_validated(metadata) -> None:
     duplicate = replace(metadata, contributors=metadata.contributors + metadata.contributors)
     assert "duplicate_contributor_id" in [issue.code for issue in validate_metadata(duplicate).issues]

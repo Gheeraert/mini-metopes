@@ -41,7 +41,7 @@ production antérieur n'existe.
 | --- | --- | --- | --- |
 | `schema_version` | `"1.0"` | oui | — |
 | `source_document` | `path`, `sha256` | oui | — |
-| `document` | `title`, `subtitle`, `language` (BCP 47), `type` (`article`, `chapter`, `introduction`, `conclusion`, `bibliography`, `other`) | titre, langue, type | — |
+| `document` | `title`, `subtitle`, `language` (BCP 47), `type` (`article`, `chapter`, `book`, `introduction`, `conclusion`, `bibliography`, `other`) | titre, langue, type | — |
 | `contributors[]` | `id`, `role` (`author`, `editor`, `translator`, `scientific_editor`, `other`+`role_label`), `given_name`/`family_name` **ou** `literal_name`, `orcid`, `email`, `affiliations[]` (IDs) | liste possible vide ; ordre significatif | — |
 | `affiliations[]` | `id`, `name`, `unit`, `city`, `country`, `ror` (URL https ror.org) | — | — |
 | `editorial_responsibility[]` | `responsibility`, `name` | — | — |
@@ -88,7 +88,7 @@ Exemples : `tests/fixtures/metadata/minimal.json` (minimal),
 
 | JSON | TEI | Remarques |
 | --- | --- | --- |
-| `document.title` / `subtitle` | `titleStmt/title[@type='main'|'sub']` | |
+| `document.title` / `subtitle` | `titleStmt/title[@type='main'|'sub']` | seule source d'autorité ; une page de titre Word (`Title`/`Subtitle`) est facultative et ne sert que de suggestion/contrôle de cohérence, jamais de contenu TEI |
 | `contributors` role `author` | `titleStmt/author[@role='aut']/persName(forename+surname|texte)` | ordre conservé |
 | role `editor`, `scientific_editor` | `titleStmt/editor[@role='edt']` | distinction conservée en JSON seulement |
 | role `translator` | `titleStmt/editor[@role='trl']` | |

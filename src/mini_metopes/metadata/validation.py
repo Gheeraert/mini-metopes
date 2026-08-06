@@ -29,7 +29,7 @@ from .model import (
     Rights,
 )
 
-_DOCUMENT_TYPES = frozenset({"article", "chapter", "introduction", "conclusion", "bibliography", "other"})
+_DOCUMENT_TYPES = frozenset({"article", "chapter", "book", "introduction", "conclusion", "bibliography", "other"})
 _ROLES = frozenset({"author", "editor", "translator", "scientific_editor", "other"})
 _IDENTIFIER_TYPES = frozenset({"doi", "isbn-13", "isbn-10", "issn", "eissn", "local"})
 _IDENTIFIER_FORMATS = frozenset({"print", "pdf", "epub", "html"})

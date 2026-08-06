@@ -68,7 +68,7 @@ from .metadata_controller import (
 from .metadata_editor_api import MetadataEditorResult
 
 _ROLES = ("author", "editor", "translator", "scientific_editor", "other")
-_DOCUMENT_TYPES = ("article", "chapter", "introduction", "conclusion", "bibliography", "other")
+_DOCUMENT_TYPES = ("article", "chapter", "book", "introduction", "conclusion", "bibliography", "other")
 _IDENTIFIER_TYPES = ("doi", "isbn-13", "isbn-10", "issn", "eissn", "local")
 _IDENTIFIER_FORMATS = ("", "print", "pdf", "epub", "html")
 _ABSTRACT_TYPES = ("summary", "abstract", "back-cover")
