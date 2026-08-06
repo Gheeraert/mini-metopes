@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_metopes.gui.metadata_controller import TeiGenerationOutcome, generate_tei_commons
+from mini_metopes.gui.metadata_controller import TeiGenerationOutcome, generate_tei_commons, parse_pagination_field
 from mini_metopes.metadata import (
     METADATA_SCHEMA_VERSION,
     DocumentMetadata,
@@ -108,3 +108,20 @@ def test_generate_tei_commons_propagates_write_errors_without_faking_success(tmp
 
     with pytest.raises(OSError):
         generate_tei_commons(DOCX, _metadata(), output)
+
+
+def test_parse_pagination_field_accepts_empty_value() -> None:
+    assert parse_pagination_field("") is None
+    assert parse_pagination_field("   ") is None
+
+
+def test_parse_pagination_field_accepts_digits() -> None:
+    assert parse_pagination_field("12") == 12
+    assert parse_pagination_field("  42  ") == 42
+
+
+@pytest.mark.parametrize("value", ["12.5", "p.12", "-3", "douze"])
+def test_parse_pagination_field_rejects_non_integer_input(value: str) -> None:
+    """Une saisie non numerique doit lever, jamais produire une valeur fabriquee."""
+    with pytest.raises(ValueError):
+        parse_pagination_field(value)

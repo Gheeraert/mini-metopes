@@ -185,7 +185,7 @@ def inspect_docx_file(
             issues.extend(_part_observation_issues(footnotes_root, FOOTNOTES_PART))
         if endnotes_root is not None:
             issues.extend(_part_observation_issues(endnotes_root, ENDNOTES_PART))
-        issues.extend(_package_observation_issues(parts))
+        issues.extend(_package_observation_issues(archive, parts, available_parts, max_xml_part_bytes, issues))
         _diagnose_list_paragraphs(paragraphs, issues, part=DOCUMENT_PART)
         for note in footnotes:
             _diagnose_list_paragraphs(
@@ -1536,10 +1536,16 @@ def _part_observation_issues(root: etree._Element, part: str) -> list[Inspection
     return issues
 
 
-def _package_observation_issues(parts: tuple[str, ...]) -> list[InspectionIssue]:
-    issues: list[InspectionIssue] = []
+def _package_observation_issues(
+    archive: ZipFile,
+    parts: tuple[str, ...],
+    available_parts: frozenset[str],
+    maximum: int,
+    issues: list[InspectionIssue],
+) -> list[InspectionIssue]:
+    result: list[InspectionIssue] = []
     if "word/comments.xml" in parts:
-        issues.append(
+        result.append(
             InspectionIssue(
                 code="comments_not_inspected",
                 message="des commentaires Word sont présents mais ne sont pas encore inspectés",
@@ -1547,15 +1553,82 @@ def _package_observation_issues(parts: tuple[str, ...]) -> list[InspectionIssue]
                 part="word/comments.xml",
             )
         )
-    if any(part.startswith("word/header") or part.startswith("word/footer") for part in parts):
-        issues.append(
-            InspectionIssue(
-                code="headers_footers_not_inspected",
-                message="des en-têtes ou pieds de page sont présents mais ne sont pas encore inspectés",
-                severity="info",
+    header_footer_parts = sorted(
+        part
+        for part in parts
+        if part.endswith(".xml") and (part.startswith("word/header") or part.startswith("word/footer"))
+    )
+    for part in header_footer_parts:
+        root = _read_optional_xml(archive, part, available_parts, maximum, issues)
+        if root is None:
+            continue
+        if _has_static_text(root):
+            result.append(
+                InspectionIssue(
+                    code="header_footer_text_not_serializable",
+                    message=(
+                        "un en-tête ou pied de page contient du texte rédigé (hors "
+                        "numéro de page ou autre champ automatique) qui serait perdu"
+                    ),
+                    severity="warning",
+                    part=part,
+                )
             )
-        )
-    return issues
+        else:
+            result.append(
+                InspectionIssue(
+                    code="headers_footers_not_inspected",
+                    message=(
+                        "un en-tête ou pied de page est présent mais ne contient que "
+                        "des champs automatiques (numéro de page, etc.) ou est vide"
+                    ),
+                    severity="info",
+                    part=part,
+                )
+            )
+    return result
+
+
+def _has_static_text(root: etree._Element) -> bool:
+    """Detecter du texte redige, hors resultat mis en cache d'un champ automatique.
+
+    Un en-tete/pied de page Word contient tres souvent un champ PAGE ou
+    NUMPAGES dont le resultat calcule est mis en cache dans un `w:t` ; ce
+    n'est pas du contenu redige et ne doit pas a lui seul bloquer la
+    conversion.
+    """
+    return any(_paragraph_has_static_text(paragraph) for paragraph in root.iter(w_tag("p")))
+
+
+def _paragraph_has_static_text(paragraph: etree._Element) -> bool:
+    complex_field_state = "outside"
+    for node in _iter_skipping_field_results(paragraph):
+        local_name = etree.QName(node).localname
+        if local_name == "fldChar":
+            char_type = node.get(w_tag("fldCharType"))
+            if char_type == "begin":
+                complex_field_state = "instruction"
+            elif char_type == "separate":
+                complex_field_state = "result"
+            elif char_type == "end":
+                complex_field_state = "outside"
+        elif local_name == "instrText":
+            continue
+        elif local_name == "t":
+            if complex_field_state != "outside":
+                continue
+            if (node.text or "").strip():
+                return True
+    return False
+
+
+def _iter_skipping_field_results(element: etree._Element) -> Iterable[etree._Element]:
+    """Parcourir en profondeur en ignorant le resultat mis en cache d'un champ simple."""
+    for child in element:
+        if etree.QName(child).localname == "fldSimple":
+            continue
+        yield child
+        yield from _iter_skipping_field_results(child)
 
 
 def _child_value(element: etree._Element | None, path: str) -> str | None:

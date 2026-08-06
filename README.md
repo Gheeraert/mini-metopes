@@ -129,9 +129,12 @@ suggestions et de controle de coherence avec le JSON; ils ne deviennent pas du
 contenu TEI. La conversion propage les diagnostics de l'inspection et du modele editorial.
 Elle refuse les styles `Title` et `Subtitle` hors preambule, les styles inconnus,
 les listes Word ambiguës ou non résolues, tableaux, zones de texte, dessins, liens internes et
-metadonnees riches afin d'eviter une TEI trompeuse. Les commentaires,
-en-tetes et pieds de page sont signales comme avertissements lorsqu'ils sont
-observes.
+metadonnees riches afin d'eviter une TEI trompeuse. Les commentaires sont
+signales comme avertissements lorsqu'ils sont observes. Un en-tete ou pied de
+page ne contenant que des champs automatiques (numero de page, etc.) ou vide
+reste signale comme avertissement ; s'il porte du texte redige (titre
+courant, colophon...), la conversion est refusee afin de ne pas le perdre
+silencieusement.
 
 Le répertoire `references/` est un corpus documentaire en lecture seule. Il
 n'est ni empaqueté ni utilisé directement par les tests ordinaires.

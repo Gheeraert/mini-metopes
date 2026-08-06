@@ -173,7 +173,7 @@ def _convert_docx(source: Path, output: Path, metadata_path: Path | None, profil
         print(f"ECHEC [invalid_metadata] — {selected_metadata.name}")
         for issue in loaded.issues:
             print(f"{issue.severity.upper()} [{issue.code}] {issue.path or ''} : {issue.message}")
-        return 1
+        return 2 if any(issue.code in {"invalid_json", "metadata_file_unreadable"} for issue in loaded.issues) else 1
     metadata = loaded.metadata
     if profile_path is not None:
         from .metadata import apply_institutional_profile, load_institutional_profile

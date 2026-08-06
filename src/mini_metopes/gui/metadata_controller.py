@@ -218,6 +218,21 @@ def move_item(items: tuple, index: int, delta: int) -> tuple:
     return tuple(values)
 
 
+def parse_pagination_field(value: str) -> int | None:
+    """Convertir un champ de pagination en entier positif.
+
+    Retourne ``None`` pour un champ vide. Leve ``ValueError`` si le contenu
+    n'est pas un entier valide, afin de ne jamais fabriquer une valeur
+    numerique arbitraire (ex. ``-1``) a partir d'une saisie incorrecte.
+    """
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if not stripped.isdigit():
+        raise ValueError(f"« {stripped} » n'est pas un numero de page valide")
+    return int(stripped)
+
+
 def next_identifier(prefix: str, identifiers: tuple[str, ...]) -> str:
     """Proposer le prochain identifiant stable sans UUID aleatoire."""
     number = 1

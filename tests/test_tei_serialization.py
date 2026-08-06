@@ -304,6 +304,28 @@ def test_non_blocking_inspection_diagnostics_are_preserved_on_success() -> None:
     ]
 
 
+def test_header_footer_static_text_blocks_conversion() -> None:
+    """Un en-tete/pied de page porteur de texte redige ne doit pas disparaitre
+    silencieusement de la TEI (contrairement a un champ automatique)."""
+    inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
+    inspection = replace(
+        inspection,
+        issues=(
+            InspectionIssue(
+                "header_footer_text_not_serializable",
+                "titre courant redige",
+                "warning",
+                "word/header1.xml",
+            ),
+        ),
+    )
+
+    result = convert_docx_to_tei_from_inspection_for_test(inspection)
+
+    assert result.xml_bytes is None
+    assert "header_footer_text_not_serializable" in [diagnostic.code for diagnostic in result.diagnostics]
+
+
 def test_blocking_inspection_diagnostics_prevent_serialization() -> None:
     inspection = inspect_docx_file(FIXTURES / "native-tei-conversion.docx")
     for code in ("textboxes_not_inspected", "table_in_note_not_serializable"):

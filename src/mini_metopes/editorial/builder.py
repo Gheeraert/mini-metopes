@@ -2030,7 +2030,7 @@ def _diagnose_paragraph_style(
         diagnostics.append(
             EditorialDiagnostic(
                 code="deferred_paragraph_style",
-                severity="info",
+                severity="error",
                 message=f"interpretation editoriale differee pour le style {style_id}",
                 paragraph_index=paragraph.index,
                 style_id=style_id,
@@ -2041,7 +2041,7 @@ def _diagnose_paragraph_style(
     diagnostics.append(
         EditorialDiagnostic(
             code="unsupported_paragraph_style",
-            severity="warning",
+            severity="error",
             message=f"style de paragraphe non reconnu : {style_id}",
             paragraph_index=paragraph.index,
             style_id=style_id,
@@ -2154,7 +2154,7 @@ def _marks_for_run(
         diagnostics.append(
             _diagnostic(
                 "unsupported_character_style",
-                "warning",
+                "error",
                 f"style de caractere non reconnu : {run.style_id}",
                 paragraph,
                 run_index,
@@ -2182,7 +2182,7 @@ def _marks_for_run(
         diagnostics.append(
             _diagnostic(
                 "conflicting_vertical_alignment",
-                "warning",
+                "error",
                 "exposant et indice declares simultanement",
                 paragraph,
                 run_index,
@@ -2249,7 +2249,7 @@ def _append_break(
         diagnostics.append(
             _diagnostic(
                 "unsupported_break_type",
-                "warning",
+                "error",
                 f"type de saut non pris en charge : {break_type or 'absent'}",
                 paragraph,
                 run_index,

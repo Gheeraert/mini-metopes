@@ -134,6 +134,18 @@ def test_cli_handles_badly_typed_metadata_without_traceback(tmp_path: Path, caps
     assert "document.language" in captured.out
 
 
+def test_cli_uses_the_same_exit_code_for_malformed_json_on_both_commands(tmp_path: Path, capsys) -> None:
+    """Un JSON mal forme (pas seulement mal type) doit donner le meme code 2
+    a `validate-metadata` et `convert-docx`, comme pour un fichier illisible."""
+    malformed = tmp_path / "malformed.metadata.json"
+    malformed.write_text("{not valid json", encoding="utf-8")
+    output = tmp_path / "output.xml"
+
+    assert main(["validate-metadata", str(malformed)]) == 2
+    assert main(["convert-docx", str(DOCX), str(output), "--metadata", str(malformed)]) == 2
+    assert not output.exists()
+
+
 def test_validate_metadata_source_reports_word_divergences(tmp_path: Path, capsys) -> None:
     metadata = load_metadata_file(JSON).metadata
     assert metadata is not None
