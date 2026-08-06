@@ -16,6 +16,7 @@ from .model import (
     Contributor,
     DocumentMetadata,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -102,12 +103,18 @@ def metadata_to_data(metadata: DocumentMetadata) -> dict[str, Any]:
             "title": metadata.collection.title,
             "issn": metadata.collection.issn,
             "volume": metadata.collection.volume,
+            "editor": metadata.collection.editor,
         }, keep=("title",))
     if metadata.pagination is not None:
         if metadata.pagination.extent is not None:
             data["pagination"] = {"extent": metadata.pagination.extent}
         else:
             data["pagination"] = {"from": metadata.pagination.page_from, "to": metadata.pagination.page_to}
+    if metadata.funding:
+        data["funding"] = [
+            _drop_empty({"funder": item.funder, "grant_number": item.grant_number}, keep=("funder",))
+            for item in metadata.funding
+        ]
     return data
 
 
@@ -205,6 +212,10 @@ def _decode_metadata_payload(payload: object) -> _DecodedMetadata:
     rights = _decode_rights(root.get("rights"), issues)
     collection = _decode_collection(root.get("collection"), issues)
     pagination = _decode_pagination(root.get("pagination"), issues)
+    funding = tuple(
+        _decode_funding(item, index, issues)
+        for index, item in enumerate(_optional_array(root, "funding", issues))
+    )
     if issues:
         return _DecodedMetadata(None, tuple(issues))
     return _DecodedMetadata(
@@ -228,6 +239,7 @@ def _decode_metadata_payload(payload: object) -> _DecodedMetadata:
             keywords=keywords,
             collection=collection,
             pagination=pagination,
+            funding=funding,
         ),
         tuple(issues),
     )
@@ -369,6 +381,18 @@ def _decode_collection(value: object, issues: list[MetadataIssue]) -> Collection
         title=_string(_field(item, "title", issues, "collection"), "collection.title", issues) or "",
         issn=_optional_string(item.get("issn"), "collection.issn", issues),
         volume=_optional_string(item.get("volume"), "collection.volume", issues),
+        editor=_optional_string(item.get("editor"), "collection.editor", issues),
+    )
+
+
+def _decode_funding(value: object, index: int, issues: list[MetadataIssue]) -> Funding:
+    path = f"funding[{index}]"
+    item = _require_object(value, path, issues)
+    if item is None:
+        return Funding("")
+    return Funding(
+        funder=_string(_field(item, "funder", issues, path), f"{path}.funder", issues) or "",
+        grant_number=_optional_string(item.get("grant_number"), f"{path}.grant_number", issues),
     )
 
 

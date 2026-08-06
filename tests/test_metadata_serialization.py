@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from mini_metopes.metadata import load_metadata_file, metadata_from_json, metadata_to_json, write_metadata_file
+from mini_metopes.metadata import (
+    Collection,
+    Funding,
+    load_metadata_file,
+    metadata_from_json,
+    metadata_to_json,
+    write_metadata_file,
+)
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "metadata" / "native-tei-conversion.metadata.json"
@@ -16,6 +23,19 @@ def test_json_round_trip_is_deterministic_and_unicode() -> None:
     assert rendered.endswith("\n")
     assert metadata_from_json(rendered).metadata == loaded.metadata
     assert metadata_to_json(loaded.metadata) == rendered
+
+
+def test_funding_and_collection_editor_round_trip() -> None:
+    loaded = load_metadata_file(FIXTURE)
+    assert loaded.metadata is not None
+    enriched = replace(
+        loaded.metadata,
+        funding=(Funding("ANR", "ANR-23-CE38-0001"), Funding("ERC")),
+        collection=Collection("Une collection", editor="Un directeur de collection"),
+    )
+    rendered = metadata_to_json(enriched)
+    round_tripped = metadata_from_json(rendered)
+    assert round_tripped.metadata == enriched
 
 
 def test_invalid_json_and_atomic_write_preserve_target(tmp_path: Path) -> None:
@@ -48,6 +68,7 @@ def test_invalid_json_and_atomic_write_preserve_target(tmp_path: Path) -> None:
         ('{"schema_version":"1.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":"fr","title":"T"},"contributors":[],"affiliations":[],"identifiers":[{"type":"doi"}]}', "missing_metadata_field", "identifiers[0].value"),
         ('{"schema_version":"1.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":"fr","title":"T"},"contributors":[],"affiliations":[],"pagination":{"from":"a","to":2}}', "invalid_field_type", "pagination.from"),
         ('{"schema_version":"1.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":"fr","title":"T"},"contributors":[],"affiliations":[],"abstracts":[{"type":"summary","language":"fr"}]}', "missing_metadata_field", "abstracts[0].text"),
+        ('{"schema_version":"1.0","source_document":{"path":"x.docx","sha256":"a"},"document":{"type":"chapter","language":"fr","title":"T"},"contributors":[],"affiliations":[],"funding":[{"grant_number":"X"}]}', "missing_metadata_field", "funding[0].funder"),
     ],
 )
 def test_badly_typed_json_never_raises(payload: str, code: str, path: str | None) -> None:

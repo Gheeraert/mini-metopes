@@ -12,6 +12,7 @@ from mini_metopes.metadata import (
     Collection,
     Contributor,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -80,8 +81,9 @@ def _rich_metadata():
             KeywordGroup("fr", ("Racine", "tragédie")),
             KeywordGroup("grc", ("τραγῳδία",)),
         ),
-        collection=Collection(title="Cours de littérature", issn="0000-0019", volume="7"),
+        collection=Collection(title="Cours de littérature", issn="0000-0019", volume="7", editor="Anaïs Monchy"),
         pagination=Pagination(page_from=125, page_to=148),
+        funding=(Funding("ANR", "ANR-23-CE38-0001"), Funding("ERC")),
     )
 
 
@@ -111,8 +113,15 @@ def test_full_metadata_produce_a_complete_and_valid_header() -> None:
 
     series = tree.xpath("//tei:sourceDesc/tei:bibl/tei:series", namespaces=NS)[0]
     assert series.find("tei:title", NS).text == "Cours de littérature"
+    assert series.find("tei:editor", NS).text == "Anaïs Monchy"
     assert series.find("tei:biblScope", NS).get("unit") == "volume"
     assert tree.xpath("string(//tei:sourceDesc/tei:bibl/tei:biblScope[@unit='page'])", namespaces=NS) == "125-148"
+
+    funders = tree.xpath("tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:funder", namespaces=NS)
+    assert [funder.find("tei:orgName", NS).text for funder in funders] == ["ANR", "ERC"]
+    assert funders[0].find("tei:idno", NS).get("type") == "funder_registry"
+    assert funders[0].find("tei:idno", NS).text == "ANR-23-CE38-0001"
+    assert funders[1].find("tei:idno", NS) is None
 
     fronts = tree.xpath("tei:text/tei:front/tei:div", namespaces=NS)
     assert [item.get(XML_LANG) for item in fronts] == ["fr", "en", "grc", "fr"]

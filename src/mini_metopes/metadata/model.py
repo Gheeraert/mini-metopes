@@ -133,6 +133,15 @@ class Collection:
     title: str
     issn: str | None = None
     volume: str | None = None
+    editor: str | None = None
+
+
+@dataclass(frozen=True)
+class Funding:
+    """Financement de l'unite editoriale (ex. ANR, ERC) ; nom libre, non normalise."""
+
+    funder: str
+    grant_number: str | None = None
 
 
 @dataclass(frozen=True)
@@ -164,6 +173,7 @@ class DocumentMetadata:
     keywords: tuple[KeywordGroup, ...] = ()
     collection: Collection | None = None
     pagination: Pagination | None = None
+    funding: tuple[Funding, ...] = ()
 
 
 @dataclass(frozen=True)

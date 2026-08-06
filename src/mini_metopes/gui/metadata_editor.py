@@ -21,6 +21,7 @@ from mini_metopes.metadata import (
     Collection,
     Contributor,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -361,7 +362,13 @@ def _build_metadata_editor(
     collection_title_var = tk.StringVar()
     collection_issn_var = tk.StringVar()
     collection_volume_var = tk.StringVar()
-    for row, (label, variable) in enumerate((("Titre", collection_title_var), ("ISSN", collection_issn_var), ("Volume", collection_volume_var))):
+    collection_editor_var = tk.StringVar()
+    for row, (label, variable) in enumerate((
+        ("Titre", collection_title_var),
+        ("ISSN", collection_issn_var),
+        ("Volume", collection_volume_var),
+        ("Éditeur de la collection", collection_editor_var),
+    )):
         ttk.Label(collection_frame, text=label).grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(collection_frame, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=2)
 
@@ -373,6 +380,12 @@ def _build_metadata_editor(
     for column, (label, variable) in enumerate((("De la page", page_from_var), ("à la page", page_to_var), ("ou étendue (pages)", extent_var))):
         ttk.Label(pagination_frame, text=label).grid(row=0, column=column * 2, sticky="w", padx=(0, 4))
         ttk.Entry(pagination_frame, textvariable=variable, width=8).grid(row=0, column=column * 2 + 1, padx=(0, 12))
+
+    funding_frame, funding_tree, funding_buttons = list_frame(
+        publication_tab, "Financement (ANR, ERC…)",
+        (("funder", "Organisme"), ("grant_number", "Numéro de subvention")), orderable=True,
+    )
+    funding_frame.grid(row=4, column=0, columnspan=2, sticky="nsew", pady=6)
 
     # -------------------------------------------------------------- onglet 4
 
@@ -467,6 +480,19 @@ def _build_metadata_editor(
             return None
         return Identifier(collected["type"], collected["value"], collected["format"] or None)
 
+    def funding_dialog(current: Funding | None) -> Funding | None:
+        values = {
+            "funder": current.funder if current else "",
+            "grant_number": (current.grant_number if current else None) or "",
+        }
+        collected = form_dialog("Financement", [
+            ("Organisme (ex. ANR, ERC)", "funder", "entry"),
+            ("Numéro de subvention", "grant_number", "entry"),
+        ], values)
+        if collected is None:
+            return None
+        return Funding(collected["funder"], collected["grant_number"] or None)
+
     # ------------------------------------------------------------ etat <-> UI
 
     def collect() -> MetadataEditorState:
@@ -487,11 +513,17 @@ def _build_metadata_editor(
         elif extent_var.get().strip():
             pagination = Pagination(extent=parse_pagination_field(extent_var.get()))
         collection = None
-        if collection_title_var.get().strip() or collection_issn_var.get().strip() or collection_volume_var.get().strip():
+        if (
+            collection_title_var.get().strip()
+            or collection_issn_var.get().strip()
+            or collection_volume_var.get().strip()
+            or collection_editor_var.get().strip()
+        ):
             collection = Collection(
                 title=collection_title_var.get(),
                 issn=collection_issn_var.get().strip() or None,
                 volume=collection_volume_var.get().strip() or None,
+                editor=collection_editor_var.get().strip() or None,
             )
         metadata = replace(
             state.metadata,
@@ -550,6 +582,9 @@ def _build_metadata_editor(
         identifier_tree.delete(*identifier_tree.get_children())
         for index, item in enumerate(state.metadata.identifiers):
             identifier_tree.insert("", "end", iid=str(index), values=(item.identifier_type, item.value, item.identifier_format or ""))
+        funding_tree.delete(*funding_tree.get_children())
+        for index, item in enumerate(state.metadata.funding):
+            funding_tree.insert("", "end", iid=str(index), values=(item.funder, item.grant_number or ""))
 
     def refresh_all() -> None:
         docx_label_var.set(str(state.docx_path))
@@ -573,6 +608,7 @@ def _build_metadata_editor(
         collection_title_var.set(collection.title if collection else "")
         collection_issn_var.set((collection.issn if collection else None) or "")
         collection_volume_var.set((collection.volume if collection else None) or "")
+        collection_editor_var.set((collection.editor if collection else None) or "")
         pagination = state.metadata.pagination
         page_from_var.set(str(pagination.page_from) if pagination and pagination.page_from is not None else "")
         page_to_var.set(str(pagination.page_to) if pagination and pagination.page_to is not None else "")
@@ -635,6 +671,7 @@ def _build_metadata_editor(
     sequence_actions(abstract_tree, "abstracts", abstract_dialog, abstract_buttons)
     sequence_actions(keyword_tree, "keywords", keyword_dialog, keyword_buttons)
     sequence_actions(identifier_tree, "identifiers", identifier_dialog, identifier_buttons)
+    sequence_actions(funding_tree, "funding", funding_dialog, funding_buttons)
 
     @_requires_state
     def add_person() -> None:

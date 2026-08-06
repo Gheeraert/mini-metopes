@@ -346,6 +346,11 @@ def _append_header(root: etree._Element, source_name: str, metadata: DocumentMet
                     origin="metadata",
                     metadata_path=f"affiliations[{affiliation_index}].id",
                 ))
+        for funding in metadata.funding:
+            funder = etree.SubElement(title_stmt, _tag("funder"))
+            etree.SubElement(funder, _tag("orgName")).text = funding.funder
+            if funding.grant_number:
+                etree.SubElement(funder, _tag("idno"), type="funder_registry").text = funding.grant_number
     _append_publication_statement(file_desc, metadata, state)
     source_desc = etree.SubElement(file_desc, _tag("sourceDesc"))
     etree.SubElement(source_desc, _tag("p")).text = f"Conversion du fichier DOCX {source_name}."
@@ -513,6 +518,8 @@ def _append_bibliographic_source_desc(
     if collection is not None:
         series = etree.SubElement(bibl, _tag("series"))
         etree.SubElement(series, _tag("title")).text = collection.title
+        if collection.editor:
+            etree.SubElement(series, _tag("editor")).text = collection.editor
         if collection.volume:
             etree.SubElement(series, _tag("biblScope"), unit="volume").text = collection.volume
         if collection.issn:

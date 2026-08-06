@@ -18,6 +18,7 @@ from .model import (
     Contributor,
     DocumentMetadata,
     EditorialResponsibility,
+    Funding,
     Identifier,
     KeywordGroup,
     MetadataIssue,
@@ -80,6 +81,8 @@ def validate_metadata(metadata: DocumentMetadata) -> MetadataValidationResult:
         _validate_collection(metadata.collection, issues)
     if metadata.pagination is not None:
         _validate_pagination(metadata.pagination, issues)
+    for index, funding in enumerate(metadata.funding):
+        _validate_funding(funding, index, issues)
     return MetadataValidationResult(not any(issue.severity == "error" for issue in issues), tuple(issues))
 
 
@@ -309,6 +312,16 @@ def _validate_collection(collection: Collection, issues: list[MetadataIssue]) ->
         issues.append(_error("invalid_issn", "ISSN de collection invalide", "collection.issn"))
     if collection.volume is not None and not collection.volume.strip():
         issues.append(_error("invalid_collection_volume", "numero de volume vide", "collection.volume"))
+    if collection.editor is not None and not collection.editor.strip():
+        issues.append(_error("invalid_collection_editor", "nom d'editeur de collection vide", "collection.editor"))
+
+
+def _validate_funding(funding: Funding, index: int, issues: list[MetadataIssue]) -> None:
+    path = f"funding[{index}]"
+    if not funding.funder.strip():
+        issues.append(_error("invalid_funder", "organisme de financement obligatoire", f"{path}.funder"))
+    if funding.grant_number is not None and not funding.grant_number.strip():
+        issues.append(_error("invalid_grant_number", "numero de subvention vide", f"{path}.grant_number"))
 
 
 def _validate_pagination(pagination: Pagination, issues: list[MetadataIssue]) -> None:

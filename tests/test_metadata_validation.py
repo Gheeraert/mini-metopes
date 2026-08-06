@@ -8,6 +8,7 @@ from mini_metopes.metadata import (
     Collection,
     Contributor,
     DocumentMetadata,
+    Funding,
     Identifier,
     KeywordGroup,
     License,
@@ -93,6 +94,9 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
     (lambda item: replace(item, keywords=(KeywordGroup("fr", ("", "x")),)), "invalid_keyword"),
     (lambda item: replace(item, collection=Collection(" ")), "invalid_collection_title"),
     (lambda item: replace(item, collection=Collection("C", issn="0000-0021")), "invalid_issn"),
+    (lambda item: replace(item, collection=Collection("C", editor=" ")), "invalid_collection_editor"),
+    (lambda item: replace(item, funding=(Funding(" "),)), "invalid_funder"),
+    (lambda item: replace(item, funding=(Funding("ANR", " "),)), "invalid_grant_number"),
     (lambda item: replace(item, pagination=Pagination(page_from=10, page_to=5)), "invalid_pagination"),
     (lambda item: replace(item, pagination=Pagination(page_from=10)), "incomplete_pagination"),
     (lambda item: replace(item, pagination=Pagination(page_from=1, page_to=2, extent=10)), "conflicting_pagination"),
@@ -102,6 +106,17 @@ def test_ror_must_be_a_ror_org_https_identifier(metadata, ror: str, valid: bool)
 ])
 def test_v2_validation_codes(metadata, changed, code: str) -> None:
     assert code in [issue.code for issue in validate_metadata(changed(metadata)).issues]
+
+
+def test_funding_and_collection_editor_are_valid_when_well_formed(metadata) -> None:
+    valid = replace(
+        metadata,
+        funding=(Funding("ANR", "ANR-23-CE38-0001"), Funding("ERC")),
+        collection=Collection("Une collection", editor="Un directeur de collection"),
+    )
+    result = validate_metadata(valid)
+    assert result.valid
+    assert not [issue for issue in result.issues if issue.path and issue.path.startswith(("funding", "collection.editor"))]
 
 
 def test_duplicate_identifier_value_is_reported(metadata) -> None:
