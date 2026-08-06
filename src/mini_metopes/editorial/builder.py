@@ -2038,6 +2038,21 @@ def _diagnose_paragraph_style(
             )
         )
         return
+    if convention.is_table_of_contents_style(style_id, paragraph.style_is_custom):
+        diagnostics.append(
+            EditorialDiagnostic(
+                code="word_generated_toc_not_supported",
+                severity="error",
+                message=(
+                    f"table des matieres Word generee automatiquement detectee (style {style_id}) : "
+                    "supprimez-la avant conversion, la structure div/head deja produite en tient lieu"
+                ),
+                paragraph_index=paragraph.index,
+                style_id=style_id,
+                note_id=note_id,
+            )
+        )
+        return
     diagnostics.append(
         EditorialDiagnostic(
             code="unsupported_paragraph_style",

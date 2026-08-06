@@ -116,6 +116,31 @@ def test_unsupported_paragraph_style_blocks_with_error_severity(editorial_inspec
     assert all(diagnostic.severity == "error" for diagnostic in matching)
 
 
+def test_word_generated_toc_style_gets_a_dedicated_actionable_diagnostic(editorial_inspection) -> None:
+    """Une table des matieres Word generee automatiquement (TOC1-9/TOCHeading)
+    doit produire un diagnostic dedie, pas le unsupported_paragraph_style
+    generique : la structure div/head deja produite en tient lieu."""
+    paragraph = editorial_inspection.paragraphs[5]
+    replacement = replace(
+        paragraph,
+        style_id="TOC1",
+        style_name="TOC 1",
+        style_is_custom=False,
+        outline_level=None,
+    )
+    inspection = replace(
+        editorial_inspection,
+        paragraphs=editorial_inspection.paragraphs[:5] + (replacement,) + editorial_inspection.paragraphs[6:],
+    )
+
+    result = build_editorial_document(inspection)
+
+    matching = [diagnostic for diagnostic in result.diagnostics if diagnostic.code == "word_generated_toc_not_supported"]
+    assert matching
+    assert all(diagnostic.severity == "error" for diagnostic in matching)
+    assert "unsupported_paragraph_style" not in [diagnostic.code for diagnostic in result.diagnostics]
+
+
 def test_runs_with_different_declared_language_are_not_merged(editorial_inspection) -> None:
     paragraph = editorial_inspection.paragraphs[2]
     base_run = paragraph.runs[0]

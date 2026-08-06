@@ -43,6 +43,7 @@ class WordEditorialConvention:
     deferred_paragraph_style_ids: frozenset[str]
     prose_quote_style_ids: frozenset[str]
     verse_quote_style_ids: frozenset[str]
+    table_of_contents_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     excluded_consecutive_paragraph_style_ids: frozenset[str] = frozenset()
     consecutive_paragraph_style_names: frozenset[str] = frozenset()
@@ -103,6 +104,18 @@ class WordEditorialConvention:
     def heading_level(self, style_id: str | None, outline_level: int | None) -> int | None:
         """Retourner le niveau natif prioritaire, puis le niveau de plan explicite."""
         return self.paragraph_role(style_id, outline_level).heading_level
+
+    def is_table_of_contents_style(self, style_id: str | None, style_is_custom: bool | None) -> bool:
+        """Reconnaître une table des matieres Word generee automatiquement.
+
+        Jamais serialisee : la structure ``div``/``head`` deja produite par
+        Mini-Metopes en tient lieu (voir decision 0025). Reconnue separement
+        du style personnalise inconnu generique pour donner un diagnostic
+        actionnable plutot qu'un ``unsupported_paragraph_style`` opaque.
+        """
+        if style_is_custom is True:
+            return False
+        return style_id in self.table_of_contents_style_ids
 
     def is_list_continuation_style(
         self,
@@ -269,6 +282,9 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     deferred_paragraph_style_ids=frozenset({"Title", "Subtitle"}),
     prose_quote_style_ids=frozenset({"Quote"}),
     verse_quote_style_ids=frozenset({"IntenseQuote"}),
+    table_of_contents_style_ids=frozenset({
+        "TOC1", "TOC2", "TOC3", "TOC4", "TOC5", "TOC6", "TOC7", "TOC8", "TOC9", "TOCHeading",
+    }),
     consecutive_paragraph_style_ids=frozenset({"BodyText"}),
     excluded_consecutive_paragraph_style_ids=frozenset({"BodyText2", "BodyText3"}),
     consecutive_paragraph_style_names=frozenset({"corps de texte", "body text"}),
