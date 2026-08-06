@@ -87,10 +87,33 @@ def test_paragraph_styles_are_conservative_and_deferred(editorial_result) -> Non
     assert isinstance(_block(editorial_result, 5), Paragraph)
     assert isinstance(_block(editorial_result, 7), ProseQuote)
     assert isinstance(_block(editorial_result, 8), VerseQuote)
-    assert {diagnostic.style_id for diagnostic in editorial_result.diagnostics if diagnostic.code == "deferred_paragraph_style"} == {
-        "Title",
-        "Subtitle",
-    }
+    deferred = [diagnostic for diagnostic in editorial_result.diagnostics if diagnostic.code == "deferred_paragraph_style"]
+    assert {diagnostic.style_id for diagnostic in deferred} == {"Title", "Subtitle"}
+    assert all(diagnostic.severity == "error" for diagnostic in deferred), (
+        "deferred_paragraph_style doit bloquer la conversion sans dependre "
+        "d'une promotion separee dans tei/conversion.py"
+    )
+
+
+def test_unsupported_paragraph_style_blocks_with_error_severity(editorial_inspection) -> None:
+    paragraph = editorial_inspection.paragraphs[5]
+    replacement = replace(
+        paragraph,
+        style_id="TotallyUnknownStyle",
+        style_name="Style totalement inconnu",
+        style_is_custom=False,
+        outline_level=None,
+    )
+    inspection = replace(
+        editorial_inspection,
+        paragraphs=editorial_inspection.paragraphs[:5] + (replacement,) + editorial_inspection.paragraphs[6:],
+    )
+
+    result = build_editorial_document(inspection)
+
+    matching = [diagnostic for diagnostic in result.diagnostics if diagnostic.code == "unsupported_paragraph_style"]
+    assert matching
+    assert all(diagnostic.severity == "error" for diagnostic in matching)
 
 
 def test_style_classification_priority_handles_outline_fallbacks(editorial_inspection) -> None:
@@ -136,6 +159,11 @@ def test_marks_apply_character_styles_then_direct_properties(editorial_result) -
     assert spans[" emphase"].marks == ("italic",)
     assert spans[" pas-fort localA"].marks == ()
     assert "unsupported_character_style" in _diagnostic_codes(editorial_result)
+    assert all(
+        diagnostic.severity == "error"
+        for diagnostic in editorial_result.diagnostics
+        if diagnostic.code == "unsupported_character_style"
+    )
 
 
 def test_direct_marks_have_a_canonical_order_and_report_vertical_conflicts(editorial_inspection) -> None:
@@ -155,6 +183,11 @@ def test_direct_marks_have_a_canonical_order_and_report_vertical_conflicts(edito
     span = next(item for item in paragraph.content if isinstance(item, TextSpan) and item.text == "gras")
     assert span.marks == ("bold", "italic", "small_caps", "caps", "superscript", "subscript")
     assert "conflicting_vertical_alignment" in _diagnostic_codes(result)
+    assert all(
+        diagnostic.severity == "error"
+        for diagnostic in result.diagnostics
+        if diagnostic.code == "conflicting_vertical_alignment"
+    )
 
 
 def test_text_spans_merge_only_when_adjacent_marks_and_links_match(editorial_result) -> None:
@@ -284,6 +317,11 @@ def test_unknown_break_types_are_not_converted_to_line_breaks(editorial_inspecti
     replacement = replace(run, contents=run.contents + (RunContentInfo(kind="break", break_type="section"),))
     result = build_editorial_document(_replace_run(editorial_inspection, "Texte ", replacement))
     assert "unsupported_break_type" in _diagnostic_codes(result)
+    assert all(
+        diagnostic.severity == "error"
+        for diagnostic in result.diagnostics
+        if diagnostic.code == "unsupported_break_type"
+    )
 
 
 def test_empty_headings_and_level_jumps_are_preserved_and_diagnosed(editorial_result) -> None:

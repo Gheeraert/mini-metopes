@@ -30,106 +30,12 @@ from .serializer import serialize_editorial_document_to_tei
 MAX_MEDIA_PART_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_MEDIA_BYTES = 256 * 1024 * 1024
 
-_BLOCKING_INSPECTION_CODES = frozenset(
-    {
-        "textboxes_not_inspected",
-        "table_in_note_not_serializable",
-        "table_in_textbox_not_serializable",
-        "missing_numbering_part",
-        "unreadable_part",
-        "malformed_xml_part",
-        "xml_part_too_large",
-        "vml_image_not_supported",
-        "image_media_too_large",
-        "total_image_media_too_large",
-        "unreadable_image_media",
-        "header_footer_text_not_serializable",
-    }
-)
 _NON_BLOCKING_INSPECTION_CODES = frozenset(
     {
         "comments_not_inspected",
         "headers_footers_not_inspected",
         "list_paragraph_without_numbering",
         "missing_numbering_level_assumed_zero",
-    }
-)
-_BLOCKING_EDITORIAL_CODES = frozenset(
-    {
-        "deferred_paragraph_style",
-        "unsupported_paragraph_style",
-        "unsupported_character_style",
-        "unsupported_break_type",
-        "conflicting_vertical_alignment",
-        "numbered_nonparagraph_style_not_serializable",
-        "style_based_numbering_not_serializable",
-        "legal_numbering_not_serializable",
-        "numbering_without_marker_not_serializable",
-        "unsupported_numbering_not_serializable",
-        "interrupted_list_continuation_not_serializable",
-        "ambiguous_list_continuation_not_serializable",
-        "empty_list_continuation_not_serializable",
-        "explicit_list_restart_not_serializable",
-        "list_level_jump_not_serializable",
-        "empty_list_item_not_serializable",
-        "missing_figure_description",
-        "orphan_figure_title_not_serializable",
-        "orphan_figure_credits_not_serializable",
-        "empty_figure_title_not_serializable",
-        "empty_figure_credits_not_serializable",
-        "numbered_figure_title_not_serializable",
-        "numbered_figure_credits_not_serializable",
-        "image_in_figure_title_not_serializable",
-        "image_in_figure_credits_not_serializable",
-        "hyperlinked_image_not_serializable",
-        "duplicate_image_relationship_not_serializable",
-        "invalid_drawing_property_not_serializable",
-        "floating_image_not_serializable",
-        "cropped_image_not_serializable",
-        "transformed_image_not_serializable",
-        "multiple_image_sources_not_serializable",
-        "invalid_bibliography_start_style",
-        "invalid_bibliographic_reference_style",
-        "invalid_bibliographic_reference_inline_style",
-        "empty_bibliography_title_not_serializable",
-        "bibliography_without_entries_not_serializable",
-        "multiple_bibliographies_not_serializable",
-        "nonterminal_bibliography_not_serializable",
-        "bibliography_in_note_not_serializable",
-        "empty_bibliographic_reference_not_serializable",
-        "numbered_bibliographic_reference_not_serializable",
-        "image_in_bibliographic_reference_not_serializable",
-        "multiple_bibliographic_sources_not_serializable",
-        "empty_bibliographic_reference_inline_not_serializable",
-        "nested_bibliographic_reference_not_serializable",
-        "drawing_in_bibliographic_reference_inline_not_serializable",
-        "empty_table_not_serializable",
-        "empty_table_row_not_serializable",
-        "merged_table_cells_not_serializable",
-        "irregular_table_not_serializable",
-        "nested_table_not_serializable",
-        "invalid_table_header_not_serializable",
-        "unsupported_table_cell_style",
-        "multiple_paragraphs_in_table_cell_not_serializable",
-        "image_in_table_cell_not_serializable",
-        "numbered_table_cell_not_serializable",
-        "unsupported_table_cell_content",
-        "mixed_text_and_image_not_serializable",
-        "multiple_images_in_paragraph_not_serializable",
-        "numbered_figure_not_serializable",
-        "image_in_list_item_not_serializable",
-        "orphan_figure_caption_not_serializable",
-        "empty_figure_caption_not_serializable",
-        "image_in_figure_caption_not_serializable",
-        "numbered_figure_caption_not_serializable",
-        "missing_image_relationship",
-        "unsupported_image_relationship",
-        "external_image_not_serializable",
-        "unsafe_image_target",
-        "missing_image_media_part",
-        "unsupported_image_format",
-        "image_content_type_mismatch",
-        "multiple_image_sources_not_serializable",
     }
 )
 _METADATA_SUGGESTION_CODES = frozenset(
@@ -265,10 +171,16 @@ def _inspection_diagnostics(
 
 
 def _inspection_severity(issue: InspectionIssue) -> str:
+    """Decider bloquant/non bloquant a partir d'une seule liste explicite.
+
+    Par defaut une observation d'inspection bloque la conversion : seuls les
+    codes de ``_NON_BLOCKING_INSPECTION_CODES`` y echappent. La severite
+    propre a l'``InspectionIssue`` reste une metadonnee descriptive de
+    l'observation (voir ``docx/inspector.py``) ; elle ne pilote pas seule le
+    blocage.
+    """
     if issue.code in _NON_BLOCKING_INSPECTION_CODES:
         return "warning"
-    if issue.code in _BLOCKING_INSPECTION_CODES or issue.severity == "error":
-        return "error"
     return "error"
 
 
@@ -370,9 +282,15 @@ def _is_editorially_supported_numbering_except_restart(resolution: object) -> bo
 def _editorial_diagnostics(
     diagnostics: tuple[EditorialDiagnostic, ...],
 ) -> tuple[TeiConversionDiagnostic, ...]:
+    """Propager la severite telle que declaree a l'emission dans ``editorial/builder.py``.
+
+    Contrairement aux diagnostics d'inspection, un diagnostic editorial porte
+    directement sa severite finale : il n'existe plus de liste separee qui
+    pourrait diverger de ce qui est reellement emis.
+    """
     result: list[TeiConversionDiagnostic] = []
     for diagnostic in diagnostics:
-        severity = "error" if diagnostic.code in _BLOCKING_EDITORIAL_CODES else diagnostic.severity
+        severity = diagnostic.severity
         result.append(
             TeiConversionDiagnostic(
                 code=diagnostic.code,
