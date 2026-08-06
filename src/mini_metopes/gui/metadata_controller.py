@@ -9,13 +9,21 @@ from typing import Any
 from mini_metopes.docx import inspect_docx_file
 from mini_metopes.metadata import (
     METADATA_SCHEMA_VERSION,
+    Abstract,
     Affiliation,
+    Collection,
     Contributor,
     DocumentMetadata,
+    EditorialResponsibility,
+    Funding,
+    Identifier,
     InstitutionalProfile,
+    KeywordGroup,
+    License,
     MetadataIssue,
     MetadataSuggestions,
     MetadataValidationResult,
+    Rights,
     SourceDocument,
     apply_institutional_profile,
     compute_file_sha256,
@@ -231,6 +239,93 @@ def parse_pagination_field(value: str) -> int | None:
     if not stripped.isdigit():
         raise ValueError(f"« {stripped} » n'est pas un numero de page valide")
     return int(stripped)
+
+
+# --------------------------------------------------------------------------
+# Validation immediate d'une entree isolee (retour dans les dialogues GUI)
+#
+# Chaque fonction valide un seul objet (contributeur, identifiant...) sans
+# dependre du reste du document en cours d'edition, en le placant dans un
+# document minimal jetable. Cela evite deux ecueils : dupliquer les regles
+# de `validate_metadata` (source unique de verite), et faire remonter des
+# erreurs preexistantes sans rapport avec l'entree en cours d'edition.
+
+_PROBE_SOURCE = SourceDocument("probe.docx", "0" * 64)
+
+
+def _probe_metadata(**overrides: Any) -> DocumentMetadata:
+    base = DocumentMetadata(
+        schema_version=METADATA_SCHEMA_VERSION,
+        source=_PROBE_SOURCE,
+        document_type="chapter",
+        language="fr",
+        title="Titre provisoire",
+    )
+    return replace(base, **overrides)
+
+
+def _probe_issue_messages(probe: DocumentMetadata, prefix: str) -> tuple[str, ...]:
+    result = validate_metadata(probe)
+    return tuple(
+        issue.message
+        for issue in result.issues
+        if issue.severity == "error" and (issue.path == prefix or (issue.path or "").startswith(prefix + "."))
+    )
+
+
+def contributor_field_errors(contributor: Contributor, known_affiliation_ids: tuple[str, ...]) -> tuple[str, ...]:
+    """Valider un contributeur isolement (nom, ORCID, courriel, role)."""
+    affiliations = tuple(Affiliation(affiliation_id, affiliation_id) for affiliation_id in known_affiliation_ids)
+    probe = _probe_metadata(contributors=(contributor,), affiliations=affiliations)
+    return _probe_issue_messages(probe, "contributors[0]")
+
+
+def affiliation_field_errors(affiliation: Affiliation) -> tuple[str, ...]:
+    """Valider une affiliation isolement (nom, ROR)."""
+    probe = _probe_metadata(affiliations=(affiliation,))
+    return _probe_issue_messages(probe, "affiliations[0]")
+
+
+def identifier_field_errors(identifier: Identifier) -> tuple[str, ...]:
+    """Valider un identifiant de publication isolement (DOI, ISBN, ISSN...)."""
+    probe = _probe_metadata(identifiers=(identifier,))
+    return _probe_issue_messages(probe, "identifiers[0]")
+
+
+def funding_field_errors(funding: Funding) -> tuple[str, ...]:
+    """Valider une entree de financement isolement."""
+    probe = _probe_metadata(funding=(funding,))
+    return _probe_issue_messages(probe, "funding[0]")
+
+
+def abstract_field_errors(abstract: Abstract) -> tuple[str, ...]:
+    """Valider un resume isolement (type, langue, texte)."""
+    probe = _probe_metadata(abstracts=(abstract,))
+    return _probe_issue_messages(probe, "abstracts[0]")
+
+
+def keyword_group_field_errors(group: KeywordGroup) -> tuple[str, ...]:
+    """Valider un groupe de mots-cles isolement (langue, contenu)."""
+    probe = _probe_metadata(keywords=(group,))
+    return _probe_issue_messages(probe, "keywords[0]")
+
+
+def responsibility_field_errors(responsibility: EditorialResponsibility) -> tuple[str, ...]:
+    """Valider un responsable d'edition isolement."""
+    probe = _probe_metadata(editorial_responsibility=(responsibility,))
+    return _probe_issue_messages(probe, "editorial_responsibility[0]")
+
+
+def collection_field_errors(collection: Collection) -> tuple[str, ...]:
+    """Valider une collection isolement (titre, ISSN, editeur)."""
+    probe = _probe_metadata(collection=collection)
+    return _probe_issue_messages(probe, "collection")
+
+
+def license_field_errors(license_: License) -> tuple[str, ...]:
+    """Valider une licence isolement (nom, URL, identifiant SPDX)."""
+    probe = _probe_metadata(rights=Rights(license=license_))
+    return _probe_issue_messages(probe, "rights.license")
 
 
 def next_identifier(prefix: str, identifiers: tuple[str, ...]) -> str:

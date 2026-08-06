@@ -36,12 +36,20 @@ from mini_metopes.metadata import (
 from .metadata_controller import (
     MetadataEditorState,
     TeiGenerationOutcome,
+    abstract_field_errors,
     add_affiliation,
     add_contributor,
+    affiliation_field_errors,
     apply_profile_to_state,
     change_metadata_destination,
+    collection_field_errors,
+    contributor_field_errors,
+    funding_field_errors,
     generate_tei_commons,
+    identifier_field_errors,
     is_metadata_dirty,
+    keyword_group_field_errors,
+    license_field_errors,
     load_metadata_editor_state,
     locate_source_document,
     move_item,
@@ -50,6 +58,7 @@ from .metadata_controller import (
     remove_affiliation,
     remove_contributor,
     requires_save_as,
+    responsibility_field_errors,
     save_metadata_editor_state,
     update_affiliation,
     update_contributor,
@@ -153,6 +162,28 @@ def _build_metadata_editor(
         dialog.grab_set()
         root.wait_window(dialog)
         return result[0]
+
+    def _validated_form_dialog(title, fields, values, build_item, field_errors):
+        """``form_dialog`` en boucle jusqu'a une saisie valide.
+
+        Reutilise ``validate_metadata`` (via ``field_errors``, qui isole
+        l'entree en cours d'un document minimal jetable) au lieu de tout
+        reporter au clic sur « Enregistrer » : une erreur de format (ORCID,
+        DOI, regle nom littéral/structuré...) est signalee immediatement,
+        pres du formulaire ou elle a ete commise, et le dialogue reste
+        ouvert avec la saisie precedente pour correction.
+        """
+        current_values = values
+        while True:
+            collected = form_dialog(title, fields, current_values)
+            if collected is None:
+                return None
+            item = build_item(collected)
+            errors = field_errors(item)
+            if not errors:
+                return item
+            messagebox.showerror("Champs invalides", "\n".join(errors), parent=root)
+            current_values = collected
 
     def list_frame(parent: ttk.Frame, title: str, columns: tuple[tuple[str, str], ...], *, orderable: bool = False):
         frame = ttk.LabelFrame(parent, text=title, padding=5)
@@ -276,29 +307,33 @@ def _build_metadata_editor(
             "email": (current.email if current else None) or "",
             "affiliations": ", ".join(current.affiliation_ids) if current else "",
         }
-        collected = form_dialog("Contributeur", [
-            ("Identifiant", "id", "entry"),
-            ("Rôle", "role", "combo:" + "|".join(_ROLES)),
-            ("Libellé (rôle other)", "role_label", "entry"),
-            ("Prénom", "given_name", "entry"),
-            ("Nom", "family_name", "entry"),
-            ("Nom littéral", "literal_name", "entry"),
-            ("ORCID", "orcid", "entry"),
-            ("Courriel", "email", "entry"),
-            ("Affiliations (IDs, virgules)", "affiliations", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return Contributor(
-            contributor_id=collected["id"],
-            role=collected["role"],
-            given_name=collected["given_name"] or None,
-            family_name=collected["family_name"] or None,
-            literal_name=collected["literal_name"] or None,
-            orcid=collected["orcid"] or None,
-            email=collected["email"] or None,
-            role_label=collected["role_label"] or None,
-            affiliation_ids=tuple(value.strip() for value in collected["affiliations"].split(",") if value.strip()),
+        def build(collected: dict[str, str]) -> Contributor:
+            return Contributor(
+                contributor_id=collected["id"],
+                role=collected["role"],
+                given_name=collected["given_name"] or None,
+                family_name=collected["family_name"] or None,
+                literal_name=collected["literal_name"] or None,
+                orcid=collected["orcid"] or None,
+                email=collected["email"] or None,
+                role_label=collected["role_label"] or None,
+                affiliation_ids=tuple(value.strip() for value in collected["affiliations"].split(",") if value.strip()),
+            )
+
+        known_affiliation_ids = tuple(item.affiliation_id for item in state.metadata.affiliations)
+        return _validated_form_dialog(
+            "Contributeur", [
+                ("Identifiant", "id", "entry"),
+                ("Rôle", "role", "combo:" + "|".join(_ROLES)),
+                ("Libellé (rôle other)", "role_label", "entry"),
+                ("Prénom", "given_name", "entry"),
+                ("Nom", "family_name", "entry"),
+                ("Nom littéral", "literal_name", "entry"),
+                ("ORCID", "orcid", "entry"),
+                ("Courriel", "email", "entry"),
+                ("Affiliations (IDs, virgules)", "affiliations", "entry"),
+            ], values, build,
+            lambda item: contributor_field_errors(item, known_affiliation_ids),
         )
 
     def affiliation_dialog(current: Affiliation | None) -> Affiliation | None:
@@ -310,14 +345,16 @@ def _build_metadata_editor(
             "country": (current.country if current else None) or "",
             "ror": (current.ror if current else None) or "",
         }
-        collected = form_dialog("Affiliation", [
-            ("Identifiant", "id", "entry"), ("Institution", "name", "entry"), ("Unité", "unit", "entry"),
-            ("Ville", "city", "entry"), ("Pays", "country", "entry"), ("ROR (URL)", "ror", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return Affiliation(collected["id"], collected["name"], collected["unit"] or None,
-                           collected["city"] or None, collected["country"] or None, collected["ror"] or None)
+        def build(collected: dict[str, str]) -> Affiliation:
+            return Affiliation(collected["id"], collected["name"], collected["unit"] or None,
+                               collected["city"] or None, collected["country"] or None, collected["ror"] or None)
+
+        return _validated_form_dialog(
+            "Affiliation", [
+                ("Identifiant", "id", "entry"), ("Institution", "name", "entry"), ("Unité", "unit", "entry"),
+                ("Ville", "city", "entry"), ("Pays", "country", "entry"), ("ROR (URL)", "ror", "entry"),
+            ], values, build, affiliation_field_errors,
+        )
 
     # -------------------------------------------------------------- onglet 3
 
@@ -409,14 +446,17 @@ def _build_metadata_editor(
             "language": current.language if current else (language_var.get() or "fr"),
             "text": current.text if current else "",
         }
-        collected = form_dialog("Résumé", [
-            ("Type", "type", "combo:" + "|".join(_ABSTRACT_TYPES)),
-            ("Langue", "language", "entry"),
-            ("Texte (un paragraphe par ligne)", "text", "text"),
-        ], values)
-        if collected is None:
-            return None
-        return Abstract(collected["type"], collected["language"], collected["text"])
+
+        def build(collected: dict[str, str]) -> Abstract:
+            return Abstract(collected["type"], collected["language"], collected["text"])
+
+        return _validated_form_dialog(
+            "Résumé", [
+                ("Type", "type", "combo:" + "|".join(_ABSTRACT_TYPES)),
+                ("Langue", "language", "entry"),
+                ("Texte (un paragraphe par ligne)", "text", "text"),
+            ], values, build, abstract_field_errors,
+        )
 
     def keyword_dialog(current: KeywordGroup | None) -> KeywordGroup | None:
         values = {
@@ -424,28 +464,34 @@ def _build_metadata_editor(
             "scheme": current.scheme if current else "keywords",
             "items": "\n".join(current.items) if current else "",
         }
-        collected = form_dialog("Groupe de mots-clés", [
-            ("Langue", "language", "entry"),
-            ("Schéma", "scheme", "entry"),
-            ("Mots-clés (un par ligne)", "items", "text"),
-        ], values)
-        if collected is None:
-            return None
-        return KeywordGroup(
-            collected["language"],
-            tuple(line.strip() for line in collected["items"].splitlines() if line.strip()),
-            collected["scheme"] or "keywords",
+
+        def build(collected: dict[str, str]) -> KeywordGroup:
+            return KeywordGroup(
+                collected["language"],
+                tuple(line.strip() for line in collected["items"].splitlines() if line.strip()),
+                collected["scheme"] or "keywords",
+            )
+
+        return _validated_form_dialog(
+            "Groupe de mots-clés", [
+                ("Langue", "language", "entry"),
+                ("Schéma", "scheme", "entry"),
+                ("Mots-clés (un par ligne)", "items", "text"),
+            ], values, build, keyword_group_field_errors,
         )
 
     def responsibility_dialog(current: EditorialResponsibility | None) -> EditorialResponsibility | None:
         values = {"responsibility": current.responsibility if current else "", "name": current.name if current else ""}
-        collected = form_dialog("Responsable d'édition", [
-            ("Responsabilité (ex. éditrice)", "responsibility", "entry"),
-            ("Nom", "name", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return EditorialResponsibility(collected["responsibility"], collected["name"])
+
+        def build(collected: dict[str, str]) -> EditorialResponsibility:
+            return EditorialResponsibility(collected["responsibility"], collected["name"])
+
+        return _validated_form_dialog(
+            "Responsable d'édition", [
+                ("Responsabilité (ex. éditrice)", "responsibility", "entry"),
+                ("Nom", "name", "entry"),
+            ], values, build, responsibility_field_errors,
+        )
 
     # -------------------------------------------------------------- onglet 5
 
@@ -484,27 +530,33 @@ def _build_metadata_editor(
             "value": current.value if current else "",
             "format": (current.identifier_format if current else None) or "",
         }
-        collected = form_dialog("Identifiant", [
-            ("Type", "type", "combo:" + "|".join(_IDENTIFIER_TYPES)),
-            ("Valeur", "value", "entry"),
-            ("Support", "format", "combo:" + "|".join(_IDENTIFIER_FORMATS)),
-        ], values)
-        if collected is None:
-            return None
-        return Identifier(collected["type"], collected["value"], collected["format"] or None)
+
+        def build(collected: dict[str, str]) -> Identifier:
+            return Identifier(collected["type"], collected["value"], collected["format"] or None)
+
+        return _validated_form_dialog(
+            "Identifiant", [
+                ("Type", "type", "combo:" + "|".join(_IDENTIFIER_TYPES)),
+                ("Valeur", "value", "entry"),
+                ("Support", "format", "combo:" + "|".join(_IDENTIFIER_FORMATS)),
+            ], values, build, identifier_field_errors,
+        )
 
     def funding_dialog(current: Funding | None) -> Funding | None:
         values = {
             "funder": current.funder if current else "",
             "grant_number": (current.grant_number if current else None) or "",
         }
-        collected = form_dialog("Financement", [
-            ("Organisme (ex. ANR, ERC)", "funder", "entry"),
-            ("Numéro de subvention", "grant_number", "entry"),
-        ], values)
-        if collected is None:
-            return None
-        return Funding(collected["funder"], collected["grant_number"] or None)
+
+        def build(collected: dict[str, str]) -> Funding:
+            return Funding(collected["funder"], collected["grant_number"] or None)
+
+        return _validated_form_dialog(
+            "Financement", [
+                ("Organisme (ex. ANR, ERC)", "funder", "entry"),
+                ("Numéro de subvention", "grant_number", "entry"),
+            ], values, build, funding_field_errors,
+        )
 
     # ------------------------------------------------------------ etat <-> UI
 
