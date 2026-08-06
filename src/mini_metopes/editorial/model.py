@@ -271,6 +271,7 @@ class EditorialBibliography:
     source_paragraph_index: int
     source_style_id: str | None
     entries: tuple[BibliographicReference, ...]
+    title_required: bool = True
     kind: Literal["bibliography"] = "bibliography"
 
 

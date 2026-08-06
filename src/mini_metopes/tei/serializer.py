@@ -666,7 +666,7 @@ def _append_bibliography(parent: etree._Element | None, bibliography: object, st
     if parent is None or not isinstance(bibliography, EditorialBibliography):
         state.error("bibliography_not_serializable", "bibliographie editoriale invalide")
         return
-    if not bibliography.title:
+    if not bibliography.title and bibliography.title_required:
         state.error("empty_bibliography_title_not_serializable", "titre de bibliographie vide", source_paragraph_index=bibliography.source_paragraph_index)
         return
     if _contains_bibliographic_inline(bibliography.title):
@@ -681,8 +681,9 @@ def _append_bibliography(parent: etree._Element | None, bibliography: object, st
         return
     back = etree.SubElement(parent, _tag("back"))
     division = etree.SubElement(back, _tag("div"), type="bibliography")
-    head = etree.SubElement(division, _tag("head"))
-    _append_inline(head, bibliography.title, state, inside_bibl=True)
+    if bibliography.title:
+        head = etree.SubElement(division, _tag("head"))
+        _append_inline(head, bibliography.title, state, inside_bibl=True)
     listing = etree.SubElement(division, _tag("listBibl"))
     for entry in bibliography.entries:
         _append_bibliographic_reference(listing, entry, state)

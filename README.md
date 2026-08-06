@@ -187,7 +187,17 @@ en TEI `bibl` : elles peuvent etre autonomes, devenir la source immediate d'une
 citation, ou former une bibliographie finale ouverte par `TEIbiblstart`.
 Le style de caractere `TEIbiblreference-inline` produit un `bibl` inline. La
 bibliographie est unique, terminale et devient `text/back/listBibl`; Mini-Metopes
-ne deduit pas de `biblStruct`.
+ne deduit pas de `biblStruct`. Le style natif Word `Bibliography` (sans
+`w:customStyle`) est egalement reconnu, partout ou `TEIbiblreference` l'est ;
+sans `TEIbiblstart`, le premier paragraphe `Bibliography` declenche lui-meme
+la bibliographie terminale, sans `<head>` (Word n'a pas de style de debut de
+bibliographie separe).
+
+Un tableau des matieres Word genere automatiquement (styles `TOC1`-`TOC9`,
+`TOCHeading`) n'est jamais serialise : la structure `div`/`head` deja
+produite en tient lieu. Un diagnostic dedie et actionnable
+(`word_generated_toc_not_supported`) le signale, au lieu de l'echec generique
+de style inconnu.
 
 Un run Word dont la langue de correction (`w:lang`) differe de la langue du
 document (`document.language` du JSON, comparee sur la seule sous-etiquette

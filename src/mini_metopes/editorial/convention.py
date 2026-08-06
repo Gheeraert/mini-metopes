@@ -57,6 +57,7 @@ class WordEditorialConvention:
     bibliography_start_style: tuple[str, str] | None = None
     bibliographic_reference_style: tuple[str, str] | None = None
     bibliographic_reference_inline_style: tuple[str, str] | None = None
+    native_bibliography_style_ids: frozenset[str] = frozenset()
 
     def paragraph_role(
         self,
@@ -194,7 +195,22 @@ class WordEditorialConvention:
     def is_bibliographic_reference_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
     ) -> bool:
+        if self.is_native_bibliography_reference_style(style_id, style_is_custom):
+            return True
         return self.bibliographic_reference_style_status(style_id, style_name, style_is_custom, style_type) == "valid"
+
+    def is_native_bibliography_reference_style(self, style_id: str | None, style_is_custom: bool | None) -> bool:
+        """Reconnaître le style natif Word ``Bibliography`` comme une reference.
+
+        A la difference de ``TEIbiblreference``, ce n'est pas un style
+        controle : aucune declaration ``w:customStyle`` n'est exigee. Word
+        n'a pas de style de « debut de bibliographie » separe (voir decision
+        0026) ; la premiere entree Bibliography rencontree declenche
+        elle-meme la bibliographie terminale, sans titre.
+        """
+        if style_is_custom is True:
+            return False
+        return style_id in self.native_bibliography_style_ids
 
     def is_bibliographic_reference_inline_style(
         self, style_id: str | None, style_name: str | None, style_is_custom: bool | None, style_type: str | None
@@ -298,6 +314,7 @@ NATIVE_WORD_CONVENTION = WordEditorialConvention(
     bibliography_start_style=("TEIbiblstart", "TEI_bibl_start"),
     bibliographic_reference_style=("TEIbiblreference", "TEI_bibl_reference"),
     bibliographic_reference_inline_style=("TEIbiblreference-inline", "TEI_bibl_reference-inline"),
+    native_bibliography_style_ids=frozenset({"Bibliography"}),
 )
 
 

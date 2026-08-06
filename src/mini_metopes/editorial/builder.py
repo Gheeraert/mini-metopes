@@ -248,43 +248,92 @@ def _extract_final_bibliography(
     relationships: dict[str, RelationshipInfo],
     diagnostics: list[EditorialDiagnostic],
 ) -> tuple[tuple[ParagraphInfo | TableInfo, ...], EditorialBibliography | None, set[tuple[str, str]]]:
-    """Extraire l'unique bibliographie terminale du seul flux principal."""
+    """Extraire l'unique bibliographie terminale du seul flux principal.
+
+    Deux declencheurs, mutuellement exclusifs : le style controle
+    ``TEIbiblstart`` (titre explicite, prioritaire s'il est present), ou a
+    defaut le premier paragraphe du style natif ``Bibliography`` (pas de
+    titre : Word n'a pas de style de debut de bibliographie separe).
+    """
     starts = [
         index for index, block in enumerate(blocks)
         if isinstance(block, ParagraphInfo) and convention.is_bibliography_start_style(
             block.style_id, block.style_name, block.style_is_custom, block.style_type
         )
     ]
-    if not starts:
-        return blocks, None, set()
-    reported_multiple_starts: set[int] = set()
-    if len(starts) > 1:
-        for index in starts[1:]:
-            block = blocks[index]
-            assert isinstance(block, ParagraphInfo)
+    if starts:
+        reported_multiple_starts: set[int] = set()
+        if len(starts) > 1:
+            for index in starts[1:]:
+                block = blocks[index]
+                assert isinstance(block, ParagraphInfo)
+                diagnostics.append(_bibliographic_diagnostic(
+                    "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
+                ))
+                reported_multiple_starts.add(block.index)
+        start_index = starts[0]
+        start = blocks[start_index]
+        assert isinstance(start, ParagraphInfo)
+        title, references = _build_inline_content(
+            start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+        )
+        if _contains_bibliographic_inline(title):
             diagnostics.append(_bibliographic_diagnostic(
-                "multiple_bibliographies_not_serializable", "plusieurs debuts de bibliographie", block, None
+                "nested_bibliographic_reference_not_serializable",
+                "reference bibliographique inline dans un titre de bibliographie",
+                start,
+                None,
             ))
-            reported_multiple_starts.add(block.index)
-    start_index = starts[0]
-    start = blocks[start_index]
-    assert isinstance(start, ParagraphInfo)
-    title, references = _build_inline_content(
-        start, convention=convention, relationships=relationships, diagnostics=diagnostics, note_id=None
+        if not title:
+            diagnostics.append(_bibliographic_diagnostic(
+                "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
+            ))
+        entry_position = start_index + 1
+        title_required = True
+    else:
+        native_starts = [
+            index for index, block in enumerate(blocks)
+            if isinstance(block, ParagraphInfo) and convention.is_native_bibliography_reference_style(
+                block.style_id, block.style_is_custom
+            )
+        ]
+        if not native_starts:
+            return blocks, None, set()
+        reported_multiple_starts = set()
+        start_index = native_starts[0]
+        start = blocks[start_index]
+        assert isinstance(start, ParagraphInfo)
+        title = ()
+        references = set()
+        entry_position = start_index
+        title_required = False
+    entries, entry_position = _collect_bibliography_entries(
+        blocks, entry_position,
+        convention=convention, relationships=relationships, diagnostics=diagnostics,
+        references=references, reported_multiple_starts=reported_multiple_starts,
     )
-    if _contains_bibliographic_inline(title):
+    if not entries:
         diagnostics.append(_bibliographic_diagnostic(
-            "nested_bibliographic_reference_not_serializable",
-            "reference bibliographique inline dans un titre de bibliographie",
-            start,
-            None,
+            "bibliography_without_entries_not_serializable", "bibliographie sans entree", start, None
         ))
-    if not title:
-        diagnostics.append(_bibliographic_diagnostic(
-            "empty_bibliography_title_not_serializable", "titre de bibliographie vide", start, None
-        ))
+    return blocks[:start_index], EditorialBibliography(
+        title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries),
+        title_required=title_required,
+    ), references
+
+
+def _collect_bibliography_entries(
+    blocks: tuple[ParagraphInfo | TableInfo, ...],
+    position: int,
+    *,
+    convention: WordEditorialConvention,
+    relationships: dict[str, RelationshipInfo],
+    diagnostics: list[EditorialDiagnostic],
+    references: set[tuple[str, str]],
+    reported_multiple_starts: set[int],
+) -> tuple[list[BibliographicReference], int]:
+    """Consommer les entrees jusqu'a la fin du flux, en refusant tout intrus."""
     entries: list[BibliographicReference] = []
-    position = start_index + 1
     while position < len(blocks):
         block = blocks[position]
         if isinstance(block, ParagraphInfo) and convention.is_bibliographic_reference_style(
@@ -332,13 +381,7 @@ def _extract_final_bibliography(
                 style_id=(block.style_id if isinstance(block, ParagraphInfo) else None),
             ))
         position += 1
-    if not entries:
-        diagnostics.append(_bibliographic_diagnostic(
-            "bibliography_without_entries_not_serializable", "bibliographie sans entree", start, None
-        ))
-    return blocks[:start_index], EditorialBibliography(
-        title=title, source_paragraph_index=start.index, source_style_id=start.style_id, entries=tuple(entries)
-    ), references
+    return entries, position
 
 
 def _build_blocks(
