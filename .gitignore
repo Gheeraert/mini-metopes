@@ -10,3 +10,6 @@ venv/
 .idea/
 references/corpora/
 .idea/
+docs/reference/*.docx
+docs/reference/*.xml
+docs/reference/media/
