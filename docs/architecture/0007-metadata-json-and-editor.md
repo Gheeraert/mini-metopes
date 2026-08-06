@@ -63,5 +63,7 @@ sous forme de nom litteral. Le ROR reste conserve dans le JSON. Le RNG Commons
 Publishing embarque ne permet pas de le representer proprement dans
 `affiliation` dans cette structure de header; la conversion emet donc
 `ror_not_serialized` plutot que de perdre cette donnee silencieusement.
-`document_type`, `contributor_id` et `affiliation_id` restent des donnees
-d'orchestration et de controle du JSON dans cette version.
+`contributor_id` et `affiliation_id` restent des donnees d'orchestration et
+de controle du JSON dans cette version. (`document_type` a ete supprime par
+la decision 0038 : champ purement descriptif, jamais branche a un
+comportement.)

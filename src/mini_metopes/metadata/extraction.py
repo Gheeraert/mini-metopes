@@ -7,8 +7,8 @@ from mini_metopes.editorial.convention import NATIVE_WORD_CONVENTION, native_sty
 
 from .model import MetadataIssue, MetadataSuggestions, SignatureSuggestion
 
-_HEADING_STYLE_IDS_UP_TO_LEVEL_3 = frozenset(
-    style_id for style_id, level in NATIVE_WORD_CONVENTION.heading_style_ids if level <= 3
+_HEADING_STYLE_IDS_UP_TO_LEVEL_2 = frozenset(
+    style_id for style_id, level in NATIVE_WORD_CONVENTION.heading_style_ids if level <= 2
 )
 
 
@@ -53,7 +53,7 @@ def _extract_signature_suggestions(
 ) -> tuple[SignatureSuggestion, ...]:
     """Lire chaque suite de paragraphes ``Signature`` terminale par
     contribution (nom, institution) : fin de document, ou juste avant un
-    titre de niveau 1 a 3 (decision 0032, livre a plusieurs contributions).
+    titre de niveau 1 a 2 (decision 0037, livre entier uniquement).
 
     Jamais consommees : contrairement a Title/Subtitle, ces paragraphes
     restent du contenu editorial visible (voir editorial/builder.py). Une
@@ -79,7 +79,7 @@ def _extract_signature_suggestions(
         while position < total and resolved_style(position) == "Signature":
             run.append(paragraphs[position].text.strip())
             position += 1
-        terminal = position == total or resolved_style(position) in _HEADING_STYLE_IDS_UP_TO_LEVEL_3
+        terminal = position == total or resolved_style(position) in _HEADING_STYLE_IDS_UP_TO_LEVEL_2
         if terminal and run and len(run) <= 2:
             name = run[0] or None
             affiliation = (run[1] or None) if len(run) > 1 else None

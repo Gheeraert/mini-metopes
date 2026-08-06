@@ -391,11 +391,11 @@ def test_extraction_ignores_more_than_two_terminal_signature_lines() -> None:
 
 def test_extraction_reads_one_signature_per_contribution() -> None:
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Claire Dubuisson", style="Signature")
         + paragraph("Universite de Rouen", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps du texte.")
         + paragraph("Autre Auteur", style="Signature")
     )
@@ -411,10 +411,10 @@ def test_extraction_reads_one_signature_per_contribution() -> None:
 
 def test_consistency_check_warns_per_unmatched_signature_with_distinct_paths() -> None:
     body = (
-        paragraph("Contribution un", style="Heading3")
+        paragraph("Contribution un", style="Heading2")
         + paragraph("Corps.")
         + paragraph("Claire Dubuisson", style="Signature")
-        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Contribution deux", style="Heading2")
         + paragraph("Corps.")
         + paragraph("Auteur Inconnu", style="Signature")
     )

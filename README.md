@@ -9,7 +9,10 @@ en charge les sorties HTML, LaTEI, PDF, EPUB et autres formats.
 Mini-Métopes fournit une validation normative Relax NG du noyau Commons
 Publishing, une inspection OOXML en lecture seule des fichiers DOCX et une
 premiere conversion DOCX -> TEI Commons Publishing pour un sous-ensemble
-conservatoire de la convention Word native.
+conservatoire de la convention Word native. Depuis la décision 0037,
+Mini-Métopes ne produit plus que du XML de **livres entiers** (monographie
+ou ouvrage collectif) — jamais un article ou un chapitre isolé ; voir la
+section « Hiérarchie de titres » plus bas.
 
 ## Développement
 
