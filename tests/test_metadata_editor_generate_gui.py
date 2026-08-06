@@ -52,6 +52,13 @@ def _find_button_by_text(root: tk.Misc, text: str) -> ttk.Button | None:
     return None
 
 
+def _find_toplevel_by_title(root: tk.Misc, title: str) -> tk.Toplevel | None:
+    for widget in root.winfo_children():
+        if isinstance(widget, tk.Toplevel) and widget.title() == title:
+            return widget
+    return None
+
+
 # --------------------------------------------------------------- hors Tkinter
 
 
@@ -64,7 +71,15 @@ def test_generation_calls_the_shared_core_and_nothing_else() -> None:
     """
     assert "convert_docx_to_tei" not in _SOURCE
     assert "write_tei_conversion_result" not in _SOURCE
-    assert "generate_tei_commons(state.docx_path, state.metadata, output_path)" in _SOURCE
+    assert "generate_tei_commons(docx_path, metadata, output_path)" in _SOURCE
+
+
+def test_generation_runs_on_a_background_thread() -> None:
+    """La conversion ne doit jamais bloquer la boucle Tk principale."""
+    assert "threading.Thread(target=worker, daemon=True).start()" in _SOURCE
+    worker_index = _SOURCE.index("def worker() -> None:")
+    worker_block = _SOURCE[worker_index : worker_index + 300]
+    assert "generate_tei_commons(docx_path, metadata, output_path)" in worker_block
 
 
 def test_generation_reuses_the_shared_save_logic_before_choosing_output() -> None:
@@ -79,7 +94,7 @@ def test_generation_aborts_when_metadata_save_is_cancelled() -> None:
     save_call = _SOURCE.index("if not save_current_metadata(close=False, show_success=False):")
     following = _SOURCE[save_call : save_call + 90]
     assert "return" in following
-    generation_index = _SOURCE.index("outcome = generate_tei_commons(")
+    generation_index = _SOURCE.index("generate_tei_commons(docx_path, metadata, output_path)")
     assert save_call < generation_index
 
 
@@ -87,7 +102,7 @@ def test_generation_aborts_when_output_path_is_cancelled() -> None:
     """Annuler le choix du XML ne doit pas declencher la conversion."""
     dialog_index = _SOURCE.index('title="Générer la TEI Commons"')
     cancel_index = _SOURCE.index("if not selected:\n            return", dialog_index)
-    generation_index = _SOURCE.index("outcome = generate_tei_commons(")
+    generation_index = _SOURCE.index("generate_tei_commons(docx_path, metadata, output_path)")
     assert dialog_index < cancel_index < generation_index
 
 
@@ -99,13 +114,18 @@ def test_generate_button_is_wired_into_the_shared_enable_disable_logic() -> None
     assert "generate_button.configure(state=" in enable_block[:end]
 
 
-def test_generation_restores_the_ui_in_a_finally_block() -> None:
-    """Le curseur et le bouton doivent revenir a la normale, meme en cas d'erreur."""
-    try_index = _SOURCE.index("outcome = generate_tei_commons(state.docx_path, state.metadata, output_path)")
-    finally_index = _SOURCE.index("finally:", try_index)
-    restore_block = _SOURCE[finally_index : finally_index + 200]
-    assert 'cursor=""' in restore_block
-    assert "generate_button.configure(state=\"normal\"" in restore_block
+def test_generation_restores_the_ui_regardless_of_outcome() -> None:
+    """Le bouton et la fenetre d'attente doivent revenir a la normale, succes ou echec."""
+    poll_index = _SOURCE.index("def poll() -> None:")
+    poll_end = _SOURCE.index("\n        root.after(100, poll)", poll_index)
+    poll_block = _SOURCE[poll_index:poll_end]
+    restore_index = poll_block.index('generate_button.configure(state="normal"')
+    destroy_index = poll_block.index("wait_window.destroy()")
+    error_branch_index = poll_block.index('if kind == "error":')
+    # La fenetre d'attente est fermee et le bouton reactive avant meme de
+    # savoir si la generation a reussi ou echoue.
+    assert destroy_index < error_branch_index
+    assert restore_index < error_branch_index
 
 
 # ------------------------------------------------------------------- Tkinter
@@ -164,9 +184,20 @@ def test_manual_generation_full_flow(monkeypatch, tmp_path: Path) -> None:
             assert str(generate_button["state"]) == "normal"
 
             generate_button.invoke()
-            root.after(20, stage_generated_once)
+            root.after(20, stage_generation_in_progress)
+
+        def stage_generation_in_progress() -> None:
+            """La boite d'attente rassure l'utilisateur pendant la generation."""
+            wait_window = _find_toplevel_by_title(root, "Génération en cours")
+            assert wait_window is not None
+            assert wait_window.winfo_viewable()
+            generate_button = _find_button_by_text(root, "Génération en cours…")
+            assert generate_button is not None
+            assert str(generate_button["state"]) == "disabled"
+            root.after(500, stage_generated_once)
 
         def stage_generated_once() -> None:
+            assert _find_toplevel_by_title(root, "Génération en cours") is None
             assert xml_outputs[0].exists()
             assert len(info_messages) == 1
             assert str(xml_outputs[0]) in info_messages[0][1]
@@ -177,7 +208,7 @@ def test_manual_generation_full_flow(monkeypatch, tmp_path: Path) -> None:
             assert str(generate_button["state"]) == "normal"
 
             generate_button.invoke()
-            root.after(20, stage_generated_twice)
+            root.after(500, stage_generated_twice)
 
         def stage_generated_twice() -> None:
             assert xml_outputs[1].exists()

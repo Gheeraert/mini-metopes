@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import queue
+import threading
 
 from mini_metopes.docx import DocxInspectionError
 from mini_metopes.metadata import (
@@ -849,6 +851,37 @@ def _build_metadata_editor(
             messagebox.showerror("Mini-Métopes", summary, parent=root)
             _show_diagnostics_window("Diagnostics de génération", detail_lines)
 
+    def _show_generation_wait_window() -> tk.Toplevel:
+        """Fenetre modale non bloquante rassurant l'utilisateur pendant la generation.
+
+        La conversion tourne sur un thread separe (inspection DOCX, construction
+        du modele editorial, validation RNG et ecriture des medias peuvent
+        prendre plusieurs secondes sur un document volumineux) ; cette fenetre
+        confirme que Mini-Metopes travaille toujours, sans geler la fenetre
+        principale.
+        """
+        wait_window = tk.Toplevel(root)
+        wait_window.title("Génération en cours")
+        wait_window.resizable(False, False)
+        wait_window.transient(root)
+        wait_window.protocol("WM_DELETE_WINDOW", lambda: None)
+        frame = ttk.Frame(wait_window, padding=16)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(
+            frame,
+            text=(
+                "Génération de la TEI Commons Publishing en cours…\n"
+                "Cela peut prendre quelques instants sur un document volumineux, "
+                "merci de patienter."
+            ),
+            justify="center",
+        ).pack(pady=(0, 10))
+        progress_bar = ttk.Progressbar(frame, mode="indeterminate", length=280)
+        progress_bar.pack()
+        progress_bar.start(12)
+        wait_window.grab_set()
+        return wait_window
+
     @_requires_state
     def generate_tei() -> None:
         nonlocal state
@@ -856,6 +889,7 @@ def _build_metadata_editor(
             return
         assert state is not None
         docx_path = state.docx_path
+        metadata = state.metadata
         suggested = docx_path.with_suffix(".xml")
         selected = filedialog.asksaveasfilename(
             parent=root,
@@ -868,20 +902,36 @@ def _build_metadata_editor(
         if not selected:
             return
         output_path = Path(selected)
+
+        outcome_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+
+        def worker() -> None:
+            try:
+                outcome_queue.put(("success", generate_tei_commons(docx_path, metadata, output_path)))
+            except (DocxInspectionError, OSError, ValueError) as error:
+                outcome_queue.put(("error", error))
+
         if generate_button is not None:
             generate_button.configure(state="disabled", text="Génération en cours…")
-        root.configure(cursor="watch")
-        root.update_idletasks()
-        try:
-            outcome = generate_tei_commons(state.docx_path, state.metadata, output_path)
-        except (DocxInspectionError, OSError, ValueError) as error:
-            messagebox.showerror("Erreur de génération", str(error), parent=root)
-            return
-        finally:
-            root.configure(cursor="")
+        wait_window = _show_generation_wait_window()
+        threading.Thread(target=worker, daemon=True).start()
+
+        def poll() -> None:
+            try:
+                kind, payload = outcome_queue.get_nowait()
+            except queue.Empty:
+                root.after(100, poll)
+                return
+            wait_window.grab_release()
+            wait_window.destroy()
             if generate_button is not None:
                 generate_button.configure(state="normal", text="Générer la TEI Commons…")
-        _report_generation_outcome(outcome)
+            if kind == "error":
+                messagebox.showerror("Erreur de génération", str(payload), parent=root)
+                return
+            _report_generation_outcome(payload)
+
+        root.after(100, poll)
 
     save_button = ttk.Button(actions, textvariable=save_label_var, command=lambda: save_current_metadata())
     save_button.pack(side="left")
