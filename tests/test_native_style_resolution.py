@@ -142,6 +142,25 @@ def test_localized_display_names_resolve_with_case_space_and_accent_folding() ->
     }
 
 
+def test_bibliography_style_resolves_by_canonical_or_localized_name() -> None:
+    """Decision 0036 : ``Bibliography`` n'avait aucun repli par nom avant
+    cette decision, contrairement aux autres styles natifs. Corpus reel :
+    Word peut ecrire ``w:styleId="Bibliographie"`` (identifiant localise,
+    typiquement apres une collision de nom resolue depuis l'interface
+    francaise) avec ``w:name="Bibliography"`` (canonique) ; d'autres
+    producteurs pourraient aussi ecrire le nom localise directement."""
+    aliases = native_style_alias_map(
+        (
+            _style("Bibliographie", "Bibliography"),
+            _style("S1", "bibliographie"),
+        )
+    )
+    assert aliases == {
+        "Bibliographie": "Bibliography",
+        "S1": "Bibliography",
+    }
+
+
 def test_custom_styles_never_resolve_even_with_native_names() -> None:
     aliases = native_style_alias_map(
         (

@@ -391,6 +391,7 @@ NATIVE_PARAGRAPH_STYLE_NAMES: dict[str, str] = _name_table(
     ("Title", ("title", "titre", "titel", "título")),
     ("Subtitle", ("subtitle", "sous-titre", "untertitel", "subtítulo")),
     ("Caption", ("caption", "légende", "beschriftung", "título de ilustración")),
+    ("Bibliography", ("bibliography", "bibliographie")),
 )
 
 NATIVE_CHARACTER_STYLE_NAMES: dict[str, str] = _name_table(
@@ -491,4 +492,5 @@ def resolve_convention_for_styles(
         list_continuation_style_ids=_expand(convention.list_continuation_style_ids),
         figure_container_style_ids=_expand(convention.figure_container_style_ids),
         figure_caption_style_ids=_expand(convention.figure_caption_style_ids),
+        native_bibliography_style_ids=_expand(convention.native_bibliography_style_ids),
     )
