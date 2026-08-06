@@ -263,6 +263,70 @@ def test_trailing_page_break_only_signature_paragraph_does_not_count() -> None:
     assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
 
 
+def test_trailing_page_break_on_a_normal_paragraph_after_signature_is_accepted() -> None:
+    """Corpus reel : le saut de page manuel qui suit une signature atterrit
+    parfois sur un paragraphe qui ne porte plus le style Signature (le
+    style suivant a ete change, ou l'auteur a valide le style suivant
+    propose par Word). Decision 0035."""
+    body = (
+        paragraph("Titre", style="Heading1")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Universite de Rouen", style="Signature")
+        + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    )
+    path = _runtime_docx("signature-trailing-normal-page-break.docx", body)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
+    assert "empty_paragraph_ignored" in [d.code for d in built.diagnostics]
+    last_two = built.document.blocks[-2:]
+    assert [block.content[0].text for block in last_two] == ["Claire Dubuisson", "Universite de Rouen"]
+
+
+def test_page_break_after_signature_no_longer_blocks_tei_generation() -> None:
+    """Reproduction directe du bug signale : un saut de page apres une
+    signature bloquait la generation TEI (``break_not_serializable``),
+    meme quand la signature elle-meme etait valide (decision 0035)."""
+    body = (
+        paragraph("Titre", style="Heading1")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + paragraph("Universite de Rouen", style="Signature")
+        + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    )
+    path = _runtime_docx("signature-page-break-tei.docx", body)
+
+    result = convert_docx_to_tei(path, metadata=_metadata())
+
+    assert result.is_successful, result.diagnostics
+    assert "break_not_serializable" not in [d.code for d in result.diagnostics]
+    tree = etree.fromstring(result.xml_bytes)
+    paragraphs = tree.xpath("//tei:body//tei:p", namespaces=NS)
+    assert [p.text for p in paragraphs[-2:]] == ["Claire Dubuisson", "Universite de Rouen"]
+
+
+def test_page_break_on_a_normal_paragraph_before_the_next_contribution_is_accepted() -> None:
+    """Le meme saut de page, cette fois entre deux contributions d'un
+    livre (decision 0032) : la signature reste terminale par rapport a la
+    contribution qui precede."""
+    body = (
+        paragraph("Contribution un", style="Heading3")
+        + paragraph("Corps du texte.")
+        + paragraph("Claire Dubuisson", style="Signature")
+        + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+        + paragraph("Contribution deux", style="Heading3")
+        + paragraph("Corps du texte.")
+        + paragraph("Autre Auteur", style="Signature")
+    )
+    path = _multi_level_docx("signature-page-break-next-contribution.docx", body)
+
+    built = build_editorial_document(inspect_docx_file(path))
+
+    assert "misplaced_signature_not_serializable" not in [d.code for d in built.diagnostics]
+
+
 def test_signature_serializes_as_a_plain_paragraph_without_rend() -> None:
     body = (
         paragraph("Titre de section", style="Heading1")

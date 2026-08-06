@@ -221,7 +221,9 @@ Chaque ligne devient un `<p>` simple (le profil Commons Publishing n'a pas
 de valeur `@rend` dediee). Le nom de chaque signature trouvee est compare
 aux `contributors` du JSON ; une absence de correspondance produit un
 avertissement par occurrence (`signature_contributor_not_in_metadata`),
-jamais bloquant.
+jamais bloquant. Un saut de page manuel qui suit immediatement la
+signature est ignore sans bloquer la conversion, meme s'il n'est plus
+porte par un paragraphe style `Signature` (decision 0035).
 
 Un DOCX peut representer un chapitre/article autonome, ou un livre
 entier/extrait multi-chapitres. Dans ce second cas, la convention

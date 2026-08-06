@@ -879,6 +879,33 @@ def _build_blocks(
                 )
             )
             paragraph_position += 1
+            if paragraph_position == run_end:
+                # Fin reelle du bloc Signature valide : consommer les
+                # paragraphes de bordure sans contenu reel (saut de page/
+                # colonne isole inclus, quel que soit leur style) qui ont
+                # permis a _signature_run_is_terminal de reconnaitre la
+                # position terminale. Un saut de page n'est jamais
+                # serialisable en TEI (voir tei/serializer.py) ; sans ce
+                # retrait, le paragraphe qui le porte bloquerait la
+                # generation meme si la signature elle-meme est acceptee.
+                # Voir decision 0035.
+                while (
+                    paragraph_position < len(paragraphs)
+                    and isinstance(paragraphs[paragraph_position], ParagraphInfo)
+                    and _is_signature_run_filler(paragraphs[paragraph_position])
+                ):
+                    filler = paragraphs[paragraph_position]
+                    diagnostics.append(
+                        EditorialDiagnostic(
+                            code="empty_paragraph_ignored",
+                            severity="info",
+                            message="paragraphe Word vide ignore (artefact de mise en page)",
+                            paragraph_index=filler.index,
+                            style_id=filler.style_id,
+                            note_id=note_id,
+                        )
+                    )
+                    paragraph_position += 1
             continue
 
         if role.kind == "floating_text":
@@ -1150,10 +1177,24 @@ def _signature_run_is_terminal(
     plusieurs contributions ; voir decision 0032). Un titre de niveau 4 ou
     plus reste une sous-section de la MEME contribution : la signature ne
     peut pas le preceder.
+
+    Un ou plusieurs paragraphes sans contenu reel (saut de page/colonne
+    isole inclus) entre la signature et cette limite ne comptent pas :
+    Word insere frequemment un saut de page manuel juste apres une
+    signature, sur un paragraphe qui ne porte plus necessairement le style
+    ``Signature`` lui-meme (contrairement a l'artefact de la decision
+    0031). Voir decision 0035.
     """
-    if run_end == len(paragraphs):
+    position = run_end
+    while (
+        position < len(paragraphs)
+        and isinstance(paragraphs[position], ParagraphInfo)
+        and _is_signature_run_filler(paragraphs[position])
+    ):
+        position += 1
+    if position == len(paragraphs):
         return True
-    next_block = paragraphs[run_end]
+    next_block = paragraphs[position]
     if not isinstance(next_block, ParagraphInfo):
         return False
     role = _paragraph_role(next_block, convention)

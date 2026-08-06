@@ -77,3 +77,9 @@ qui le porte) est traité comme du bruit dans ce périmètre restreint.
   détection de fin de bloc `Signature` ; aucun changement de
   `is_semantically_empty_paragraph` ni de la politique générale sur les
   sauts de page ailleurs dans le corps.
+- Limite levée par la décision 0035 : à l'origine, seul un paragraphe
+  encore stylé `Signature` bénéficiait de cette tolérance. Un saut de
+  page atterrissant sur un paragraphe qui ne porte plus ce style (style
+  suivant changé) restait refusé — corrigé en généralisant la détection
+  et la consommation des paragraphes de bordure sans contenu réel, sans
+  condition de style.
