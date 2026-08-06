@@ -26,7 +26,7 @@ def _metadata(**changes) -> DocumentMetadata:
     base = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
         source=SourceDocument("document.docx", "ab" * 32),
-        document_type="chapter", language="fr", title="Titre",
+        language="fr", title="Titre",
     )
     from dataclasses import replace
 

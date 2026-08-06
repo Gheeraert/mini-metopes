@@ -26,12 +26,12 @@
   </teiHeader>
   <text>
     <body>
-      <div>
+      <div type="part">
         <head>Section</head>
         <p>Paragraphe.</p>
         <div>
           <div>
-            <div>
+            <div type="section2">
               <head>Saut direct au niveau 4</head>
               <p>Paragraphe final.</p>
             </div>

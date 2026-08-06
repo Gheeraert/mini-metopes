@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "source.docx",
     "sha256": "a263e8a44e05346bf514ca732b0df40e994d32dd0262817057cb005b47f9426e"
   },
   "document": {
-    "type": "chapter",
     "language": "en-GB",
     "title": "An Ordinary Academic Article",
     "subtitle": "Sections, quotations and lists"

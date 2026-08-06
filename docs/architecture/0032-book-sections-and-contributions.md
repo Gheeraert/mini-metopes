@@ -1,5 +1,9 @@
 # 0032 — Livre a plusieurs contributions : Titre2/Titre3, Signature par contribution
 
+**Statut : remplacee par la decision 0037** (hierarchie de titres
+compatible Impressions, livre entier uniquement, aucune retrocompatibilite).
+Conservee comme archive historique.
+
 ## Contexte
 
 Le test sur le manuscrit reel (decisions 0030/0031) a mis en evidence

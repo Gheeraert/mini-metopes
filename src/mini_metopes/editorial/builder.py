@@ -861,8 +861,8 @@ def _build_blocks(
                             severity="error",
                             message=(
                                 "signature d'auteur (style Signature) doit preceder immediatement "
-                                "la section/contribution suivante (Titre1 a Titre3) ou la fin du "
-                                "document, et compter deux lignes au plus (nom, institution)"
+                                "la partie/chapitre/contribution suivante (Titre1 a Titre2) ou la fin "
+                                "du document, et compter deux lignes au plus (nom, institution)"
                             ),
                             paragraph_index=invalid_block.index,
                             style_id=invalid_block.style_id,
@@ -1173,10 +1173,11 @@ def _signature_run_is_terminal(
     paragraphs: tuple[ParagraphInfo | TableInfo, ...], run_end: int, convention: WordEditorialConvention
 ) -> bool:
     """Un bloc ``Signature`` est terminal en fin de document, ou juste avant
-    un titre de niveau 1 a 3 (fin de contribution/section pour un livre a
-    plusieurs contributions ; voir decision 0032). Un titre de niveau 4 ou
-    plus reste une sous-section de la MEME contribution : la signature ne
-    peut pas le preceder.
+    un titre de niveau 1 a 2 (partie ou pivot chapitre/contribution suivant,
+    voir decision 0037 ; Titre3 est desormais une section interne a la
+    contribution, plus une frontiere). Un titre de niveau 3 ou plus reste
+    une sous-section de la MEME contribution : la signature ne peut pas le
+    preceder.
 
     Un ou plusieurs paragraphes sans contenu reel (saut de page/colonne
     isole inclus) entre la signature et cette limite ne comptent pas :
@@ -1198,7 +1199,7 @@ def _signature_run_is_terminal(
     if not isinstance(next_block, ParagraphInfo):
         return False
     role = _paragraph_role(next_block, convention)
-    return role.kind == "heading" and role.heading_level is not None and role.heading_level <= 3
+    return role.kind == "heading" and role.heading_level is not None and role.heading_level <= 2
 
 
 def _build_editorial_table(

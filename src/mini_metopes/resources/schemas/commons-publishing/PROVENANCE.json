@@ -8,5 +8,7 @@
   "tei_stylesheets_version": "v7.54.0",
   "retrieved_from": "references/normative/tei-commons-publishing.zip (project-supplied archive)",
   "source_sha256": "f87ddd5a2673fda9994e516653bd9dda185380620ebf4d1a52c2b980a3b5d979",
-  "local_modifications": false
+  "local_modifications": true,
+  "local_modifications_description": "Extension pour le contrat Impressions/Metopes (decision 0037, docs/architecture/METOPES_COMMONS_LATEI_CONTRACT.md) : ajout de div/@type part|chapter|titlePage, de p/@rend title-main|title-sub, et de l'element group (semantique TEI P5 standard) comme alternative a body dans text/model.resource.",
+  "local_sha256": "04bb10f0aa4ea799bbe9d95fb0552af27e3604ec7ed1c0494a879580e6e7cc08"
 }

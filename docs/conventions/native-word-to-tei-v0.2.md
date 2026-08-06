@@ -57,7 +57,7 @@ diagnostics explicites et bloquants.
 
 | Entrée Word native | Critères de reconnaissance | Modèle éditorial | Sortie TEI | Restrictions et diagnostics |
 | --- | --- | --- | --- | --- |
-| `Heading1`–`Heading6` (« Titre 1 »–« Titre 6 ») | id canonique, nom `heading n`/`titre n`, ou `outlineLvl` 0–5 | `Heading(level)` | `div` hiérarchisés + `head` | saut de niveau : `heading_level_jump` (info, non bloquant) ; titre vide : diagnostic dédié |
+| `Heading1`–`Heading6` (« Titre 1 »–« Titre 6 ») | id canonique, nom `heading n`/`titre n`, ou `outlineLvl` 0–5 | `Heading(level)` | `div` hiérarchisés + `head`, `@type` selon le niveau (voir ci-dessous) | saut de niveau : `heading_level_jump` (info, non bloquant) ; titre vide : diagnostic dédié |
 | `Normal`, sans style | id/nom `Normal` ou paragraphe sans `pStyle` | `Paragraph` | `p` | paragraphe vide non sérialisable |
 | `BodyText` (« Corps de texte ») | id canonique ou nom `Body Text`/`corps de texte`, non personnalisé | `Paragraph(rendition="consecutive")` | `p rend="consecutive"` | `BodyText2`, `BodyText3` et homonymes personnalisés refusés |
 | `Quote` (« Citation ») | id/nom, non personnalisé | `ProseQuote` (paragraphes consécutifs regroupés) | `quote` avec `p` (dans `cit` si source bibliographique) | citation vide refusée |
@@ -76,22 +76,37 @@ zones de texte, tableaux non simples, sauts de page/colonne, tabulations…)
 bloquent la conversion avec des diagnostics stables ; ils ne sont jamais
 transformés silencieusement en paragraphes.
 
-### Livre à plusieurs contributions (`Heading1`–`Heading3`)
+### Hiérarchie de titres d'un livre entier (`Heading1`–`Heading6`, décision 0037)
 
-Un DOCX peut représenter un chapitre/article autonome (`Heading1` = titre
-du chapitre, usage habituel), ou un livre entier/extrait multi-chapitres.
-Dans ce second cas, convention d'écriture : `Heading2` (« Titre 2 ») pour
-une section du livre, `Heading3` (« Titre 3 ») pour le titre d'une
-contribution (recueil collectif) ou d'un chapitre (monographie) ;
-`Heading1` n'est pas utilisé à l'intérieur d'un livre. Cette hiérarchie
-n'est pas une règle bloquante : le mécanisme générique d'imbrication `div`
-par niveau de titre produit déjà la structure attendue quel que soit le
-niveau de départ (voir décision 0032). Conséquence directe pour le style
-`Signature` : un bloc terminal par rapport à une contribution est reconnu
-juste avant la fin du document, ou juste avant un titre de niveau 1 à 3
-(la contribution/section suivante) — un titre de niveau 4 ou plus reste
-une sous-section de la même contribution et ne rend pas la signature
-terminale.
+Mini-Métopes ne produit plus que du XML de livres entiers (jamais un
+article ou un chapitre isolé), compatible avec le contrat Impressions/
+Metopes (`docs/architecture/METOPES_COMMONS_LATEI_CONTRACT.md`) :
+
+| Niveau Word | Rôle | Sortie TEI |
+| --- | --- | --- |
+| `Heading1` (« Titre 1 ») | partie du livre, facultative | `div type="part"` |
+| `Heading2` (« Titre 2 ») | pivot : chapitre (monographie) ou contribution (ouvrage collectif) | `div type="chapter"` **ou** `group type="article"` avec un `text`/`front`/`div type="titlePage"` par contribution (détection automatique, voir ci-dessous) |
+| `Heading3`–`Heading6` | sections internes | `div type="section1"`–`section4` |
+
+La détection monographie/ouvrage collectif est automatique et purement
+structurelle, sans champ à renseigner : 2 titres `Heading2` ou plus dans
+le document déclenchent la forme collective (chaque occurrence devient un
+`<text>` séparé avec sa propre page de titre, `<p rend="title-main">` pour
+le titre repris du `Heading2`) ; 0 ou 1 occurrence reste une monographie à
+`<div>` typés imbriqués. Une partie (`Heading1`) ne peut pas contenir
+plusieurs contributions — TEI n'admet pas `<text>`/`<group>` comme enfant
+de `<div>` — et produit alors un diagnostic bloquant dédié
+(`part_with_collective_work_not_serializable`).
+
+Conséquence directe pour le style `Signature` : un bloc terminal par
+rapport à une partie/un chapitre/une contribution est reconnu juste avant
+la fin du document, ou juste avant un titre de niveau 1 à 2 — un titre de
+niveau 3 ou plus reste une section interne à la contribution et ne rend
+pas la signature terminale.
+
+Hors périmètre pour cette passe : pas de sous-titre de contribution
+(`p rend="title-sub"`), aucune convention d'écriture Word ne l'indiquant
+encore.
 
 ## Vocabulaire XML des listes (vérifié)
 

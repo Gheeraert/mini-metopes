@@ -68,7 +68,6 @@ from .metadata_controller import (
 from .metadata_editor_api import MetadataEditorResult
 
 _ROLES = ("author", "editor", "translator", "scientific_editor", "other")
-_DOCUMENT_TYPES = ("article", "chapter", "book", "introduction", "conclusion", "bibliography", "other")
 _IDENTIFIER_TYPES = ("doi", "isbn-13", "isbn-10", "issn", "eissn", "local")
 _IDENTIFIER_FORMATS = ("", "print", "pdf", "epub", "html")
 _ABSTRACT_TYPES = ("summary", "abstract", "back-cover")
@@ -265,12 +264,9 @@ def _build_metadata_editor(
     title_var = tk.StringVar()
     subtitle_var = tk.StringVar()
     language_var = tk.StringVar()
-    type_var = tk.StringVar()
     for row, (label, variable) in enumerate((("Titre", title_var), ("Sous-titre", subtitle_var), ("Langue (BCP 47)", language_var))):
         ttk.Label(general, text=label).grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(general, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=2)
-    ttk.Label(general, text="Type").grid(row=3, column=0, sticky="w", pady=2)
-    ttk.Combobox(general, textvariable=type_var, values=_DOCUMENT_TYPES, state="readonly").grid(row=3, column=1, sticky="w", pady=2)
 
     diagnostics_frame = ttk.LabelFrame(document_tab, text="Diagnostics", padding=6)
     diagnostics_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=6)
@@ -595,7 +591,6 @@ def _build_metadata_editor(
             title=title_var.get(),
             subtitle=subtitle_var.get() or None,
             language=language_var.get(),
-            document_type=type_var.get(),
             publication=Publication(
                 publisher=Publisher(
                     name=publisher_name_var.get().strip() or None,
@@ -658,7 +653,6 @@ def _build_metadata_editor(
         title_var.set(state.metadata.title)
         subtitle_var.set(state.metadata.subtitle or "")
         language_var.set(state.metadata.language)
-        type_var.set(state.metadata.document_type)
         publisher = state.metadata.publication.publisher
         publisher_name_var.set(publisher.name or "")
         publisher_place_var.set(publisher.place or "")

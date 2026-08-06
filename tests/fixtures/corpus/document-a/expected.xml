@@ -26,10 +26,10 @@
   </teiHeader>
   <text>
     <body>
-      <div>
+      <div type="part">
         <head>Première section</head>
         <p>Un paragraphe normal avec de l'<hi rend="italic">italique</hi> et du <hi rend="bold">gras</hi>.<note place="foot"><p>Note de bas de page minimale.</p></note></p>
-        <div>
+        <div type="chapter">
           <head>Première sous-section</head>
           <p>Un second paragraphe normal.</p>
         </div>

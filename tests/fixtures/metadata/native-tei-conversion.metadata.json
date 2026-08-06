@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "native-tei-conversion.docx",
     "sha256": "6c06f035302c2bb4885a81d0a7e2482821563b237c6d1160e8e8a703804ca4a9"
   },
   "document": {
-    "type": "chapter",
     "language": "fr",
     "title": "Une conversion synthetique",
     "subtitle": "Metadonnees JSON et TEI"

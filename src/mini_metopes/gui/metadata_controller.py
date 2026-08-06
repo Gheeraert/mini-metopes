@@ -68,7 +68,7 @@ def create_initial_metadata_state(docx_path: Path, metadata_path: Path | None = 
     metadata = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
         source=SourceDocument(source_document_reference(docx_path, path), compute_file_sha256(docx_path)),
-        document_type="chapter", language="fr", title=suggestions.title or "", subtitle=suggestions.subtitle,
+        language="fr", title=suggestions.title or "", subtitle=suggestions.subtitle,
     )
     return MetadataEditorState(
         docx_path,
@@ -257,7 +257,6 @@ def _probe_metadata(**overrides: Any) -> DocumentMetadata:
     base = DocumentMetadata(
         schema_version=METADATA_SCHEMA_VERSION,
         source=_PROBE_SOURCE,
-        document_type="chapter",
         language="fr",
         title="Titre provisoire",
     )

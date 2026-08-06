@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "native-lists-tei.docx",
     "sha256": "12fa52edd41a641321335d35f2712d11ceef4ffc1fa51ab49d328aa2c3ac4964"
   },
   "document": {
-    "type": "chapter",
     "language": "fr",
     "title": "Listes synthétiques",
     "subtitle": "Conversion TEI imbriquée"

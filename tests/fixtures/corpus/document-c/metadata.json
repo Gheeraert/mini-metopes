@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "source.docx",
     "sha256": "85653685d77eef042ba78ac1b42f6a0d60d85080e12af510812ee0148d5b962f"
   },
   "document": {
-    "type": "chapter",
     "language": "fr",
     "title": "Stances pour une conversion",
     "subtitle": null

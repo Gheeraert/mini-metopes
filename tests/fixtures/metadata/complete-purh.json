@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "source_document": {
     "path": "chapitres/conclusion_racine.docx",
     "sha256": "abababababababababababababababababababababababababababababababab"
   },
   "document": {
-    "type": "conclusion",
     "language": "fr-FR",
     "title": "Vestiges de l'amour",
     "subtitle": "Ferments de la liberté"
