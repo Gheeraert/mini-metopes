@@ -13,6 +13,7 @@ dependencies = ["lxml>=5"]
 
 [project.optional-dependencies]
 dev = ["build>=1", "pytest>=8"]
+build-exe = ["nuitka>=2", "ordered-set"]
 
 [project.scripts]
 mini-metopes = "mini_metopes.cli:main"

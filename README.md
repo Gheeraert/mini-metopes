@@ -55,6 +55,20 @@ metadonnees validees qui alimentent le `teiHeader`. Par defaut,
 `document.docx` est associe a `document.metadata.json`; `convert-docx` exige ce
 JSON (ou `--metadata`) et ne lance jamais l'interface automatiquement.
 
+## Compilation en exécutable (Nuitka)
+
+Un exécutable autonome (onefile) peut être généré localement avec
+[Nuitka](https://nuitka.net/). Il n'est jamais versionné : `dist/` est ignoré
+par git et doit être régénéré sur chaque poste.
+
+```powershell
+python -m pip install -e ".[build-exe]"
+python tools/build_executable.py
+```
+
+L'exécutable est produit dans `dist/mini-metopes.exe` (Windows) ou
+`dist/mini-metopes` (Linux/macOS).
+
 ## Intégration de l'éditeur de métadonnées
 
 L'usage autonome reste la CLI :
